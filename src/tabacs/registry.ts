@@ -34,10 +34,21 @@ type Registry = { current: string; tabacs: TabacEntry[] };
 
 const STORAGE_KEY = 'carotte:tabacs';
 export const PRINCIPAL_ID = 'principal';
-const DEFAULT_NAME = 'Mon tabac';
+/** Nom d'un tabac tant que le gérant ne l'a pas renommé (aussi la valeur par défaut de `settings.shopName`). */
+export const DEFAULT_TABAC_NAME = 'Mon tabac';
+const CORRUPT_BACKUP_KEY = 'carotte:tabacs:corrompu';
 
-/** Copie en mémoire : sert seulement quand localStorage est indisponible (navigation privée, accès refusé). */
+/**
+ * Registre tel que cette page l'a chargé. Une fois chargé, il reste la référence quand localStorage est
+ * indisponible, refuse l'écriture (quota) ou ne contient rien de valide : la clé d'un tabac ne change donc
+ * jamais en cours de page.
+ */
 let memory: Registry | undefined;
+
+/** Pour les tests : oublie le registre gardé en mémoire. */
+export function resetRegistryMemoryForTests(): void {
+  memory = undefined;
+}
 
 /** Nom de la base IndexedDB d'un tabac. `principal` garde la base historique « la-carotte ». */
 export function dbNameFor(id: string): string {
@@ -73,14 +84,21 @@ function load(defaultName: string): Registry {
   if (raw !== null) {
     try {
       const ok = sanitize(JSON.parse(raw));
-      if (ok) return ok;
+      if (ok) return (memory = ok);
     } catch {
-      /* JSON corrompu : on repart d'un registre « principal » */
+      /* JSON corrompu */
+    }
+    // Valeur illisible : on en garde une copie avant de la remplacer.
+    try {
+      localStorage.setItem(CORRUPT_BACKUP_KEY, raw);
+    } catch {
+      /* tant pis */
     }
   }
-  const fresh: Registry = { current: PRINCIPAL_ID, tabacs: [newPrincipal(defaultName)] };
-  save(fresh);
-  return fresh;
+  // Rien de valide en stockage : la copie en mémoire (si la page en a une) fait foi, sinon on repart de « principal ».
+  const r: Registry = memory ?? { current: PRINCIPAL_ID, tabacs: [newPrincipal(defaultName)] };
+  save(r);
+  return r;
 }
 
 function save(r: Registry): void {
@@ -93,14 +111,14 @@ function save(r: Registry): void {
 }
 
 /** Au premier lancement, crée « principal » pour la base existante. Sans effet ensuite. */
-export function ensureRegistry(defaultName: string = DEFAULT_NAME): void {
+export function ensureRegistry(defaultName: string = DEFAULT_TABAC_NAME): void {
   load(defaultName);
 }
 
-export const listTabacs = (): TabacEntry[] => load(DEFAULT_NAME).tabacs;
+export const listTabacs = (): TabacEntry[] => load(DEFAULT_TABAC_NAME).tabacs;
 
 export function currentTabac(): TabacEntry {
-  const r = load(DEFAULT_NAME);
+  const r = load(DEFAULT_TABAC_NAME);
   return r.tabacs.find((t) => t.id === r.current) ?? r.tabacs[0];
 }
 
@@ -111,7 +129,8 @@ const randomId = (): string => {
 
 /** Crée un tabac (clé neuve) ou en rejoint un (clé de l'invitation). Ne change pas de tabac courant. */
 export function addTabac(name: string, key?: string): TabacEntry {
-  const r = load(DEFAULT_NAME);
+  if (key !== undefined && !KEY_PATTERN.test(key)) throw new Error('clé invalide');
+  const r = load(DEFAULT_TABAC_NAME);
   let id = randomId();
   while (r.tabacs.some((t) => t.id === id) || id === PRINCIPAL_ID) id = randomId();
   const entry: TabacEntry = { id, name, key: key ?? generateTabacKey(), addedAt: Date.now() };
@@ -121,21 +140,21 @@ export function addTabac(name: string, key?: string): TabacEntry {
 
 /** Change de tabac courant dans le registre (la page doit ensuite être rechargée : voir `switchTabac`). */
 export function setCurrentTabac(id: string): void {
-  const r = load(DEFAULT_NAME);
+  const r = load(DEFAULT_TABAC_NAME);
   if (r.tabacs.some((t) => t.id === id)) save({ ...r, current: id });
 }
 
 export function renameTabac(id: string, name: string): void {
-  const r = load(DEFAULT_NAME);
+  const r = load(DEFAULT_TABAC_NAME);
   save({ ...r, tabacs: r.tabacs.map((t) => (t.id === id ? { ...t, name } : t)) });
 }
 
-/** Le nom affiché reprend `settings.shopName` (partagé) ; ignoré s'il est vide ou identique. */
-export function syncRegistryName(shopName: string): void {
+/** Le nom affiché reprend `settings.shopName` (partagé) ; ignoré s'il est vide, identique ou si le tabac n'existe plus. */
+export function syncRegistryName(id: string, shopName: string): void {
   const name = shopName.trim();
   if (!name) return;
-  const cur = currentTabac();
-  if (cur.name !== name) renameTabac(cur.id, name);
+  const entry = listTabacs().find((t) => t.id === id);
+  if (entry && entry.name !== name) renameTabac(id, name);
 }
 
 /**
@@ -143,7 +162,7 @@ export function syncRegistryName(shopName: string): void {
  * Si c'est le tabac courant, un autre devient courant (la page doit ensuite être rechargée).
  */
 export async function removeTabac(id: string): Promise<boolean> {
-  const r = load(DEFAULT_NAME);
+  const r = load(DEFAULT_TABAC_NAME);
   if (r.tabacs.length <= 1 || !r.tabacs.some((t) => t.id === id)) return false;
   const tabacs = r.tabacs.filter((t) => t.id !== id);
   save({ current: r.current === id ? tabacs[0].id : r.current, tabacs });

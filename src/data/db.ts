@@ -2,7 +2,7 @@ import Dexie, { type Table } from 'dexie';
 import type { CountLine, Product, ProductFields, Settings } from '../domain/types';
 import type { Contribution } from '../domain/sharing';
 import type { Op } from '../sync/merge';
-import { currentTabac, dbNameFor, ensureRegistry, syncRegistryName } from '../tabacs/registry';
+import { currentTabac, DEFAULT_TABAC_NAME, dbNameFor, ensureRegistry, listTabacs, syncRegistryName } from '../tabacs/registry';
 
 export type OutboxItem = Contribution & { id?: number; createdAt: number };
 
@@ -11,7 +11,7 @@ export type SyncStateRow = { key: string; value: unknown };
 
 type SettingsRow = Settings & { key: 'main' };
 
-export const DEFAULT_SETTINGS: Settings = { shopName: 'Mon tabac', sortCount: 'name' };
+export const DEFAULT_SETTINGS: Settings = { shopName: DEFAULT_TABAC_NAME, sortCount: 'name' };
 
 export class CarotteDB extends Dexie {
   products!: Table<Product, string>;
@@ -49,8 +49,10 @@ export const openTabacDb = (id: string): CarotteDB => new CarotteDB(dbNameFor(id
 
 // Ce module est évalué avant main.tsx : le registre doit exister avant d'ouvrir la base.
 // Changer de tabac recharge la page, donc `db` reste constant pour la durée de la page.
-ensureRegistry(DEFAULT_SETTINGS.shopName);
-export const db = openTabacDb(currentTabac().id);
+ensureRegistry(DEFAULT_TABAC_NAME);
+/** Tabac dont cette page a ouvert la base (un autre onglet peut changer le tabac courant du registre). */
+export const dbTabacId = currentTabac().id;
+export const db = openTabacDb(dbTabacId);
 
 export function newId(): string {
   return globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
@@ -66,8 +68,25 @@ export async function getSettings(): Promise<Settings> {
 export async function saveSettings(patch: Partial<Settings>): Promise<Settings> {
   const next = { ...(await getSettings()), ...patch };
   await db.settings.put({ ...next, key: 'main' });
-  if (patch.shopName !== undefined) syncRegistryName(next.shopName);
+  if (patch.shopName !== undefined) syncRegistryName(dbTabacId, next.shopName);
   return next;
+}
+
+/**
+ * Au démarrage : le nom du tabac dans le registre suit `settings.shopName`. Dans une base neuve (tabac créé ou
+ * rejoint), il n'y a pas encore de réglages : on y écrit le nom du registre, sans horloge, pour que les
+ * réglages venus des autres téléphones l'emportent ensuite.
+ */
+export async function syncSettingsNameAtStartup(): Promise<void> {
+  await db.transaction('rw', db.settings, async () => {
+    const row = await db.settings.get('main');
+    if (row) {
+      syncRegistryName(dbTabacId, row.shopName);
+      return;
+    }
+    const entry = listTabacs().find((t) => t.id === dbTabacId);
+    if (entry) await db.settings.put({ ...DEFAULT_SETTINGS, shopName: entry.name, key: 'main' });
+  });
 }
 
 export const listProducts = () => db.products.toArray();

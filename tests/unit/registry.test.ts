@@ -3,14 +3,17 @@ import Dexie from 'dexie';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   addTabac, currentTabac, dbNameFor, ensureRegistry, listTabacs, removeTabac, renameTabac,
-  setCurrentTabac, syncRegistryName,
+  resetRegistryMemoryForTests, setCurrentTabac, syncRegistryName,
 } from '../../src/tabacs/registry';
-import { CarotteDB, openTabacDb } from '../../src/data/db';
+import { CarotteDB, DEFAULT_SETTINGS, db, dbTabacId, openTabacDb, saveSettings, syncSettingsNameAtStartup } from '../../src/data/db';
 
 const STORAGE_KEY = 'carotte:tabacs';
 const line = (id: string) => ({ id, code: '0417', name: 'Cash', linearQty: 3, stockQty: 12, updatedAt: 0 });
 
-beforeEach(() => localStorage.clear());
+beforeEach(() => {
+  localStorage.clear();
+  resetRegistryMemoryForTests();
+});
 afterEach(() => vi.restoreAllMocks());
 
 describe('ensureRegistry', () => {
@@ -51,7 +54,24 @@ describe('ensureRegistry', () => {
     expect(() => ensureRegistry('Mon tabac')).not.toThrow();
     const t = currentTabac();
     expect(t.id).toBe('principal');
+    expect(t.name).toBe('Mon tabac');
     expect(currentTabac().key).toBe(t.key);
+  });
+  it('si l\'écriture échoue (quota) mais pas la lecture, la clé reste la même dans la page', () => {
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('quota'); });
+    ensureRegistry('Mon tabac');
+    const key = currentTabac().key;
+    expect(currentTabac().key).toBe(key);
+    expect(listTabacs()[0].key).toBe(key);
+    const a = addTabac('Rue haute');
+    expect(listTabacs().map((t) => t.id)).toEqual(['principal', a.id]);
+    expect(currentTabac().key).toBe(key);
+  });
+  it('un JSON corrompu est copié dans carotte:tabacs:corrompu avant d\'être remplacé', () => {
+    localStorage.setItem(STORAGE_KEY, '{pas du json');
+    ensureRegistry('Mon tabac');
+    expect(localStorage.getItem('carotte:tabacs:corrompu')).toBe('{pas du json');
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!).current).toBe('principal');
   });
 });
 
@@ -75,6 +95,10 @@ describe('tabacs', () => {
     expect(b.id).not.toBe(a.id);
     expect(listTabacs().map((t) => t.name)).toEqual(['Mon tabac', 'Rue haute', 'Gare']);
   });
+  it('addTabac refuse une clé invalide', () => {
+    expect(() => addTabac('Gare', 'trop-courte')).toThrow();
+    expect(listTabacs()).toHaveLength(1);
+  });
   it('setCurrentTabac et renameTabac', () => {
     const a = addTabac('Rue haute');
     setCurrentTabac(a.id);
@@ -84,13 +108,22 @@ describe('tabacs', () => {
     setCurrentTabac('inconnu');
     expect(currentTabac().id).toBe(a.id);
   });
-  it('syncRegistryName renomme le tabac courant seulement si le nom est non vide et différent', () => {
-    syncRegistryName('Tabac du coin');
+  it('syncRegistryName renomme le tabac visé seulement si le nom est non vide et différent', () => {
+    syncRegistryName('principal', 'Tabac du coin');
     expect(currentTabac().name).toBe('Tabac du coin');
-    syncRegistryName('   ');
+    syncRegistryName('principal', '   ');
     expect(currentTabac().name).toBe('Tabac du coin');
-    syncRegistryName('  Tabac du port ');
+    syncRegistryName('principal', '  Tabac du port ');
     expect(currentTabac().name).toBe('Tabac du port');
+    syncRegistryName('inconnu', 'Autre');
+    expect(listTabacs()).toHaveLength(1);
+  });
+  it('syncRegistryName ne touche pas un autre tabac devenu courant', () => {
+    const a = addTabac('Rue haute');
+    setCurrentTabac(a.id);
+    syncRegistryName('principal', 'Nouveau nom');
+    expect(listTabacs().find((t) => t.id === 'principal')!.name).toBe('Nouveau nom');
+    expect(currentTabac().name).toBe('Rue haute');
   });
   it('removeTabac refuse de retirer le seul tabac', async () => {
     expect(await removeTabac('principal')).toBe(false);
@@ -157,5 +190,32 @@ describe('une base par tabac', () => {
     expect(await upgraded.countLines.get('avant')).toMatchObject({ name: 'Cash', linearQty: 3 });
     expect((await upgraded.settings.get('main'))?.shopName).toBe('Chez moi');
     upgraded.close();
+  });
+});
+
+describe('nom du tabac au démarrage', () => {
+  beforeEach(async () => {
+    await db.settings.clear();
+    ensureRegistry('Mon tabac');
+  });
+  it('un tabac neuf garde son nom, qui est écrit sans horloge dans ses réglages', async () => {
+    renameTabac(dbTabacId, 'Rue haute');
+    await syncSettingsNameAtStartup();
+    expect(listTabacs().find((t) => t.id === dbTabacId)!.name).toBe('Rue haute');
+    const row = await db.settings.get('main');
+    expect(row).toEqual({ ...DEFAULT_SETTINGS, shopName: 'Rue haute', key: 'main' });
+    expect(row).not.toHaveProperty('_clock');
+  });
+  it('des réglages existants donnent leur nom au registre', async () => {
+    await db.settings.put({ ...DEFAULT_SETTINGS, shopName: 'Chez Paul', key: 'main' });
+    await syncSettingsNameAtStartup();
+    expect(listTabacs().find((t) => t.id === dbTabacId)!.name).toBe('Chez Paul');
+  });
+  it('saveSettings renomme le tabac de la base ouverte, pas le tabac courant du registre', async () => {
+    const a = addTabac('Rue haute');
+    setCurrentTabac(a.id);
+    await saveSettings({ shopName: 'Chez Marie' });
+    expect(listTabacs().find((t) => t.id === dbTabacId)!.name).toBe('Chez Marie');
+    expect(listTabacs().find((t) => t.id === a.id)!.name).toBe('Rue haute');
   });
 });
