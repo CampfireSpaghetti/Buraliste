@@ -1,8 +1,9 @@
 import Dexie, { type Table } from 'dexie';
 import type { CountLine, Product, ProductFields, Settings } from '../domain/types';
 import type { Contribution } from '../domain/sharing';
-import type { Op } from '../sync/merge';
+import type { Clocked, Op } from '../sync/merge';
 import { currentTabac, DEFAULT_TABAC_NAME, dbNameFor, ensureRegistry, listTabacs, syncRegistryName } from '../tabacs/registry';
+import { writeShared } from './sharedRepo';
 
 export type OutboxItem = Contribution & { id?: number; createdAt: number };
 
@@ -14,9 +15,10 @@ type SettingsRow = Settings & { key: 'main' };
 export const DEFAULT_SETTINGS: Settings = { shopName: DEFAULT_TABAC_NAME, sortCount: 'name' };
 
 export class CarotteDB extends Dexie {
-  products!: Table<Product, string>;
-  countLines!: Table<CountLine, string>;
-  settings!: Table<SettingsRow, string>;
+  // Enregistrements partagés : `_clock` garde l'horodatage HLC de chaque champ partagé (voir sharedRepo.ts).
+  products!: Table<Clocked<Product>, string>;
+  countLines!: Table<Clocked<CountLine>, string>;
+  settings!: Table<Clocked<SettingsRow>, string>;
   outbox!: Table<OutboxItem, number>;
   opsOut!: Table<OpOut, number>;
   syncState!: Table<SyncStateRow, string>;
@@ -61,13 +63,17 @@ export function newId(): string {
 export async function getSettings(): Promise<Settings> {
   const row = await db.settings.get('main');
   if (!row) return { ...DEFAULT_SETTINGS };
-  const { key: _key, ...s } = row;
+  const { key: _key, _clock: _c, ...s } = row;
   return { ...DEFAULT_SETTINGS, ...s };
 }
 
+/** Réglages : `shopName`, `sortCount`, `hiddenGames` sont partagés ; le reste reste sur ce téléphone. */
 export async function saveSettings(patch: Partial<Settings>): Promise<Settings> {
-  const next = { ...(await getSettings()), ...patch };
-  await db.settings.put({ ...next, key: 'main' });
+  const next = await db.transaction('rw', db.settings, db.opsOut, async () => {
+    const merged = { ...(await getSettings()), ...patch };
+    await writeShared('settings', 'main', merged);
+    return merged;
+  });
   if (patch.shopName !== undefined) syncRegistryName(dbTabacId, next.shopName);
   return next;
 }
@@ -92,17 +98,22 @@ export async function syncSettingsNameAtStartup(): Promise<void> {
 export const listProducts = () => db.products.toArray();
 export const getProduct = (id: string) => db.products.get(id);
 
+const withoutClock = <T extends object>(r: Clocked<T>): T => {
+  const { _clock: _c, ...rest } = r;
+  return rest as T;
+};
+
 export async function putProduct(p: Product): Promise<Product> {
-  const next = { ...p, updatedAt: Date.now() };
-  await db.products.put(next);
+  const next = { ...withoutClock<Product>(p), updatedAt: Date.now() };
+  await writeShared('product', next.id, next);
   return next;
 }
 
 async function update(id: string, fn: (p: Product) => Product): Promise<Product> {
-  return db.transaction('rw', db.products, async () => {
+  return db.transaction('rw', db.products, db.opsOut, async () => {
     const p = await db.products.get(id);
     if (!p) throw new Error(`Produit introuvable : ${id}`);
-    return putProduct(fn(p));
+    return putProduct(fn(withoutClock<Product>(p)));
   });
 }
 
@@ -119,28 +130,48 @@ export const clearUserField = (id: string, key: keyof ProductFields) =>
 export const setOutOfStock = (id: string, v: boolean) => update(id, (p) => ({ ...p, outOfStock: v }));
 export const setPinned = (id: string, ids: string[]) => update(id, (p) => ({ ...p, pinnedSubstitutes: ids }));
 
-export const listCountLines = () => db.countLines.toArray();
+/** Lignes visibles : une ligne supprimée (`deleted: true`) est gardée comme pierre tombale, mais n'apparaît plus. */
+export const listCountLines = async (): Promise<CountLine[]> =>
+  (await db.countLines.toArray()).filter((l) => l.deleted !== true).map((l) => withoutClock<CountLine>(l));
 
 export async function upsertCountLine(line: CountLine): Promise<CountLine> {
-  const next = { ...line, updatedAt: Date.now() };
-  await db.countLines.put(next);
+  const next = { ...withoutClock<CountLine>(line), updatedAt: Date.now(), deleted: false };
+  await writeShared('line', next.id, next);
   return next;
 }
 
+/** Marque la ligne supprimée (partagé) et la renvoie telle qu'elle était, pour l'annulation. */
 export async function deleteCountLine(id: string): Promise<CountLine> {
-  return db.transaction('rw', db.countLines, async () => {
-    const line = await db.countLines.get(id);
-    if (!line) throw new Error(`Ligne introuvable : ${id}`);
-    await db.countLines.delete(id);
+  return db.transaction('rw', db.countLines, db.opsOut, async () => {
+    const stored = await db.countLines.get(id);
+    if (!stored || stored.deleted === true) throw new Error(`Ligne introuvable : ${id}`);
+    const line = withoutClock<CountLine>(stored);
+    await writeShared('line', id, { ...line, deleted: true });
     return line;
   });
 }
 
-/** Ajoute des lignes telles quelles (lignes « jamais comptées » des jeux du catalogue). */
-export const addCountLines = (lines: CountLine[]) => db.countLines.bulkPut(lines);
+/**
+ * Lignes « jamais comptées » des jeux du catalogue : une ligne neuve est ajoutée telle quelle, sans opération
+ * (chaque téléphone les déduit de son catalogue). Une ligne supprimée du même id revient (`deleted: false`,
+ * partagé) : `missingGameLines` ne la propose que si le jeu n'est pas enlevé de la liste.
+ */
+export async function addCountLines(lines: CountLine[]): Promise<void> {
+  await db.transaction('rw', db.countLines, db.opsOut, async () => {
+    for (const l of lines) {
+      const current = await db.countLines.get(l.id);
+      if (!current) await db.countLines.put(l);
+      else if (current.deleted === true) await writeShared('line', l.id, { ...l, deleted: false });
+    }
+  });
+}
 
 /** Remet une ligne supprimée telle quelle (garde sa date de modification). */
-export const restoreCountLine = (line: CountLine) => db.countLines.put(line);
+export async function restoreCountLine(line: CountLine): Promise<CountLine> {
+  const next = { ...withoutClock<CountLine>(line), deleted: false };
+  await writeShared('line', next.id, next);
+  return next;
+}
 
 export async function requestPersistence(): Promise<boolean> {
   try {

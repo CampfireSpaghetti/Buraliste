@@ -1,23 +1,48 @@
 import { parseBackup, serializeBackup } from '../domain/backup';
-import { db, getSettings } from './db';
+import type { CountLine, Product } from '../domain/types';
+import type { Clocked } from '../sync/merge';
+import { syncRegistryName } from '../tabacs/registry';
+import { db, dbTabacId, DEFAULT_SETTINGS, getSettings } from './db';
+import { writeShared } from './sharedRepo';
 
+const withoutClock = <T extends object>(r: Clocked<T>): T => {
+  const { _clock: _c, ...rest } = r;
+  return rest as T;
+};
+
+/** Sauvegarde : les lignes visibles et les produits, sans les horodatages internes de la synchronisation. */
 export async function exportBackupText(now: number): Promise<string> {
-  const [products, countLines, { shareToken: _secret, ...settings }] = await Promise.all([db.products.toArray(), db.countLines.toArray(), getSettings()]);
-  return serializeBackup({ products, countLines, settings }, now);
+  const [products, lines, { shareToken: _secret, ...settings }] = await Promise.all([db.products.toArray(), db.countLines.toArray(), getSettings()]);
+  const countLines = lines.filter((l) => l.deleted !== true).map(({ _clock: _c, deleted: _d, ...l }) => l as CountLine);
+  return serializeBackup({ products: products.map((p) => withoutClock<Product>(p)), countLines, settings }, now);
 }
 
-/** Lit une sauvegarde et remplace toutes les données en une seule transaction. Rien n'est modifié si le fichier est refusé. */
+/**
+ * Lit une sauvegarde et remplace toutes les données en une seule transaction. Rien n'est modifié si le fichier est refusé.
+ * Les données partagées passent par la couche partagée : les autres téléphones du tabac reçoivent la restauration
+ * (lignes absentes de la sauvegarde supprimées, champs partagés modifiés) au lieu de la défaire.
+ */
 export async function restoreFromText(text: string): Promise<{ ok: true } | { ok: false; error: string }> {
   const parsed = parseBackup(text);
   if (!parsed.ok) return parsed;
   const { products, countLines, settings } = parsed.data;
   const { shareToken } = await getSettings();
-  await db.transaction('rw', db.products, db.countLines, db.settings, async () => {
-    await Promise.all([db.products.clear(), db.countLines.clear(), db.settings.clear()]);
-    await db.products.bulkPut(products);
-    await db.countLines.bulkPut(countLines);
+  await db.transaction('rw', db.products, db.countLines, db.settings, db.opsOut, async () => {
+    // Produits : pas de suppression partagée ; ceux qui manquent à la sauvegarde ne sont retirés que d'ici.
+    const keepProducts = new Set(products.map((p) => p.id));
+    await db.products.bulkDelete((await db.products.toCollection().primaryKeys()).filter((id) => !keepProducts.has(id)));
+    for (const p of products) await writeShared('product', p.id, withoutClock<Product>(p));
+
+    const keepLines = new Set(countLines.map((l) => l.id));
+    for (const l of await db.countLines.toArray()) {
+      if (!keepLines.has(l.id) && l.deleted !== true) await writeShared('line', l.id, { ...withoutClock<CountLine>(l), deleted: true });
+    }
+    for (const l of countLines) await writeShared('line', l.id, { ...withoutClock<CountLine>(l), deleted: l.deleted === true });
+
     // La version de la liste officielle est oubliée : la prochaine ouverture refusionne la liste à jour.
-    await db.settings.put({ ...settings, shareToken, referencesVersion: undefined, sharedCodesVersion: undefined, key: 'main' });
+    const { _clock: _c, ...restored } = settings as Clocked<typeof settings>;
+    await writeShared('settings', 'main', { ...DEFAULT_SETTINGS, ...restored, shareToken, referencesVersion: undefined, sharedCodesVersion: undefined });
   });
+  syncRegistryName(dbTabacId, (await getSettings()).shopName);
   return { ok: true };
 }

@@ -10,7 +10,9 @@ export async function syncReferences(fetchFn: typeof fetch = fetch): Promise<{ u
   const settings = await getSettings();
   if (settings.referencesVersion === file.version) return { updated: false, version: file.version };
 
-  await db.transaction('rw', db.products, db.settings, async () => {
+  // Liste publique : jamais d'opération (chaque téléphone la reçoit lui-même). `opsOut` est dans la transaction
+  // parce que saveSettings passe par la couche partagée (les versions ne sont pas partagées : rien n'est mis en file).
+  await db.transaction('rw', db.products, db.settings, db.opsOut, async () => {
     const existing = await db.products.toArray();
     const ops = mergeReferences(existing, file, departSeed.items as DepartItem[], Date.now(), newId);
     await db.products.bulkPut(ops.put);
@@ -25,7 +27,7 @@ export async function syncFdjGames(fetchFn: typeof fetch = fetch): Promise<{ upd
   if (!res.ok) throw new Error(`Liste des jeux FDJ indisponible (HTTP ${res.status})`);
   const file = (await res.json()) as FdjGamesFile;
   if ((await getSettings()).fdjVersion === file.version) return { updated: false, version: file.version };
-  await db.transaction('rw', db.products, db.settings, async () => {
+  await db.transaction('rw', db.products, db.settings, db.opsOut, async () => {
     const ops = mergeFdjGames(await db.products.toArray(), file, Date.now(), newId);
     await db.products.bulkPut(ops.put);
     await saveSettings({ fdjVersion: file.version, fdjFetchedAt: file.fetchedAt });
