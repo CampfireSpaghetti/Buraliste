@@ -6,7 +6,7 @@ import { requestPersistence, syncSettingsNameAtStartup } from './data/db';
 import { DEFAULT_TABAC_NAME, ensureRegistry } from './tabacs/registry';
 import { syncFdjGames, syncReferences } from './data/referencesSync';
 import { clearLegacyShareToken, syncSharedCodes } from './data/sharingData';
-import { scheduleFlush } from './store';
+import { notifyDataChanged, scheduleFlush } from './store';
 import { installSyncTestHooks, installTestHooks, testModeEnabled } from './testHooks';
 import { startSyncEngine } from './sync/engineInstance';
 import { setPersisted } from './storageStatus';
@@ -21,8 +21,9 @@ createRoot(document.getElementById('root')!).render(
   </StrictMode>,
 );
 
-// Le nom du tabac dans le registre et le nom de la boutique (réglages) restent alignés.
-void syncSettingsNameAtStartup().catch(() => undefined);
+// Le nom du tabac dans le registre et le nom de la boutique (réglages) restent alignés. Dans la base neuve d'un tabac
+// créé ou rejoint, le nom vient d'être écrit : l'écran (en-tête) est rafraîchi.
+void syncSettingsNameAtStartup().then(notifyDataChanged).catch(() => undefined);
 // Les téléphones n'ont plus de clé GitHub (le relais la détient) : celle d'une ancienne version est effacée.
 void clearLegacyShareToken().catch(() => undefined);
 

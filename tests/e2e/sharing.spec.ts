@@ -35,11 +35,13 @@ test('scanner un ancien QR code de jumelage : message clair, aucun produit ouver
   expect(await storedToken(page)).toBeNull();
 });
 
-test('Réglages : plus de clé GitHub à saisir, et sans relais le partage est « bientôt disponible »', async ({ page }) => {
+// Les e2e sont construits avec le faux relais (playwright.config.ts) : le cas « sans relais, bientôt disponible » est
+// couvert par tests/unit/tabacsScreens.test.tsx.
+test('Réglages : plus de clé GitHub à saisir, les codes-barres partent tout seuls par le relais', async ({ page }) => {
   await testMode(page);
   await page.goto('./#reglages');
   await seed(page, {});
-  await expect(page.getByText('Partage entre téléphones : bientôt disponible')).toBeVisible();
+  await expect(page.getByText('Les codes-barres scannés enrichissent automatiquement la liste commune.')).toBeVisible();
   await expect(page.getByRole('button', { name: /Activer le partage|Jumeler/ })).toHaveCount(0);
   await expect(page.getByText(/GitHub/)).toHaveCount(0);
 });

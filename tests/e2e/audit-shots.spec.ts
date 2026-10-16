@@ -53,7 +53,7 @@ for (const scheme of ['light', 'dark'] as const) {
     await page.locator('.sheet-scrim').click({ position: { x: 10, y: 10 } });
     await page.getByRole('button', { name: 'Terminer' }).click();
     await page.getByRole('button', { name: 'Export .jpg' }).click();
-    await page.getByRole('img').first().waitFor();
+    await page.getByRole('dialog').getByRole('img').first().waitFor();
     await s('06-export');
     await page.getByRole('button', { name: 'Fermer' }).click();
     const tabs = page.getByRole('navigation', { name: 'Onglets' });

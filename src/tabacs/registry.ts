@@ -3,7 +3,7 @@ import { b64uToText, generateTabacKey, textToB64u } from '../sync/crypto.ts';
 
 export type TabacInvite = { name: string; key: string };
 
-const INVITE_PREFIX = 'LACAROTTE2:';
+export const INVITE_PREFIX = 'LACAROTTE2:';
 const NAME_MAX = 80;
 const KEY_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 

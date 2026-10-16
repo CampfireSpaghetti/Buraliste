@@ -5,7 +5,8 @@ import { Sheet } from '../../ui/Panel';
 import { signalScanOk, TEST_SCAN_EVENT } from './feedback';
 import { useBarcodeScanner } from './useBarcodeScanner';
 import { isLegacyPairingCode } from '../../domain/sharing';
-import { PAIRING_EVENT } from '../../ui/PairingPrompt';
+import { announcePairing } from '../../ui/PairingPrompt';
+import { scannedInvite } from '../../tabacs/invite';
 import './scanner.css';
 
 type Props = {
@@ -25,9 +26,13 @@ export function ScannerView({ mode, onResult, paused = false, footer }: Props) {
   pausedRef.current = paused || manual;
 
   const handle = (raw: string, bypassDebounce = false) => {
-    // Ancien QR code de jumelage (clé GitHub, supprimé) : ce n'est pas un produit, on explique quoi faire.
-    if (isLegacyPairingCode(raw)) {
-      if (accept(raw, Date.now()) && !pausedRef.current) window.dispatchEvent(new Event(PAIRING_EVENT));
+    // QR codes de La Carotte : ce ne sont pas des produits. Invitation à un tabac (« Rejoindre le … ? ») ou ancien
+    // QR code de jumelage (clé GitHub, supprimé : on explique quoi faire).
+    const invite = scannedInvite(raw);
+    if (invite || isLegacyPairingCode(raw)) {
+      if (bypassDebounce || (accept(raw, Date.now()) && !pausedRef.current)) {
+        announcePairing(invite ? { kind: 'invitation', invite: invite.ok ? invite.invite : undefined } : { kind: 'ancien' });
+      }
       return;
     }
     if (!bypassDebounce) {

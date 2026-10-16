@@ -8,6 +8,8 @@ import { Sheet } from '../../ui/Panel';
 import { Toast } from '../../ui/Toast';
 import { BackupPanel } from './BackupPanel';
 import { InstallGuide } from './InstallGuide';
+import { TabacSection } from './TabacSection';
+import { tabacDisplayName } from '../../ui/TabacSwitcher';
 import './settings.css';
 
 export function SettingsScreen() {
@@ -50,12 +52,14 @@ export function SettingsScreen() {
 
   return (
     <div className="settings">
+      <span className="label">Tabac</span>
       <label className="field-label">
         Nom du tabac
         <input className="input" id="shop-name" value={name ?? ''} onChange={(e) => setName(e.target.value)} onBlur={saveName}
           onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
       </label>
-      <p className="muted hint">Affiché en tête des exports du comptage.</p>
+      <p className="muted hint">Partagé avec les téléphones du tabac et affiché en tête des exports du comptage.</p>
+      <TabacSection shopName={tabacDisplayName(settings.shopName)} />
 
       <span className="label">Sauvegarde</span>
       <div className="row">
@@ -78,21 +82,28 @@ export function SettingsScreen() {
         Gamme en point de vente (fdj.fr){settings.fdjFetchedAt ? ` · liste du ${formatIsoDateFr(settings.fdjFetchedAt)}` : ''} · {fdjGames} jeux · mise à jour automatique chaque semaine
       </p>
 
-      <span className="label">Partage</span>
-      {relayUrl() ? (
-        <p className="muted hint">
-          Les codes-barres scannés enrichissent automatiquement la liste commune.
-          {settings.lastShareAt ? ` Dernier envoi : ${formatDateLong(settings.lastShareAt)}.` : ''}
-        </p>
-      ) : (
-        <p className="muted hint">Partage entre téléphones : bientôt disponible</p>
+      {relayUrl() && (
+        <>
+          <span className="label">Codes-barres</span>
+          <p className="muted hint">
+            Les codes-barres scannés enrichissent automatiquement la liste commune.
+            {settings.lastShareAt ? ` Dernier envoi : ${formatDateLong(settings.lastShareAt)}.` : ''}
+          </p>
+        </>
       )}
 
       <button type="button" className="btn" onClick={() => setInstall(true)}>Installer sur mon téléphone</button>
-      <p className="muted hint">
-        Vos données restent sur ce téléphone. Seuls partent : les fichiers que vous partagez vous-même et, si le partage
-        est disponible, les codes-barres rattachés aux produits officiels (aucun compte, aucune clé sur le téléphone).
-      </p>
+      {relayUrl() ? (
+        <p className="muted hint">
+          Les données du tabac ne vont qu’aux téléphones du tabac : elles passent par le relais chiffrées, illisibles pour
+          lui. Partent aussi les fichiers que vous partagez vous-même et les codes-barres rattachés aux produits officiels.
+          Aucun compte, aucune clé à saisir.
+        </p>
+      ) : (
+        <p className="muted hint">
+          Vos données restent sur ce téléphone. Seuls partent les fichiers que vous partagez vous-même.
+        </p>
+      )}
 
       {backup && <BackupPanel onClose={() => setBackup(false)} />}
       {install && <InstallGuide onClose={() => setInstall(false)} />}
