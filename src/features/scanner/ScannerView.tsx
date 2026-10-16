@@ -4,6 +4,8 @@ import { useProducts } from '../../store';
 import { Sheet } from '../../ui/Panel';
 import { signalScanOk, TEST_SCAN_EVENT } from './feedback';
 import { useBarcodeScanner } from './useBarcodeScanner';
+import { decodePairing } from '../../domain/sharing';
+import { PAIRING_EVENT } from '../../ui/PairingPrompt';
 import './scanner.css';
 
 type Props = {
@@ -23,6 +25,12 @@ export function ScannerView({ mode, onResult, paused = false, footer }: Props) {
   pausedRef.current = paused || manual;
 
   const handle = (raw: string, bypassDebounce = false) => {
+    // QR code de jumelage (onglet Réglages d'un autre téléphone) : ce n'est pas un produit.
+    const pairing = decodePairing(raw.trim());
+    if (pairing) {
+      if (accept(raw, Date.now()) && !pausedRef.current) window.dispatchEvent(new CustomEvent(PAIRING_EVENT, { detail: pairing }));
+      return;
+    }
     if (!bypassDebounce) {
       // Pendant une pause (pavé, fiche), on note quand même les codes vus : un ticket resté
       // devant la caméra ne sera pas relu à la reprise.

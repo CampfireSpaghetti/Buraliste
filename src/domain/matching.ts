@@ -1,11 +1,14 @@
-import { commonPrefix, isValidEan, normalizeCode } from './barcode';
+import { commonPrefix, isValidEan, normalizeCode } from './barcode.ts';
 import type { Product, ProductFields } from './types';
 
 /** Valeurs affichées : la couche user l'emporte, les codes-barres sont unis. */
 export function effectiveFields(p: Product): ProductFields {
   const f = { ...p.base, ...p.user } as ProductFields;
-  const codes = [...(p.base.barcodes ?? []), ...(p.user.barcodes ?? [])];
+  const codes = [...(p.base.barcodes ?? []), ...(p.sharedBarcodes ?? []), ...(p.user.barcodes ?? [])];
   f.barcodes = [...new Set(codes)];
+  // Code de jeu : le vôtre d'abord, puis l'officiel, puis celui partagé par les autres téléphones.
+  const prefix = p.user.fdjPrefix ?? p.base.fdjPrefix ?? p.sharedFdjPrefix;
+  if (prefix) f.fdjPrefix = prefix;
   // Prix saisi par le buraliste : il s'applique tout de suite, sans calendrier officiel.
   if (p.user.price !== undefined) delete f.previousPrice;
   return f;

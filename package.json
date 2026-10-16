@@ -19,6 +19,7 @@
     "barcode-detector": "3.2.2",
     "dexie": "4.4.6",
     "fflate": "0.8.3",
+    "qrcode-generator": "2.0.4",
     "react": "19.3.0",
     "react-dom": "19.3.0"
   },

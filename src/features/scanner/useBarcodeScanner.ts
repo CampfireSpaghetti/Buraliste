@@ -4,7 +4,7 @@ export type ScannerState = 'idle' | 'starting' | 'running' | 'denied' | 'unsuppo
 
 type Detector = { detect(source: CanvasImageSource): Promise<{ rawValue: string }[]> };
 
-const FORMATS = ['ean_13', 'ean_8', 'upc_a', 'code_128', 'itf', 'code_39'] as const;
+const FORMATS = ['ean_13', 'ean_8', 'upc_a', 'code_128', 'itf', 'code_39', 'qr_code'] as const;
 const FRAME_MS = 150;
 
 let detectorPromise: Promise<Detector> | undefined;

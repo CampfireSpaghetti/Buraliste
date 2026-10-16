@@ -43,3 +43,4 @@ test('comptage : un ticket resté devant la caméra ne rouvre pas le pavé aprè
   await expect(keypad).toHaveCount(0);
   await expect(page.getByText('Dernier : Test → 3 · 9')).toBeVisible();
 });
+
