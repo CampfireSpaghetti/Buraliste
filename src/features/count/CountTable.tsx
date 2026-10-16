@@ -44,7 +44,7 @@ function Row({ line, hit, onQuantity, onEdit, onDelete }: { line: CountLine; hit
         {swiped ? (
           <button type="button" className="swipe-del" onClick={() => onDelete(line)} aria-label={`Supprimer ${line.name}`}>Supprimer</button>
         ) : (
-          <>{formatDateShort(line.updatedAt).split(' ')[0]}<br />{formatDateShort(line.updatedAt).split(' ')[1]}</>
+          line.updatedAt > 0 ? <>{formatDateShort(line.updatedAt).split(' ')[0]}<br />{formatDateShort(line.updatedAt).split(' ')[1]}</> : '—'
         )}
       </td>
     </tr>

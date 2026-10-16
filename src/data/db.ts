@@ -101,6 +101,9 @@ export async function deleteCountLine(id: string): Promise<CountLine> {
   });
 }
 
+/** Ajoute des lignes telles quelles (lignes « jamais comptées » des jeux du catalogue). */
+export const addCountLines = (lines: CountLine[]) => db.countLines.bulkPut(lines);
+
 /** Remet une ligne supprimée telle quelle (garde sa date de modification). */
 export const restoreCountLine = (line: CountLine) => db.countLines.put(line);
 

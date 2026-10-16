@@ -60,7 +60,7 @@ test('comptage complet : ligne manuelle, scan, re-scan, pavé, total, tri, suppr
   await expect(keypad(page)).toHaveCount(1);
   await expect(keypad(page)).toContainText('Cash');
   await typeBoth(page, '42', '118');
-  await expect(row(page, 'Astro')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Linéaire Astro : 0' })).toBeVisible();
   await page.getByRole('button', { name: 'Terminer' }).click();
 
   // 5. Modifier le nom d'une ligne : la date de la ligne change
@@ -73,7 +73,7 @@ test('comptage complet : ligne manuelle, scan, re-scan, pavé, total, tri, suppr
   expect(Number(await row(page, 'Millionnaire 10€').getAttribute('data-updated'))).toBeGreaterThan(before);
 
   // 7. Total
-  const total = page.getByRole('row', { name: /Total · 2 jeux/ });
+  const total = page.getByRole('row', { name: /Total · 3 jeux/ });
   await expect(total).toContainText('54');
   await expect(total).toContainText('218');
 
@@ -81,7 +81,7 @@ test('comptage complet : ligne manuelle, scan, re-scan, pavé, total, tri, suppr
   await page.getByRole('button', { name: 'Date', exact: true }).click();
   await expect(page.locator('tbody tr').first()).toContainText('Millionnaire 10€');
   await page.getByRole('button', { name: 'Nom', exact: true }).click();
-  await expect(page.locator('tbody tr').first()).toContainText('Cash');
+  await expect(page.locator('tbody tr').first()).toContainText('Astro');
 
   // 6. Supprimer puis annuler
   await row(page, 'Cash').getByRole('button', { name: 'Cash', exact: true }).click();
@@ -92,12 +92,11 @@ test('comptage complet : ligne manuelle, scan, re-scan, pavé, total, tri, suppr
   await expect(row(page, 'Cash').getByRole('button', { name: 'Linéaire Cash : 42' })).toBeVisible();
 });
 
-test('toucher une quantité ouvre le pavé pour elle seule ; glisser pour supprimer', async ({ page }) => {
+test('toucher le linéaire enchaîne sur le stock ; toucher le stock ne corrige que lui ; glisser pour supprimer', async ({ page }) => {
   await addLine(page, 'Banco', '5', '40');
   await page.getByRole('button', { name: 'Linéaire Banco : 5' }).click();
-  await expect(page.getByRole('dialog', { name: /Quantité linéaire/ })).toBeVisible();
   await expect(page.getByTestId('keypad-display')).toHaveText('5');
-  await type(page, '9');
+  await typeBoth(page, '9', '40');
   await expect(keypad(page)).toHaveCount(0);
   await page.getByRole('button', { name: 'Stock Banco : 40' }).click();
   await expect(page.getByRole('dialog', { name: /Quantité stock/ })).toBeVisible();
@@ -144,7 +143,30 @@ test('jeu inconnu : mini-fiche puis pavé', async ({ page }) => {
 test('« + Ligne » pour un jeu déjà compté met à jour sa ligne au lieu d’en créer une seconde', async ({ page }) => {
   await addLine(page, 'cash', '10', '100');
   await addLine(page, 'cash', '25', '90');
-  await expect(page.locator('tbody tr')).toHaveCount(1);
+  await expect(page.locator('tbody tr')).toHaveCount(2); // Cash (mis à jour) et Astro (listé d'office)
   await expect(page.getByRole('button', { name: /^Linéaire .* : 25$/ })).toBeVisible();
-  await expect(page.getByRole('row', { name: /Total · 1 jeu/ })).toContainText('90');
+  await expect(page.getByRole('row', { name: /Total · 2 jeux/ })).toContainText('90');
+});
+
+test('tous les jeux sont listés d’office ; toucher le linéaire enchaîne sur le stock', async ({ page }) => {
+  await expect(row(page, 'Astro')).toContainText('—');
+  await expect(row(page, 'Cash')).toContainText('—');
+  await expect(page.getByRole('button', { name: 'Linéaire Astro : 0' })).toBeVisible();
+  await page.getByRole('button', { name: 'Linéaire Astro : 0' }).click();
+  await typeBoth(page, '12', '40');
+  await expect(page.getByRole('button', { name: 'Linéaire Astro : 12' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Stock Astro : 40' })).toBeVisible();
+  await expect(row(page, 'Astro')).toContainText(/\d{2}\/\d{2}\s*\d{2}:\d{2}/);
+  await expect(keypad(page)).toHaveCount(0);
+});
+
+test('un jeu enlevé de la liste ne revient pas tout seul', async ({ page }) => {
+  await row(page, 'Astro').getByRole('button', { name: 'Astro', exact: true }).click();
+  await page.getByRole('button', { name: 'Supprimer' }).click();
+  await expect(row(page, 'Astro')).toHaveCount(0);
+  await page.reload();
+  await expect(row(page, 'Cash')).toBeVisible();
+  await expect(row(page, 'Astro')).toHaveCount(0);
+  await addLine(page, 'Astro', '3', '0'); // « + Ligne » le remet
+  await expect(page.getByRole('button', { name: 'Linéaire Astro : 3' })).toBeVisible();
 });
