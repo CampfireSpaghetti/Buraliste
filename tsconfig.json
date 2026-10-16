@@ -15,5 +15,5 @@
     "isolatedModules": true,
     "types": ["vite/client", "vite-plugin-pwa/react", "node"]
   },
-  "include": ["src", "scripts", "tests"]
+  "include": ["src", "scripts", "tests", "relay"]
 }
