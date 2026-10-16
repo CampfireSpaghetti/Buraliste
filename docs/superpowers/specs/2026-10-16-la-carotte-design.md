@@ -1,7 +1,7 @@
 # La Carotte : application mobile du buraliste (conception)
 
 - **Date** : 16/10/2026
-- **Statut** : à valider par le propriétaire du tabac
+- **Statut** : validé par le propriétaire le 16/10/2026
 - **Nom de travail** : « La Carotte », d'après l'enseigne rouge des bureaux de tabac. Le nom reste modifiable.
 
 ---
@@ -32,6 +32,7 @@ Donner au buraliste un outil de poche pour le comptoir, qui sert à trois choses
 | Google Drive | Les .jpg partent par le **menu Partager natif** du téléphone. L'app n'a **aucune permission Google** et ne peut ni lire ni lister le Drive |
 | Utilisateurs | Un seul téléphone en V1. Sauvegarde et restauration complètes par fichier pour changer d'appareil |
 | Langue | Français |
+| Hébergement | **GitHub Pages**, gratuit. Le dépôt doit être public : le code est visible, mais aucune donnée du tabac n'est dans le dépôt |
 | Style | **A · Plaque émaillée** (maquette : https://claude.ai/artifact/9Xg3WMS8gxeHoSnZixcbwW), avec une variante sombre automatique |
 
 ## 3. Architecture
@@ -48,7 +49,7 @@ Donner au buraliste un outil de poche pour le comptoir, qui sert à trois choses
 └───────────────────────────────────────────────────────────────────────────┘
         ▲ télécharge uniquement ses propres fichiers (app + references.json)
 ┌───────┴──────────── Hébergement statique gratuit ─────────────────────────┐
-│  GitHub Pages (si le dépôt est public) ou Cloudflare Pages (sinon)        │
+│  GitHub Pages (dépôt public ; aucune donnée du tabac n'y est stockée)     │
 └───────────────────────────────────────────────────────────────────────────┘
         ▲ publie chaque semaine
 ┌───────┴──────────── Robot GitHub Actions (gratuit, hebdomadaire) ─────────┐
