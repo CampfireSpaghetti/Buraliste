@@ -32,3 +32,4 @@
 .compare-table th[scope='row'] { color: var(--muted); font-weight: 600; }
 .compare-table td.diff { background: var(--highlight); font-weight: 700; }
 .table-scroll { overflow-x: auto; }
+.sub-why { font-size: 14px; color: var(--muted); line-height: 1.3; }

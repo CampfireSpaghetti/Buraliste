@@ -16,7 +16,7 @@ export function SubstitutesList({ target, all }: { target: Product; all: Product
     <section className="subs" aria-label="À proposer au client" id="substitutes">
       <span className="label">À proposer au client</span>
       {suggestions.length === 0 && (
-        <p className="muted">Aucun remplaçant trouvé. Renseignez la force, le format ou le goût de ce produit pour de meilleures suggestions.</p>
+        <p className="muted">Aucun remplaçant proche : pas d'autre format de la même marque, ni de même goût dans une autre marque.</p>
       )}
       {suggestions.map((s) => {
         const f = effectiveFields(s.product);
@@ -25,9 +25,13 @@ export function SubstitutesList({ target, all }: { target: Product; all: Product
           <div key={s.product.id} className="sub">
             <button type="button" className="card" onClick={() => nav.open({ type: 'product', id: s.product.id })}>
               <b>{f.name}</b>
-              <span className="chips">
-                {s.reasons.map((r) => <span key={r} className="chip">{r}</span>)}
-              </span>
+              {s.sentence ? (
+                <span className="sub-why">{s.sentence}</span>
+              ) : (
+                <span className="chips">
+                  {s.reasons.map((r) => <span key={r} className="chip">{r}</span>)}
+                </span>
+              )}
             </button>
             <button type="button" className="btn pin" aria-pressed={pinned} onClick={() => togglePin(s.product.id)}>
               {pinned ? 'Désépingler' : 'Épingler'}

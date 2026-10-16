@@ -4,11 +4,11 @@ import type { Product, ProductFields } from '../../src/domain/types';
 
 const today = new Date('2026-10-16T12:00:00');
 function p(id: string, f: Partial<ProductFields>, extra: Partial<Product> = {}): Product {
-  return { id, source: 'douane', base: { kind: 'cigarette', name: id, ...f }, user: {}, outOfStock: false, pinnedSubstitutes: [], updatedAt: 0, ...extra };
+  return { id, source: 'douane', base: { kind: 'cigare', name: id, ...f }, user: {}, outOfStock: false, pinnedSubstitutes: [], updatedAt: 0, ...extra };
 }
 const target = p('T', { strength: 3, format: '20 unités', tasteTags: ['doux', 'équilibré'], price: 13, origin: 'France', brand: 'Marque' });
 
-describe('suggestSubstitutes — tabac', () => {
+describe('suggestSubstitutes — cigares (score force, format, goût, prix)', () => {
   it('même force, format, goût et prix : 90 points sans origine ni marque', () => {
     const twin = p('A', { strength: 3, format: '20 unités', tasteTags: ['équilibré', 'doux'], price: 13, origin: 'Cuba', brand: 'Autre' });
     const [s] = suggestSubstitutes(target, [target, twin], today);
@@ -31,7 +31,7 @@ describe('suggestSubstitutes — tabac', () => {
     const all = [
       target,
       p('rupture', { strength: 3 }, { outOfStock: true }),
-      p('rouler', { kind: 'tabac-rouler', strength: 3 }),
+      p('rouler', { kind: 'cigarette', strength: 3 }),
       p('retire', { strength: 3, status: 'retrait', effectiveDate: '2026-10-01' }),
       p('bientot', { strength: 3, status: 'nouveau', effectiveDate: '2026-11-01' }),
       p('rien', { origin: 'Cuba' }),
