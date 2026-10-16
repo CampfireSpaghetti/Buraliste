@@ -58,3 +58,6 @@ export interface Settings {
   sortCount: 'name' | 'updatedAt';
   fdjSeeded?: boolean;
 }
+
+export const TASTES = ['doux', 'léger', 'équilibré', 'corsé', 'intense', 'boisé', 'épicé', 'terreux', 'vanillé', 'fruité', 'crémeux', 'torréfié', 'herbacé'] as const;
+export const GAME_TYPES = ['classique', 'gros lot', 'thématique', 'multi-chances'] as const;

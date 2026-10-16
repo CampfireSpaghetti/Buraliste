@@ -1,0 +1,11 @@
+.form { display: flex; flex-direction: column; gap: 14px; }
+.form textarea.input { padding: 10px 12px; min-height: 80px; }
+.tastes { border: 0; padding: 0; margin: 0; }
+.tastes legend { padding: 0; margin-bottom: 6px; }
+.revert { align-self: flex-start; min-height: 40px; font-size: 14px; color: var(--accent); padding: 0 4px; margin-top: -8px; }
+.kv { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; margin: 0; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; }
+.estimate { font-size: 13px; color: var(--muted); }
+.pill { display: inline-flex; align-items: center; min-height: 26px; padding: 0 10px; border-radius: 999px; font-size: 13px; font-weight: 700; background: var(--highlight); color: var(--fg); }
+.pill.alert { background: var(--accent); color: var(--accent-fg); }
