@@ -37,7 +37,7 @@ export function layoutExport(lines: CountLine[], s: Settings, now: number, maxPi
   const firstRowY = headRowY + m.headRowH;
   const rows = sorted.map((l, i) => ({
     y: firstRowY + i * m.rowH,
-    cells: [l.code || '—', l.name, String(l.linearQty), String(l.stockQty), formatDateShort(l.updatedAt)] as [string, string, string, string, string],
+    cells: [l.code || '—', l.name, String(l.linearQty), String(l.stockQty), l.updatedAt > 0 ? formatDateShort(l.updatedAt) : '—'] as [string, string, string, string, string],
   }));
   const totalY = firstRowY + rows.length * m.rowH;
   const footerY = totalY + m.totalH;

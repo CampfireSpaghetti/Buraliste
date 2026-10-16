@@ -1,12 +1,12 @@
-import { useCallback, useMemo, useState } from 'react';
-import { sortLines } from '../../domain/count';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { missingGameLines, sortLines } from '../../domain/count';
 import { effectiveFields, learnFdjCode, resolveScan, type ScanResult } from '../../domain/matching';
 import { fold } from '../../domain/search';
 import { formatEuro } from '../../domain/format';
 import { normalizeCode } from '../../domain/barcode';
 import type { CountLine, Product } from '../../domain/types';
-import { newId } from '../../data/db';
-import { actions, newUserProduct, useCountLines, useProducts, useSettings } from '../../store';
+import { addCountLines, newId } from '../../data/db';
+import { actions, newUserProduct, notifyDataChanged, useCountLines, useProducts, useSettings } from '../../store';
 import { Sheet } from '../../ui/Panel';
 import { Toast } from '../../ui/Toast';
 import { ScannerView } from '../scanner/ScannerView';
@@ -44,6 +44,14 @@ export function CountScreen() {
   const sortBy = settings?.sortCount ?? 'name';
   const lines = useMemo(() => sortLines(rawLines ?? [], sortBy), [rawLines, sortBy]);
   const games = useMemo(() => (products ?? []).filter((p) => effectiveFields(p).kind === 'jeu-fdj'), [products]);
+  const hidden = useMemo(() => settings?.hiddenGames ?? [], [settings]);
+
+  // Tous les jeux de grattage du catalogue sont listés (à 0 / 0 tant qu'ils ne sont pas comptés).
+  useEffect(() => {
+    if (!products || !rawLines || !settings) return;
+    const missing = missingGameLines(products, rawLines, hidden);
+    if (missing.length) void addCountLines(missing).then(notifyDataChanged);
+  }, [products, rawLines, settings, hidden]);
 
   /** Colonne Code : le code qui identifie le jeu (préfixe appris, sinon premier code connu, sinon le code scanné). */
   const openForGame = (game: Product, scanned: string) => {
@@ -88,6 +96,9 @@ export function CountScreen() {
 
   const remove = async (line: CountLine) => {
     setLineForm(null);
+    // Un jeu du catalogue enlevé de la liste n'y revient pas tout seul (marqué avant la suppression,
+    // sinon la liste complète le recréerait aussitôt).
+    if (line.gameId) await actions.saveSettings({ hiddenGames: [...new Set([...hidden, line.gameId])] });
     const removed = await actions.deleteCountLine(line.id);
     setToast({ message: 'Ligne supprimée', undo: removed });
   };
@@ -99,7 +110,7 @@ export function CountScreen() {
     <CountTable
       lines={lines}
       hitId={hitId}
-      onQuantity={(l, field) => setKeypad({ field, chain: false, snapshot: l, lineId: l.id, gameId: l.gameId, code: l.code, name: l.name, initial: l[field] })}
+      onQuantity={(l, field) => setKeypad({ field, chain: field === 'linearQty', snapshot: l, lineId: l.id, gameId: l.gameId, code: l.code, name: l.name, initial: l[field] })}
       onEdit={(l) => setLineForm({ mode: 'edit', line: l })}
       onDelete={remove}
     />
@@ -124,7 +135,7 @@ export function CountScreen() {
         </div>
       ) : (
         <>
-          {settings && <BackupReminder settings={settings} hasData={(rawLines ?? []).length > 0} />}
+          {settings && <BackupReminder settings={settings} hasData={(rawLines ?? []).some((l) => l.updatedAt > 0)} />}
           <div className="count-actions">
             <button type="button" className="btn accent" onClick={() => setScanning(true)}>Scanner</button>
             <button type="button" className="btn" onClick={() => setLineForm({ mode: 'new' })}>+ Ligne</button>
@@ -157,6 +168,7 @@ export function CountScreen() {
           form={lineForm}
           games={games}
           lines={rawLines ?? []}
+          hiddenGames={hidden}
           onMerged={(l) => setToast({ message: `Ligne existante mise à jour : ${l.name}` })}
           products={products ?? []}
           onClose={() => setLineForm(null)}
@@ -190,7 +202,14 @@ export function CountScreen() {
         <Toast
           message={toast.message}
           action={toast.undo ? 'Annuler' : undefined}
-          onAction={() => { if (toast.undo) void actions.restoreCountLine(toast.undo); setToast(null); }}
+          onAction={() => {
+            const undo = toast.undo;
+            if (undo) {
+              void actions.restoreCountLine(undo);
+              if (undo.gameId) void actions.saveSettings({ hiddenGames: hidden.filter((g) => g !== undo.gameId) });
+            }
+            setToast(null);
+          }}
           onDone={closeToast}
         />
       )}
@@ -198,7 +217,7 @@ export function CountScreen() {
   );
 }
 
-function LineFormSheet({ form, games, lines, products, onClose, onDelete, onMerged }: { form: LineForm; games: Product[]; lines: CountLine[]; products: Product[]; onClose: () => void; onDelete: (l: CountLine) => void; onMerged: (l: CountLine) => void }) {
+function LineFormSheet({ form, games, lines, hiddenGames, products, onClose, onDelete, onMerged }: { form: LineForm; games: Product[]; lines: CountLine[]; hiddenGames: string[]; products: Product[]; onClose: () => void; onDelete: (l: CountLine) => void; onMerged: (l: CountLine) => void }) {
   const editing = form.mode === 'edit' ? form.line : undefined;
   const [name, setName] = useState(editing?.name ?? '');
   const [code, setCode] = useState(editing?.code ?? '');
@@ -220,6 +239,7 @@ function LineFormSheet({ form, games, lines, products, onClose, onDelete, onMerg
       const gameId = byName?.id ?? (byCode?.type === 'product' && effectiveFields(byCode.product).kind === 'jeu-fdj' ? byCode.product.id : undefined);
       // Un jeu déjà dans la liste n'a qu'une ligne : on la met à jour au lieu d'en créer une seconde (total juste).
       const same = lines.find((l) => (gameId && l.gameId === gameId) || fold(l.name) === fold(name.trim()));
+      if (gameId) await actions.saveSettings({ hiddenGames: hiddenGames.filter((g) => g !== gameId) });
       if (same) {
         const updated = await actions.upsertCountLine({ ...same, linearQty, stockQty, code: same.code || c });
         onMerged(updated);

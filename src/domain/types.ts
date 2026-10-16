@@ -64,6 +64,7 @@ export interface Settings {
   fdjVersion?: string;
   fdjFetchedAt?: string;
   sharedCodesVersion?: string;
+  hiddenGames?: string[]; // jeux enlevés de la liste de comptage par le buraliste
   // Partage des codes-barres (téléphone jumelé). La clé ne quitte jamais le téléphone : exclue des sauvegardes.
   shareToken?: string;
   shareStatus?: 'ok' | 'cle-refusee' | 'hors-ligne' | 'erreur';

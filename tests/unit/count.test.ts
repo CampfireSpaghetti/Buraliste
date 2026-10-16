@@ -24,3 +24,19 @@ describe('comptage', () => {
     expect(migrateLegacyLine(modern)).toEqual(modern);
   });
 });
+
+import { missingGameLines } from '../../src/domain/count';
+import type { Product } from '../../src/domain/types';
+
+describe('tous les jeux listés dans le comptage', () => {
+  const game = (id: string, name: string, over: Partial<Product> = {}): Product => ({ id, source: 'fdj', fdjRef: 'fdj|' + id, base: { kind: 'jeu-fdj', name, status: 'inchange' }, user: {}, outOfStock: false, pinnedSubstitutes: [], updatedAt: 0, ...over });
+  const cig: Product = { id: 'c', source: 'douane', base: { kind: 'cigarette', name: 'Marlboro' }, user: {}, outOfStock: false, pinnedSubstitutes: [], updatedAt: 0 };
+  it('ajoute une ligne à 0 / 0, jamais modifiée, pour chaque jeu actif sans ligne', () => {
+    const lines = missingGameLines([game('A', 'Astro', { user: { fdjPrefix: '0520' } }), game('B', 'Banco'), cig], [l('Banco', 3, 9)].map((x) => ({ ...x, gameId: 'B' })), []);
+    expect(lines).toEqual([{ id: 'game:A', gameId: 'A', code: '0520', name: 'Astro', linearQty: 0, stockQty: 0, updatedAt: 0 }]);
+  });
+  it('ignore les jeux retirés et ceux que le buraliste a enlevés de sa liste', () => {
+    const retired = game('R', 'Ancien', { base: { kind: 'jeu-fdj', name: 'Ancien', status: 'retrait' } });
+    expect(missingGameLines([retired, game('H', 'Caché')], [], ['H'])).toEqual([]);
+  });
+});
