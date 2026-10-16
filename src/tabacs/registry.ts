@@ -15,7 +15,7 @@ export function decodeTabacInvite(text: string): TabacInvite | undefined {
   if (typeof text !== 'string' || !text.startsWith(INVITE_PREFIX)) return undefined;
   try {
     const p = JSON.parse(b64uToText(text.slice(INVITE_PREFIX.length)));
-    if (p && typeof p === 'object' && typeof p.name === 'string' && p.name.length > 0 && p.name.length <= NAME_MAX && typeof p.key === 'string' && KEY_PATTERN.test(p.key)) {
+    if (p && typeof p === 'object' && typeof p.name === 'string' && p.name.trim().length > 0 && p.name.length <= NAME_MAX && typeof p.key === 'string' && KEY_PATTERN.test(p.key)) {
       return { name: p.name, key: p.key };
     }
   } catch {

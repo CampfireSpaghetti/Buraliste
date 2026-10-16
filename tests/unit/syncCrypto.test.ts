@@ -118,6 +118,15 @@ describe('horloge HLC', () => {
     expect(h.tick()).toBe('0000000007000-0003-dev');
   });
 
+  it('ordonne totalement des appareils a, a-b, ab à ms et compteur égaux, et observe lit les identifiants avec "-"', () => {
+    const stamps = ['a', 'a-b', 'ab'].map((id) => createHlc(id, () => 4242).tick());
+    expect(new Set(stamps).size).toBe(3);
+    expect([...stamps].sort()).toEqual(['0000000004242-0000-a', '0000000004242-0000-a-b', '0000000004242-0000-ab']);
+    const h = createHlc('z', () => 1);
+    h.observe('0000000004242-0000-a-b');
+    expect(h.tick()).toBe('0000000004242-0001-z');
+  });
+
   it('un compteur qui dépasse 9999 avance les millisecondes', () => {
     const h = createHlc('d', () => 10);
     h.observe('0000000000010-9999-d');
@@ -144,6 +153,7 @@ describe('invitation de tabac', () => {
     expect(decodeTabacInvite(b64([1, 2]))).toBeUndefined();
     expect(decodeTabacInvite(b64(null))).toBeUndefined();
     expect(decodeTabacInvite(b64({ name: '', key }))).toBeUndefined();
+    expect(decodeTabacInvite(b64({ name: '   ', key }))).toBeUndefined();
     expect(decodeTabacInvite(b64({ name: 'x'.repeat(81), key }))).toBeUndefined();
     expect(decodeTabacInvite(b64({ name: 'x'.repeat(80), key }))).toBeDefined();
     expect(decodeTabacInvite(b64({ name: 'A', key: 'court' }))).toBeUndefined();

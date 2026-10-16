@@ -1,5 +1,6 @@
 import { normalizeCode } from './barcode.ts';
 import { effectiveFields } from './matching.ts';
+import { b64uToText, textToB64u } from '../sync/crypto.ts';
 import type { Product } from './types';
 
 /** Ce qu'un téléphone jumelé partage : uniquement « code → produit officiel ». */
@@ -59,27 +60,15 @@ export function parseIssueBody(body: string): Contribution[] {
   }
 }
 
-function toBase64Url(text: string): string {
-  const bytes = new TextEncoder().encode(text);
-  let bin = '';
-  bytes.forEach((b) => (bin += String.fromCharCode(b)));
-  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
-
-function fromBase64Url(text: string): string {
-  const bin = atob(text.replace(/-/g, '+').replace(/_/g, '/'));
-  return new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0)));
-}
-
 /** Contenu du QR code de jumelage (à ne montrer qu'à vos employés : il contient la clé d'envoi). */
 export function encodePairing(p: Pairing): string {
-  return PAIRING_PREFIX + toBase64Url(JSON.stringify(p));
+  return PAIRING_PREFIX + textToB64u(JSON.stringify(p));
 }
 
 export function decodePairing(text: string): Pairing | undefined {
   if (!text.startsWith(PAIRING_PREFIX)) return undefined;
   try {
-    const p = JSON.parse(fromBase64Url(text.slice(PAIRING_PREFIX.length)));
+    const p = JSON.parse(b64uToText(text.slice(PAIRING_PREFIX.length)));
     if (typeof p?.token === 'string' && typeof p.repo === 'string' && typeof p.shop === 'string') return { token: p.token, repo: p.repo, shop: p.shop };
   } catch {
     /* QR code d'un autre usage */
