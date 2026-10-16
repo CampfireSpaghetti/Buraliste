@@ -235,15 +235,18 @@ export function createSyncEngine(opts: SyncEngineOptions): SyncEngine {
 
   /** Premier contact : photographie (si elle existe) puis messages qui la suivent. */
   async function join(canal: string): Promise<void> {
+    // Premier contact d'une base qui a déjà des données partagées (tabac existant, données d'avant le partage) : son
+    // état fusionné est publié à la fin de cette synchronisation, qu'il y ait déjà une photographie ou non (R25, R26),
+    // sinon ces données n'atteindraient jamais les autres téléphones (elles ne sont pas dans la file d'envoi).
+    // Un téléphone neuf qui rejoint n'a pas de données : il ne publie rien.
+    const todo = await hasLocalData(d);
     const photo = await readPhoto(canal);
     if (photo) {
       await applyPhoto(photo);
+      await d.syncState.put({ key: K_PHOTO_TODO, value: todo });
       return;
     }
-    // Pas de photographie lisible : tout le canal. Si le relais n'a aucune photographie alors que la base a des
-    // données partagées (tabac existant au premier contact, même si un employé a déjà écrit : R25), son état
-    // sera publié après lecture des messages.
-    const todo = photo === null && (await hasLocalData(d));
+    // Pas de photographie lisible : tout le canal.
     await d.syncState.bulkPut([{ key: K_LAST, value: 0 }, { key: K_SEEN, value: 0 }, { key: K_PHOTO_TODO, value: todo }]);
     await pull(canal);
   }

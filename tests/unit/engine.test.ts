@@ -567,6 +567,51 @@ describe('moteur de synchronisation', () => {
     expect((await P.countLines.get('e1'))!.name).toBe('Employé');
   });
 
+  it('premier contact avec des données d’avant le partage alors qu’un employé a déjà publié : le principal publie aussi (R26)', async () => {
+    const key = generateTabacKey();
+    const r = fakeRelay();
+    const { canal } = await deriveChannel(key);
+    const E = phone();
+    await E.settings.put({ ...DEFAULT_SETTINGS, shopName: 'Tabac du Port', key: 'main' } as never);
+    asDevice('zzzzzzzz');
+    await localWrite(E, lineOp('e1', { name: 'Employé', linearQty: 2 }, hlcAt(Date.now() - 5000, 0, 'zzzzzzzz')));
+    await createSyncEngine({ relay: r.client, key, db: E }).syncNow();
+    const first = (await r.store.getPhoto(canal))!;
+    expect(first).not.toBeNull();
+
+    const P = phone();
+    await P.settings.put({ key: 'main', shopName: 'Tabac du Port', sortCount: 'updatedAt' } as never);
+    await P.countLines.bulkPut([
+      { id: 'm1', code: '123', name: 'Astro', linearQty: 1, stockQty: 0, updatedAt: Date.now() - 50_000 },
+      { id: 'game:f:cash', gameId: 'f:cash', code: '', name: 'Cash', linearQty: 6, stockQty: 1, updatedAt: Date.now() - 60_000 },
+    ]);
+    asDevice('aaaaaaaa');
+    await createSyncEngine({ relay: r.client, key, db: P }).syncNow();
+    expect((await r.store.getPhoto(canal))!.data).not.toBe(first.data);
+
+    const C = phone();
+    asDevice('cccccccc');
+    await createSyncEngine({ relay: r.client, key, db: C }).syncNow();
+    expect((await C.countLines.get('m1'))!).toMatchObject({ name: 'Astro', linearQty: 1 });
+    expect((await C.countLines.get('game:f:cash'))!).toMatchObject({ linearQty: 6, stockQty: 1 });
+    expect((await C.countLines.get('e1'))!.name).toBe('Employé');
+    expect((await C.settings.get('main'))!).toMatchObject({ shopName: 'Tabac du Port', sortCount: 'updatedAt' });
+  });
+
+  it('un téléphone neuf qui rejoint (sans données) ne publie pas de photographie', async () => {
+    const key = generateTabacKey();
+    const r = fakeRelay();
+    const P = phone();
+    await P.countLines.put({ id: 'm1', code: '123', name: 'Astro', linearQty: 1, stockQty: 0, updatedAt: Date.now() - 50_000 });
+    await createSyncEngine({ relay: r.client, key, db: P }).syncNow();
+    const puts = () => r.requests.filter((q) => q.method === 'PUT').length;
+    const before = puts();
+    const J = phone();
+    await J.settings.put({ ...DEFAULT_SETTINGS, shopName: 'Tabac du Port', key: 'main' } as never);
+    await createSyncEngine({ relay: r.client, key, db: J }).syncNow();
+    expect(puts()).toBe(before);
+  });
+
   it('plus de 25 jours sans réception : la dernière photographie est appliquée avant les messages', async () => {
     const key = generateTabacKey();
     const r = fakeRelay();
