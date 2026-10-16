@@ -48,7 +48,7 @@ Plusieurs tabacs utilisent La Carotte, chacun avec ses employés. Le partage doi
 
 ### 3.1 Plusieurs tabacs
 
-- **Registre** : une petite base `la-carotte-registre` liste les tabacs du téléphone. Pour chacun : identifiant local, nom, clé, identifiant de canal, date d'ajout, et lequel est en cours d'utilisation.
+- **Registre** : une petite liste dans le stockage local du navigateur (`carotte:tabacs`) recense les tabacs du téléphone ; elle est lue avant d'ouvrir la moindre base. Pour chacun : identifiant local, nom, clé, identifiant de canal, date d'ajout, et lequel est en cours d'utilisation.
 - **Une base par tabac** : `la-carotte-<id>`, avec la même structure qu'aujourd'hui (catalogue, comptage, réglages).
   - La base actuelle `la-carotte` devient le **premier tabac** du téléphone, au nom de son réglage « Nom du tabac ».
   - Aucune donnée n'est perdue. Ce tabac reste « non partagé » tant que le gérant n'active pas le partage.
