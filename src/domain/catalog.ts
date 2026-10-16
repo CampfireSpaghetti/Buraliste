@@ -93,6 +93,8 @@ export function mergeReferences(
   let unchanged = 0;
 
   for (const item of file.items) {
+    // Une ligne sans référence ne peut avoir d'id stable (ni être retrouvée à la version suivante) : ignorée.
+    if (typeof item.ref !== 'string' || item.ref === '') continue;
     const target = byRef.get(item.ref) ?? (item.previousRef ? byRef.get(item.previousRef) : undefined);
     const depart = departByRef.get(item.ref) ?? (item.previousRef ? departByRef.get(item.previousRef) : undefined);
     const base = baseFor(item, file.effectiveDate, depart);

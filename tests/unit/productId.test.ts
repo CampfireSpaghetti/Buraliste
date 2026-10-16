@@ -5,7 +5,7 @@ import { stableProductId, productIdMap, remapProductIds, gameLineId } from '../.
 import { mergeReferences, type ReferenceFile } from '../../src/domain/catalog';
 import { mergeFdjGames, type FdjGamesFile } from '../../src/domain/fdj';
 import { countLineId } from '../../src/domain/count';
-import { CarotteDB, db, listProducts, setOutOfStock } from '../../src/data/db';
+import { CarotteDB, db, listProducts, normalizeProductIds, setOutOfStock, type IdTables } from '../../src/data/db';
 import { applyRemoteOps } from '../../src/data/sharedRepo';
 import { syncFdjGames, syncReferences } from '../../src/data/referencesSync';
 import { restoreFromText } from '../../src/data/backupData';
@@ -14,6 +14,7 @@ import { readRecent } from '../../src/store';
 import { resetClockForTests } from '../../src/sync/clock';
 import type { Clocked } from '../../src/sync/merge';
 import type { CountLine, Product } from '../../src/domain/types';
+import type { Op } from '../../src/sync/merge';
 
 const RELAY = 'https://relais.example.workers.dev';
 const refFile: ReferenceFile = {
@@ -46,6 +47,10 @@ describe('stableProductId', () => {
   it('fiche créée à la main : son id d’origine', () => {
     expect(stableProductId({ id: 'u-123', source: 'utilisateur', douaneRef: 'x' })).toBe('u-123');
   });
+  it('référence vide : jamais un id vide, l’id actuel est gardé', () => {
+    expect(stableProductId({ id: 'rnd', source: 'douane', douaneRef: '' })).toBe('rnd');
+    expect(stableProductId({ id: 'rnd', source: 'fdj', fdjRef: '' })).toBe('rnd');
+  });
   it('sans référence ni nom : l’id actuel', () => {
     expect(stableProductId({ id: 'rnd', source: 'douane' })).toBe('rnd');
     expect(stableProductId({ id: 'rnd', source: 'depart', base: {} })).toBe('rnd');
@@ -68,6 +73,15 @@ describe('deux téléphones vides reçoivent les mêmes ids', () => {
     const a = mergeFdjGames([], fdjFile, 1).put.map((p) => p.id);
     expect(a).toEqual(['f:fdj|ITGC9K']);
     expect(mergeFdjGames([], fdjFile, 2).put.map((p) => p.id)).toEqual(a);
+  });
+});
+
+describe('références vides dans les listes publiques', () => {
+  it('une ligne Douane ou un jeu FDJ sans référence est ignoré (pas d’id vide)', () => {
+    const douane = mergeReferences([], { ...refFile, items: [{ ...refFile.items[0], ref: '' }, refFile.items[1]] }, [], 1);
+    expect(douane.put.map((p) => p.id)).toEqual(['d:a|2']);
+    const fdj = mergeFdjGames([], { ...fdjFile, items: [{ ...fdjFile.items[0], ref: '' }] }, 1);
+    expect(fdj.put).toEqual([]);
   });
 });
 
@@ -106,15 +120,43 @@ describe('remapProductIds (pur)', () => {
     expect(c.products[0]._clock).toEqual({ outOfStock: 'h1', 'user.notes': 'h2', 'user.tasteTags': 'h3' });
     expect(c.productDel.sort()).toEqual(['a', 'b', 'c']);
   });
-  it('deux lignes pour le même jeu : la ligne visible la plus récente reste', () => {
+  it('deux fiches pour la même référence : champ par champ, l’horodatage le plus récent gagne', () => {
+    const products = [
+      prod({ id: 'a', douaneRef: 'a|1', updatedAt: 9, outOfStock: false, user: { notes: 'ancien', price: 5 }, pinnedSubstitutes: ['x'], _clock: { outOfStock: '5', 'user.notes': '2', pinnedSubstitutes: '1' } }),
+      prod({ id: 'b', douaneRef: 'a|1', updatedAt: 2, outOfStock: true, user: { notes: 'récent' }, pinnedSubstitutes: ['y'], _clock: { outOfStock: '4', 'user.notes': '3', 'user.price': '6', pinnedSubstitutes: '2' } }),
+    ];
+    const [merged] = remapProductIds({ products, lines: [] }, productIdMap(products)).products;
+    // outOfStock : a (5) > b (4) ; notes : b (3) > a (2) ; price : effacé sur b (6) après a (sans horodatage) ; remplaçants : b (2).
+    expect(merged).toMatchObject({ id: 'd:a|1', outOfStock: false, user: { notes: 'récent' }, pinnedSubstitutes: ['y'], updatedAt: 9 });
+    expect(merged.user).not.toHaveProperty('price');
+    expect(merged._clock).toEqual({ outOfStock: '5', 'user.notes': '3', 'user.price': '6', pinnedSubstitutes: '2' });
+  });
+  it('deux lignes pour le même jeu : la plus récente reste ; les opérations en file de l’autre sont retirées', () => {
     const products = [prod({ id: 'a', douaneRef: 'a|1' }), prod({ id: 'b', douaneRef: 'a|1' })];
     const lines: CountLine[] = [
       { id: 'game:a', gameId: 'a', code: '', name: 'Un', linearQty: 1, stockQty: 0, updatedAt: 5 },
-      { id: 'game:b', gameId: 'b', code: '', name: 'Un', linearQty: 9, stockQty: 0, updatedAt: 8, deleted: true },
+      { id: 'game:b', gameId: 'b', code: '', name: 'Un', linearQty: 9, stockQty: 4, updatedAt: 8 },
     ];
-    const c = remapProductIds({ products, lines }, productIdMap(products));
-    expect(c.lines).toEqual([{ ...lines[0], id: 'game:d:a|1', gameId: 'd:a|1' }]);
+    const ops = [
+      { seq: 1, op: { e: 'line', id: 'game:a', f: { linearQty: 1 }, t: 't1' } as Op },
+      { seq: 2, op: { e: 'line', id: 'game:b', f: { linearQty: 9 }, t: 't2' } as Op },
+    ];
+    const c = remapProductIds({ products, lines, ops }, productIdMap(products));
+    expect(c.lines).toEqual([{ ...lines[1], id: 'game:d:a|1', gameId: 'd:a|1' }]);
     expect(c.lineDel.sort()).toEqual(['game:a', 'game:b']);
+    expect(c.opDel).toEqual([1]);
+    expect(c.ops).toEqual([{ seq: 2, op: { e: 'line', id: 'game:d:a|1', f: { linearQty: 9 }, t: 't2' } }]);
+  });
+  it('totale : une donnée abîmée est laissée telle quelle, sans exception', () => {
+    const products = [prod({ id: 'r', douaneRef: 'a|1', pinnedSubstitutes: 'abîmé' as never, user: null as never })];
+    const lines = [{ id: 'game:r', gameId: 7, code: '', name: '', linearQty: 0, stockQty: 0, updatedAt: 0 } as never as CountLine];
+    const ops = [{ seq: 1, op: { e: 'product', id: 'r', f: null } as never as Op }, { seq: 2, op: { e: 'settings', id: 'main', f: { hiddenGames: 'x' }, t: 't' } as never as Op }];
+    const c = remapProductIds({ products, lines, hiddenGames: 'abîmé' as never, ops }, productIdMap(products));
+    expect(c.products).toEqual([{ ...products[0], id: 'd:a|1' }]);
+    expect(c.lines.map((l) => [l.id, l.gameId])).toEqual([['game:d:a|1', 7]]);
+    expect(c.hiddenGames).toBe('abîmé');
+    expect(c.hiddenChanged).toBe(false);
+    expect(c.ops).toEqual([]);
   });
 });
 
@@ -199,8 +241,92 @@ describe('base de données', () => {
     await up.open();
     expect(up.verno).toBe(5);
     expect(await up.products.count()).toBe(1);
+    expect((await up.products.get('d:a|9'))!.pinnedSubstitutes).toBe('abîmé');
     up.close();
     await Dexie.delete(name);
+  });
+
+  const failing = <T extends object>(table: T, method: string): T =>
+    new Proxy(table, { get: (t, k) => (k === method ? () => Promise.reject(new Error('quota')) : Reflect.get(t, k, t)) }) as T;
+  const dump = async () => ({
+    products: await db.products.toArray(), lines: await db.countLines.toArray(), settings: await db.settings.toArray(), ops: await db.opsOut.toArray(),
+  });
+
+  it('une écriture qui échoue (erreur rattrapée) ne fait perdre aucune donnée : pas d’effacement avant écriture', async () => {
+    await db.products.put(prod({ id: 'rnd', douaneRef: 'a|1', outOfStock: true, user: { notes: 'n' }, _clock: { outOfStock: 'c1' } }));
+    await db.countLines.put({ id: 'game:rnd', gameId: 'rnd', code: '', name: 'Un', linearQty: 3, stockQty: 40, updatedAt: 2 });
+    for (const which of ['products', 'countLines'] as const) {
+      const tables: IdTables = { products: db.products, countLines: db.countLines, settings: db.settings, opsOut: db.opsOut };
+      tables[which] = failing(db[which], 'bulkPut') as never;
+      await db.transaction('rw', [db.products, db.countLines, db.settings, db.opsOut], async () => {
+        await normalizeProductIds(tables).catch(() => undefined);
+      });
+      expect(await db.products.get('rnd')).toMatchObject({ outOfStock: true, user: { notes: 'n' }, _clock: { outOfStock: 'c1' } });
+      expect(await db.countLines.get('game:rnd')).toMatchObject({ linearQty: 3, stockQty: 40 });
+    }
+    // La normalisation suivante fusionne le doublon laissé (ancien id + nouvel id).
+    await db.transaction('rw', [db.products, db.countLines, db.settings, db.opsOut], () => normalizeProductIds(db));
+    expect((await db.products.toArray()).map((p) => [p.id, p.outOfStock, p.user])).toEqual([['d:a|1', true, { notes: 'n' }]]);
+    expect((await db.countLines.toArray()).map((l) => [l.id, l.linearQty])).toEqual([['game:d:a|1', 3]]);
+  });
+
+  it('relancer la normalisation ne change rien', async () => {
+    await db.products.bulkPut([prod({ id: 'rnd', douaneRef: 'a|1', pinnedSubstitutes: ['u'] }), prod({ id: 'u', source: 'utilisateur', pinnedSubstitutes: ['rnd'] })]);
+    await db.countLines.put({ id: 'game:rnd', gameId: 'rnd', code: '', name: 'Un', linearQty: 3, stockQty: 4, updatedAt: 2, _clock: { linearQty: 'c' } } as CountLine);
+    await db.opsOut.add({ op: { e: 'product', id: 'rnd', f: { outOfStock: true }, t: 'c' } });
+    const first = await db.transaction('rw', [db.products, db.countLines, db.settings, db.opsOut], () => normalizeProductIds(db));
+    expect(first.size).toBe(1);
+    const after = await dump();
+    const second = await db.transaction('rw', [db.products, db.countLines, db.settings, db.opsOut], () => normalizeProductIds(db));
+    expect(second.size).toBe(0);
+    expect(await dump()).toEqual(after);
+  });
+
+  it('les produits récents ne sont réécrits qu’une fois la transaction validée', async () => {
+    await db.products.put(prod({ id: 'rnd', douaneRef: 'a|1' }));
+    localStorage.setItem('carotte:recent', JSON.stringify(['rnd']));
+    await db.transaction('rw', [db.products, db.countLines, db.settings, db.opsOut], async () => {
+      await normalizeProductIds(db);
+      throw new Error('annulée');
+    }).catch(() => undefined);
+    expect(readRecent()).toEqual(['rnd']);
+    expect(await db.products.get('rnd')).toBeDefined();
+  });
+
+  it('renommage Douane (previousRef) : d:ancien → d:nouveau, avec ses lignes, opérations et produits récents', async () => {
+    await syncReferences(fetchOf(refFile));
+    await db.countLines.put({ id: 'game:d:a|1', gameId: 'd:a|1', code: '', name: 'Un', linearQty: 2, stockQty: 6, updatedAt: 4, _clock: { stockQty: 'c' } } as CountLine);
+    await db.products.put(prod({ id: 'u', source: 'utilisateur', pinnedSubstitutes: ['d:a|1'] }));
+    await setOutOfStock('d:a|1', true);
+    localStorage.setItem('carotte:recent', JSON.stringify(['d:a|1']));
+    const renamed: ReferenceFile = { ...refFile, version: 'v2', items: [{ ...refFile.items[0], ref: 'a|1bis', previousRef: 'a|1' }, refFile.items[1]] };
+    await syncReferences(fetchOf(renamed));
+    expect(await db.products.get('d:a|1')).toBeUndefined();
+    expect(await db.products.get('d:a|1bis')).toMatchObject({ douaneRef: 'a|1bis', outOfStock: true });
+    expect((await db.products.get('u'))!.pinnedSubstitutes).toEqual(['d:a|1bis']);
+    expect(await db.countLines.get('game:d:a|1')).toBeUndefined();
+    expect(await db.countLines.get('game:d:a|1bis')).toMatchObject({ gameId: 'd:a|1bis', linearQty: 2, stockQty: 6, _clock: { stockQty: 'c' } });
+    expect((await db.opsOut.toArray()).map((r) => r.op.id)).toEqual(['d:a|1bis']);
+    expect(readRecent()).toEqual(['d:a|1bis']);
+  });
+
+  it('données abîmées (remplaçants, jeux enlevés) : la liste officielle est quand même mise à jour', async () => {
+    await db.products.put(prod({ id: 'rnd', douaneRef: 'a|1', pinnedSubstitutes: 'abîmé' as never }));
+    await db.settings.put({ key: 'main', shopName: 'T', sortCount: 'name', hiddenGames: 'abîmé' as never });
+    expect(await syncReferences(fetchOf(refFile))).toEqual({ updated: true, version: 'v1' });
+    expect((await db.products.get('d:a|1'))!.pinnedSubstitutes).toBe('abîmé');
+    expect((await db.settings.get('main'))!).toMatchObject({ hiddenGames: 'abîmé', referencesVersion: 'v1' });
+  });
+
+  it('une normalisation qui échoue n’empêche pas la mise à jour des listes Douane et FDJ', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    await db.products.put(prod({ id: 'rnd', douaneRef: 'a|1' }));
+    vi.spyOn(db.countLines, 'toArray').mockRejectedValue(new Error('panne'));
+    expect(await syncReferences(fetchOf(refFile))).toEqual({ updated: true, version: 'v1' });
+    expect(await syncFdjGames(fetchOf(fdjFile))).toEqual({ updated: true, version: 'f1' });
+    // La fiche « rnd » reste (non effacée) ; elle passera à son id stable à la prochaine normalisation.
+    expect((await listProducts()).map((p) => p.id).sort()).toEqual(['d:a|2', 'f:fdj|ITGC9K', 'rnd']);
+    expect(error).toHaveBeenCalled();
   });
 
   it('un jeu de l’ancienne liste de départ repris par la liste FDJ change d’id, et sa ligne le suit', async () => {

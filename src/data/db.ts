@@ -48,9 +48,10 @@ export class CarotteDB extends Dexie {
     // v5 : ids stables des fiches officielles (R20), et tout ce qui les désigne. Ne doit jamais empêcher l'ouverture.
     this.version(5).stores({}).upgrade(async (tx) => {
       try {
-        await normalizeProductIds({
+        const map = await normalizeProductIds({
           products: tx.table('products'), countLines: tx.table('countLines'), settings: tx.table('settings'), opsOut: tx.table('opsOut'),
         });
+        tx.on('complete', () => remapRecent(map));
       } catch (e) {
         console.error('Ids stables des produits : migration non faite', e);
       }
@@ -67,8 +68,13 @@ export type IdTables = {
 
 /**
  * Passe chaque fiche à son id stable (`stableProductId`) et réécrit tout ce qui la désigne : remplaçants, lignes de
- * comptage, jeux enlevés, opérations en file, produits récents. Horodatages gardés, aucune opération produite : chaque
- * téléphone fait la même chose de son côté. À appeler dans une transaction qui inclut les quatre tables.
+ * comptage, jeux enlevés, opérations en file. Horodatages gardés, aucune opération produite : chaque téléphone fait
+ * la même chose de son côté. À appeler dans une transaction qui inclut les quatre tables ; renvoie la table des ids,
+ * à passer à `remapRecent` une fois la transaction validée (la liste des récents n'est pas dans la base).
+ *
+ * Toutes les écritures passent avant tout effacement : si l'une échoue (et que l'appelant rattrape l'erreur), le pire
+ * est un doublon (ancien id + nouvel id), que la prochaine normalisation fusionne ; jamais une donnée perdue.
+ * Relancée, elle ne fait rien (les ids sont déjà stables).
  */
 export async function normalizeProductIds(t: IdTables): Promise<IdMap> {
   const products = await t.products.toArray();
@@ -76,20 +82,22 @@ export async function normalizeProductIds(t: IdTables): Promise<IdMap> {
   if (map.size === 0) return map;
   const [lines, settings, ops] = await Promise.all([t.countLines.toArray(), t.settings.get('main'), t.opsOut.toArray()]);
   const c = remapProductIds({ products, lines, hiddenGames: settings?.hiddenGames, ops }, map);
-  await t.products.bulkDelete(c.productDel);
   await t.products.bulkPut(c.productPut);
-  await t.countLines.bulkDelete(c.lineDel);
   await t.countLines.bulkPut(c.linePut);
   if (settings && c.hiddenChanged) await t.settings.put({ ...settings, hiddenGames: c.hiddenGames });
   if (c.ops.length) await t.opsOut.bulkPut(c.ops);
-  remapRecent(map);
+  await t.products.bulkDelete(c.productDel);
+  await t.countLines.bulkDelete(c.lineDel);
+  if (c.opDel.length) await t.opsOut.bulkDelete(c.opDel);
   return map;
 }
 
 /** Produits consultés récemment (sur ce téléphone). */
 export const RECENT_KEY = 'carotte:recent';
 
-function remapRecent(map: IdMap) {
+/** Liste des produits récents (localStorage) réécrite avec les nouveaux ids : seulement après la transaction validée. */
+export function remapRecent(map: IdMap) {
+  if (map.size === 0) return;
   try {
     const raw = localStorage.getItem(RECENT_KEY);
     const ids: unknown = raw ? JSON.parse(raw) : undefined;

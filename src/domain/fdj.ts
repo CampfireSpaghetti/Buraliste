@@ -41,6 +41,8 @@ export function mergeFdjGames(existing: Product[], file: FdjGamesFile, now: numb
   let unchanged = 0;
 
   for (const item of file.items) {
+    // Un jeu sans clé ne peut avoir d'id stable (ni être retrouvé à la version suivante) : ignoré.
+    if (typeof item.ref !== 'string' || item.ref === '') continue;
     const base = baseFor(item);
     const current = byRef.get(item.ref);
     if (current) {
