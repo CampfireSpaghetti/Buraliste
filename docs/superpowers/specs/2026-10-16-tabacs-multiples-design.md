@@ -51,7 +51,7 @@ Plusieurs tabacs utilisent La Carotte, chacun avec ses employés. Le partage doi
 - **Registre** : une petite liste dans le stockage local du navigateur (`carotte:tabacs`) recense les tabacs du téléphone ; elle est lue avant d'ouvrir la moindre base. Pour chacun : identifiant local, nom, clé, identifiant de canal, date d'ajout, et lequel est en cours d'utilisation.
 - **Une base par tabac** : `la-carotte-<id>`, avec la même structure qu'aujourd'hui (catalogue, comptage, réglages).
   - La base actuelle `la-carotte` devient le **premier tabac** du téléphone, au nom de son réglage « Nom du tabac ».
-  - Aucune donnée n'est perdue. Ce tabac reste « non partagé » tant que le gérant n'active pas le partage.
+  - Aucune donnée n'est perdue. Sa clé est créée automatiquement, comme pour tout tabac : il n'y a rien à activer.
 - **Sélecteur** : toucher le nom du tabac dans l'en-tête ouvre une feuille avec :
   - la liste des tabacs du téléphone ;
   - « Créer un tabac » ;
@@ -64,7 +64,8 @@ Plusieurs tabacs utilisent La Carotte, chacun avec ses employés. Le partage doi
 - **Créer un tabac** :
   1. on saisit le nom ;
   2. le téléphone génère la clé, la nouvelle base reçoit les listes publiques, et le canal est ouvert sur le relais au premier envoi.
-  - Pour le tabac existant (base `la-carotte`), « Activer le partage » fait la même chose et publie l'état actuel (photographie, voir §4.3).
+  - Pour le tabac existant (base `la-carotte`), la clé est créée automatiquement au premier lancement de la nouvelle version, et l'état actuel est publié (photographie, voir §4.3) dès que le relais est en service.
+- **Aucune clé à saisir, aucun compte** : ni GitHub, ni Cloudflare, ni autre, pour les gérants comme pour les employés. Toutes les clés naissent sur le téléphone ; seul l'administrateur de l'app configure le relais une fois (§7).
 - **Inviter un employé** : Réglages → « Inviter un employé » affiche le QR code `LACAROTTE2:<base64url {nom, clé}>`.
   - Avertissement affiché : « Toute personne qui scanne ce QR code accède aux données du tabac. »
 - **Rejoindre** : n'importe quel scanner de l'app reconnaît ce QR code. L'app demande « Rejoindre le Tabac du Centre ? », puis :

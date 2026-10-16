@@ -196,10 +196,10 @@ tests/e2e/tabacs.spec.ts   ← deux navigateurs, soit deux téléphones
 **Fichiers :** `src/tabacs/registry.ts`, `src/data/db.ts`, `src/main.tsx`, `tests/unit/registry.test.ts`
 
 **Interfaces produites :**
-- `type TabacEntry = { id: string; name: string; key?: string; addedAt: number }`. Sans `key`, le tabac n'est pas partagé.
+- `type TabacEntry = { id: string; name: string; key: string; addedAt: number }`. La clé est **toujours** générée automatiquement (`generateTabacKey`, Tâche 3) : à la création, et par `ensureRegistry` pour `principal`. Aucun écran ne demande de clé.
 - Le registre est stocké dans `localStorage['carotte:tabacs']` sous la forme `{ current: string; tabacs: TabacEntry[] }`.
   - `listTabacs()`, `currentTabac(): TabacEntry`.
-  - `addTabac(name, key?): TabacEntry`, avec un `id` aléatoire.
+  - `addTabac(name, key?: string): TabacEntry`, avec un `id` aléatoire ; sans `key` (création), une clé neuve est générée ; avec `key` (rejoindre), elle est reprise.
   - `setCurrentTabac(id)`, `renameTabac(id, name)`, `removeTabac(id)`.
   - `ensureRegistry(defaultName: string)` : au premier lancement, crée l'entrée `{ id: 'principal', name: defaultName }` pour la base existante.
 - `dbNameFor(id): string` : `'la-carotte'` pour `principal`, sinon `la-carotte-${id}`.
@@ -207,7 +207,7 @@ tests/e2e/tabacs.spec.ts   ← deux navigateurs, soit deux téléphones
 - **Changer de tabac** : `setCurrentTabac(id)`, puis `location.reload()`. Au démarrage, la synchronisation des listes publiques (Douane, FDJ, codes partagés) s'applique à la base du tabac courant : un tabac neuf les reçoit donc à son premier lancement.
 
 - [ ] **Étape 1 : écrire les tests qui échouent** (fake-indexeddb et `localStorage` de jsdom).
-  - `ensureRegistry('Mon tabac')` crée `principal` comme tabac courant ; un second appel ne change rien.
+  - `ensureRegistry('Mon tabac')` crée `principal` comme tabac courant, avec une clé de 43 caractères ; un second appel ne change rien (même clé).
   - `dbNameFor('principal') === 'la-carotte'`.
   - Deux tabacs ont deux bases distinctes : une ligne écrite dans l'une est absente de l'autre.
   - `removeTabac(current)` est refusé tant qu'il n'y a pas d'autre tabac.
@@ -222,13 +222,13 @@ tests/e2e/tabacs.spec.ts   ← deux navigateurs, soit deux téléphones
 - Consomme : `Op`, `applyFields`, `diffFields` (Tâche 4) ; `createHlc` (Tâche 3) ; `db` (Tâche 5).
 - Produit :
   - `SHARED_KEYS = { line: [...], product: [...], settings: ['shopName', 'sortCount', 'hiddenGames'] }`, comme dans les contraintes globales ;
-  - `writeShared(e, id, next: object): Promise<void>`. Il calcule `f = diffFields(actuel, next, SHARED_KEYS[e])`, l'applique localement avec `t = hlc.tick()` (champs partagés horodatés, champs non partagés écrits tels quels), puis, si le tabac est partagé, ajoute `{e,id,f,t}` à `opsOut` ;
+  - `writeShared(e, id, next: object): Promise<void>`. Il calcule `f = diffFields(actuel, next, SHARED_KEYS[e])`, l'applique localement avec `t = hlc.tick()` (champs partagés horodatés, champs non partagés écrits tels quels), puis, si le relais est configuré (`VITE_RELAY_URL`), ajoute `{e,id,f,t}` à `opsOut` ;
   - `applyRemoteOps(ops: Op[]): Promise<number>`, qui applique les opérations et renvoie le nombre de changements ;
   - les `actions` de `store.ts` passent toutes par `writeShared` ;
   - `deleteCountLine` écrit `{deleted:true}`, et `listCountLines` filtre les lignes supprimées.
 
 - [ ] **Étape 1 : écrire les tests qui échouent.**
-  - `upsertCountLine` sur un tabac partagé ajoute une opération `line` à `opsOut`, avec seulement les champs modifiés. Sur un tabac non partagé, rien n'est ajouté.
+  - Relais configuré : `upsertCountLine` ajoute une opération `line` à `opsOut`, avec seulement les champs modifiés. Relais non configuré : rien n'est ajouté (la première photographie couvrira ces données).
   - `setOutOfStock` donne une opération `{outOfStock:true}`. `patchUserFields({tasteTags})` donne `{'user.tasteTags': [...]}`.
   - `saveSettings({lastBackupAt})` ne produit **aucune** opération, car ce champ n'est pas partagé. `saveSettings({shopName})` en produit une.
   - `applyRemoteOps` sur une ligne inconnue la crée ; sur une opération plus ancienne qu'un champ local, rien ne change.
@@ -249,7 +249,7 @@ tests/e2e/tabacs.spec.ts   ← deux navigateurs, soit deux téléphones
     - Il envoie `opsOut` par lots de 200 opérations au plus par message.
     - Il reçoit `apres = syncState.lastN`, déchiffre et applique les messages, puis met `lastN` à jour.
     - Au premier lancement, il lit la photographie, puis les messages qui la suivent.
-    - Il publie une photographie quand `lastN - photoN > 500`, et aussi au premier partage d'un tabac qui a déjà des données (canal vide, aucune photographie) : c'est « Partager ce tabac » pour la base `principal`.
+    - Il publie une photographie quand `lastN - photoN > 500`, et aussi quand le canal est vide et sans photographie alors que la base locale a des données : c'est le cas de `principal` à la première mise en service du relais, sans aucune action du gérant.
     - Un 403 met le statut à `'refuse'` (« Ce téléphone n'a plus accès à ce tabac ») et arrête les tentatives ; les données locales restent.
     - En cas d'échec, il attend de plus en plus longtemps (10 s, 20 s, 40 s… jusqu'à 5 min).
     - Il émet l'événement `carotte:sync-status`.
@@ -265,7 +265,7 @@ tests/e2e/tabacs.spec.ts   ← deux navigateurs, soit deux téléphones
     - 510 messages sont écrits, et A publie une photographie ;
     - le relais supprime les anciens messages (`pruneBefore`) ;
     - une base C neuve avec la même clé obtient tout l'état à jour.
-  - **`premier partage publie l'état`** : une base avec 3 lignes, jamais partagée, reçoit une clé ; après `syncNow()`, une base neuve avec la même clé obtient les 3 lignes.
+  - **`premier partage publie l'état`** : une base avec 3 lignes, jamais synchronisée ; après `syncNow()`, une base neuve avec la même clé obtient les 3 lignes.
   - **`accès refusé`** : un canal créé avec une autre clé d'écriture donne `status() === 'refuse'`, et aucune nouvelle tentative n'est programmée.
   - Le contenu stocké par le faux relais ne contient jamais de texte en clair (rechercher « Cash » dans les données donne 0 résultat).
 - [ ] **Étape 2 : vérifier l'échec**, **implémenter**, **vérifier que les tests passent.**
@@ -295,7 +295,6 @@ tests/e2e/tabacs.spec.ts   ← deux navigateurs, soit deux téléphones
   - « Créer un tabac » : on saisit le nom, et le tabac est partagé d'office ;
   - « Rejoindre un tabac » : explication, puis ouverture du Scanner.
 - Réglages, section « Tabac » :
-  - « Partager ce tabac », si le tabac n'a pas encore de clé ;
   - « Inviter un employé », qui affiche le QR code avec l'avertissement de la spec §3.2 ;
   - l'état de la synchronisation.
 - `SyncDot` dans l'en-tête : vert, laiton, gris ou rouge, avec un `aria-label` de la forme « Synchronisation : à jour ».
