@@ -14,13 +14,14 @@ import { CountTable } from './CountTable';
 import { NumericKeypad } from './NumericKeypad';
 import { WhichGameDialog } from './WhichGameDialog';
 import { ExportPanel } from './ExportPanel';
+import { BackupReminder } from './BackupReminder';
 import './count.css';
 
 type KeypadTarget = { lineId?: string; gameId?: string; code: string; name: string; subtitle?: string; initial: number };
 type LineForm = { mode: 'new' } | { mode: 'edit'; line: CountLine };
 type ToastState = { message: string; undo?: CountLine };
 
-export function CountScreen({ bannerSlot }: { bannerSlot?: React.ReactNode }) {
+export function CountScreen() {
   const products = useProducts();
   const rawLines = useCountLines();
   const settings = useSettings();
@@ -114,7 +115,7 @@ export function CountScreen({ bannerSlot }: { bannerSlot?: React.ReactNode }) {
         </div>
       ) : (
         <>
-          {bannerSlot}
+          {settings && <BackupReminder settings={settings} hasData={(rawLines ?? []).length > 0} />}
           <div className="count-actions">
             <button type="button" className="btn accent" onClick={() => setScanning(true)}>Scanner</button>
             <button type="button" className="btn" onClick={() => setLineForm({ mode: 'new' })}>+ Ligne</button>

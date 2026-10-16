@@ -10,6 +10,8 @@ import { AttachToReference } from './features/catalog/AttachToReference';
 import { CatalogScreen } from './features/catalog/CatalogScreen';
 import { CompareView } from './features/catalog/CompareView';
 import { CountScreen } from './features/count/CountScreen';
+import { SettingsScreen } from './features/settings/SettingsScreen';
+import { UpdateBanner } from './ui/UpdateBanner';
 import { useSettings } from './store';
 import './ui/panel.css';
 
@@ -64,11 +66,13 @@ function Shell() {
           <small>{settings?.shopName ?? ''} · {TITLES[tab]}</small>
         </div>
       </header>
+      <UpdateBanner />
       <main className={'app-main tab-' + tab}>
         <h2 className="screen-title">{TITLES[tab]}</h2>
         {tab === 'scanner' && <ScannerScreen />}
         {tab === 'catalogue' && <CatalogScreen />}
         {tab === 'grattage' && <CountScreen />}
+        {tab === 'reglages' && <SettingsScreen />}
       </main>
       <TabBar current={tab} onChange={go} />
       {nav.stack.map((v, i) => <ViewLayer key={i} view={v} />)}

@@ -1,0 +1,9 @@
+.settings { display: flex; flex-direction: column; gap: 10px; }
+.settings .hint { margin: -4px 0 8px; }
+.settings .label { margin-top: 8px; }
+.file-btn { position: relative; overflow: hidden; }
+.file-btn input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.error { color: var(--danger); font-weight: 600; margin: 0; }
+.steps { margin: 4px 0; padding-left: 22px; display: flex; flex-direction: column; gap: 6px; }
+.steps svg { vertical-align: middle; }
+.card h3 { font-size: 18px; }
