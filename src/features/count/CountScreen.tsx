@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { missingGameLines, sortLines } from '../../domain/count';
+import { countLineId, missingGameLines, sortLines } from '../../domain/count';
 import { effectiveFields, learnFdjCode, resolveScan, type ScanResult } from '../../domain/matching';
 import { fold } from '../../domain/search';
 import { formatEuro } from '../../domain/format';
@@ -79,7 +79,7 @@ export function CountScreen() {
     const k = keypad!;
     const existing = k.snapshot ?? (k.lineId ? (rawLines ?? []).find((l) => l.id === k.lineId) : undefined);
     const line: CountLine = {
-      ...(existing ?? { id: newId(), gameId: k.gameId, code: k.code, name: k.name, linearQty: 0, stockQty: 0, updatedAt: 0 }),
+      ...(existing ?? { id: countLineId(k.gameId, newId), gameId: k.gameId, code: k.code, name: k.name, linearQty: 0, stockQty: 0, updatedAt: 0 }),
       [k.field]: n,
     };
     const next = k.chain && k.field === 'linearQty';
@@ -243,7 +243,7 @@ function LineFormSheet({ form, games, lines, products, onClose, onDelete, onMerg
         const updated = await actions.upsertCountLine({ ...same, linearQty, stockQty, code: same.code || c }, same);
         onMerged(updated);
       } else {
-        await actions.upsertCountLine({ id: newId(), gameId, code: c, name: name.trim(), linearQty, stockQty, updatedAt: 0 });
+        await actions.upsertCountLine({ id: countLineId(gameId, newId), gameId, code: c, name: name.trim(), linearQty, stockQty, updatedAt: 0 });
       }
     }
     onClose();

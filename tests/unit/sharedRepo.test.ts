@@ -308,7 +308,9 @@ describe('listes publiques et sauvegarde (R17)', () => {
     const clock = (await db.products.get('p1'))!._clock;
     const n = await db.opsOut.count();
     await syncReferences(fetchOf(refFile));
-    const p = (await db.products.get('p1'))!;
+    // La fiche passe à son id stable (« d: » + référence Douane), avec tout ce qu'elle portait.
+    expect(await db.products.get('p1')).toBeUndefined();
+    const p = (await db.products.get('d:a|1'))!;
     expect(p.base.price).toBe(14);
     expect(p).toMatchObject({ user: { tasteTags: ['doux'] }, outOfStock: true, pinnedSubstitutes: ['p2'] });
     expect(p._clock).toEqual(clock);

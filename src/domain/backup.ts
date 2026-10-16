@@ -1,4 +1,5 @@
 import { migrateLegacyLine } from './count';
+import { productIdMap, remapProductIds } from './productId';
 import type { CountLine, Product, Settings } from './types';
 
 export type BackupData = { products: Product[]; countLines: CountLine[]; settings: Settings };
@@ -50,6 +51,18 @@ export function parseBackup(text: string): { ok: true; data: BackupFile } | { ok
     && isObj(raw.settings) && typeof raw.settings.shopName === 'string';
   if (!ok) return { ok: false, error: BROKEN };
   return { ok: true, data: raw as unknown as BackupFile };
+}
+
+/**
+ * Sauvegarde faite avant les ids stables (R20) : ses fiches officielles ont des ids au hasard. Elles reçoivent leur
+ * id stable (par référence Douane ou FDJ), et tout ce qui les désigne suit. Une sauvegarde récente ne change pas.
+ */
+export function withStableIds(data: BackupData): BackupData {
+  const map = productIdMap(data.products);
+  if (map.size === 0) return data;
+  const c = remapProductIds({ products: data.products, lines: data.countLines, hiddenGames: data.settings.hiddenGames }, map);
+  const settings = c.hiddenChanged ? { ...data.settings, hiddenGames: c.hiddenGames } : data.settings;
+  return { products: c.products, countLines: c.lines, settings };
 }
 
 /** Rappel si la dernière sauvegarde a plus de 7 jours, ou s'il n'y en a jamais eu alors que des données existent. */

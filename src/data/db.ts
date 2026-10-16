@@ -1,6 +1,7 @@
 import Dexie, { type Table } from 'dexie';
 import type { CountLine, Product, ProductFields, Settings } from '../domain/types';
 import type { Contribution } from '../domain/sharing';
+import { productIdMap, remapIdList, remapProductIds, type IdMap } from '../domain/productId';
 import { withoutClock, type Clocked, type Op } from '../sync/merge';
 import { currentTabac, DEFAULT_TABAC_NAME, dbNameFor, ensureRegistry, listTabacs, syncRegistryName } from '../tabacs/registry';
 // Import circulaire voulu avec sharedRepo.ts : chacun n'utilise l'autre que dans des fonctions (voir sharedRepo.ts).
@@ -44,6 +45,57 @@ export class CarotteDB extends Dexie {
     this.version(3).stores({ outbox: '++id, createdAt' });
     // v4 : opérations à envoyer et état de la synchronisation entre téléphones.
     this.version(4).stores({ opsOut: '++seq', syncState: 'key' });
+    // v5 : ids stables des fiches officielles (R20), et tout ce qui les désigne. Ne doit jamais empêcher l'ouverture.
+    this.version(5).stores({}).upgrade(async (tx) => {
+      try {
+        await normalizeProductIds({
+          products: tx.table('products'), countLines: tx.table('countLines'), settings: tx.table('settings'), opsOut: tx.table('opsOut'),
+        });
+      } catch (e) {
+        console.error('Ids stables des produits : migration non faite', e);
+      }
+    });
+  }
+}
+
+export type IdTables = {
+  products: Table<Clocked<Product>, string>;
+  countLines: Table<Clocked<CountLine>, string>;
+  settings: Table<Clocked<SettingsRow>, string>;
+  opsOut: Table<OpOut, number>;
+};
+
+/**
+ * Passe chaque fiche à son id stable (`stableProductId`) et réécrit tout ce qui la désigne : remplaçants, lignes de
+ * comptage, jeux enlevés, opérations en file, produits récents. Horodatages gardés, aucune opération produite : chaque
+ * téléphone fait la même chose de son côté. À appeler dans une transaction qui inclut les quatre tables.
+ */
+export async function normalizeProductIds(t: IdTables): Promise<IdMap> {
+  const products = await t.products.toArray();
+  const map = productIdMap(products);
+  if (map.size === 0) return map;
+  const [lines, settings, ops] = await Promise.all([t.countLines.toArray(), t.settings.get('main'), t.opsOut.toArray()]);
+  const c = remapProductIds({ products, lines, hiddenGames: settings?.hiddenGames, ops }, map);
+  await t.products.bulkDelete(c.productDel);
+  await t.products.bulkPut(c.productPut);
+  await t.countLines.bulkDelete(c.lineDel);
+  await t.countLines.bulkPut(c.linePut);
+  if (settings && c.hiddenChanged) await t.settings.put({ ...settings, hiddenGames: c.hiddenGames });
+  if (c.ops.length) await t.opsOut.bulkPut(c.ops);
+  remapRecent(map);
+  return map;
+}
+
+/** Produits consultés récemment (sur ce téléphone). */
+export const RECENT_KEY = 'carotte:recent';
+
+function remapRecent(map: IdMap) {
+  try {
+    const raw = localStorage.getItem(RECENT_KEY);
+    const ids: unknown = raw ? JSON.parse(raw) : undefined;
+    if (Array.isArray(ids) && ids.some((id) => map.has(id))) localStorage.setItem(RECENT_KEY, JSON.stringify(remapIdList(ids, map)));
+  } catch {
+    /* stockage indisponible : les ids inconnus sont ignorés à la lecture */
   }
 }
 

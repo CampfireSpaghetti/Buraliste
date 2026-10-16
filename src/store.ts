@@ -72,7 +72,7 @@ export function newUserProduct(fields: Partial<ProductFields>): Product {
   return { id: repo.newId(), source: 'utilisateur', base: {}, user: fields, outOfStock: false, pinnedSubstitutes: [], updatedAt: Date.now() };
 }
 
-const RECENT_KEY = 'carotte:recent';
+const { RECENT_KEY } = repo;
 export function readRecent(): string[] {
   try {
     return JSON.parse(localStorage.getItem(RECENT_KEY) ?? '[]');

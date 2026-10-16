@@ -1,4 +1,4 @@
-import { parseBackup, serializeBackup } from '../domain/backup';
+import { parseBackup, serializeBackup, withStableIds } from '../domain/backup';
 import type { CountLine, Product } from '../domain/types';
 import { withoutClock, type Clocked } from '../sync/merge';
 import { syncRegistryName } from '../tabacs/registry';
@@ -20,7 +20,7 @@ export async function exportBackupText(now: number): Promise<string> {
 export async function restoreFromText(text: string): Promise<{ ok: true } | { ok: false; error: string }> {
   const parsed = parseBackup(text);
   if (!parsed.ok) return parsed;
-  const { products, countLines, settings } = parsed.data;
+  const { products, countLines, settings } = withStableIds(parsed.data);
   const { shareToken } = await getSettings();
   await db.transaction('rw', db.products, db.countLines, db.settings, db.opsOut, async () => {
     // Produits : pas de suppression partagée ; ceux qui manquent à la sauvegarde ne sont retirés que d'ici.

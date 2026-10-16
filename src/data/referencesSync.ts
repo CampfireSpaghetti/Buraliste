@@ -1,6 +1,6 @@
 import { mergeReferences, type DepartItem, type ReferenceFile } from '../domain/catalog';
 import { mergeFdjGames, type FdjGamesFile } from '../domain/fdj';
-import { db, getSettings, newId, saveSettings } from './db';
+import { db, getSettings, normalizeProductIds, saveSettings } from './db';
 import departSeed from './seed/depart.json';
 
 export async function syncReferences(fetchFn: typeof fetch = fetch): Promise<{ updated: boolean; version: string }> {
@@ -12,10 +12,12 @@ export async function syncReferences(fetchFn: typeof fetch = fetch): Promise<{ u
 
   // Liste publique : jamais d'opération (chaque téléphone la reçoit lui-même). `opsOut` est dans la transaction
   // parce que saveSettings passe par la couche partagée (les versions ne sont pas partagées : rien n'est mis en file).
-  await db.transaction('rw', db.products, db.settings, db.opsOut, async () => {
+  // Une fiche renommée (previousRef) passe ensuite à son nouvel id stable, avec ses lignes et opérations (R20).
+  await db.transaction('rw', [db.products, db.countLines, db.settings, db.opsOut], async () => {
     const existing = await db.products.toArray();
-    const ops = mergeReferences(existing, file, departSeed.items as DepartItem[], Date.now(), newId);
+    const ops = mergeReferences(existing, file, departSeed.items as DepartItem[], Date.now());
     await db.products.bulkPut(ops.put);
+    await normalizeProductIds(db);
     await saveSettings({ referencesVersion: file.version, referencesEffectiveDate: file.effectiveDate });
   });
   return { updated: true, version: file.version };
@@ -27,9 +29,11 @@ export async function syncFdjGames(fetchFn: typeof fetch = fetch): Promise<{ upd
   if (!res.ok) throw new Error(`Liste des jeux FDJ indisponible (HTTP ${res.status})`);
   const file = (await res.json()) as FdjGamesFile;
   if ((await getSettings()).fdjVersion === file.version) return { updated: false, version: file.version };
-  await db.transaction('rw', db.products, db.settings, db.opsOut, async () => {
-    const ops = mergeFdjGames(await db.products.toArray(), file, Date.now(), newId);
+  await db.transaction('rw', [db.products, db.countLines, db.settings, db.opsOut], async () => {
+    const ops = mergeFdjGames(await db.products.toArray(), file, Date.now());
     await db.products.bulkPut(ops.put);
+    // Un jeu de l'ancienne liste de départ repris par la liste FDJ passe à son id stable `f:<clé>`.
+    await normalizeProductIds(db);
     await saveSettings({ fdjVersion: file.version, fdjFetchedAt: file.fetchedAt });
   });
   return { updated: true, version: file.version };
