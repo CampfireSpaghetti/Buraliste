@@ -4,10 +4,13 @@
  * créés à la main ou avec des données du buraliste ; réglages `main`), avec ses seuls champs partagés et `_clock`.
  *
  * Une valeur jamais horodatée (donnée d'avant le partage) reçoit un horodatage « d'origine » : la date de la ligne
- * (`updatedAt`), sinon 0, avec l'identifiant de ce téléphone. Toute modification réelle plus récente l'emporte.
+ * (`updatedAt`), sinon 0. Toute modification réelle plus récente l'emporte. Dans une photographie, il porte
+ * l'identifiant de ce téléphone ; enregistré localement avant d'appliquer une photographie (`stampLegacy`), il porte
+ * LOCAL_LEGACY_DEVICE, qui perd toute égalité contre une photographie (voir plus bas).
+ * Un réglage jamais horodaté qui a encore sa valeur par défaut n'est pas publié (rien à apprendre aux autres).
  * Appliquer une photographie fusionne champ par champ, chaque champ avec SON horodatage (jamais ré-horodaté).
  */
-import type { CarotteDB } from '../data/db';
+import { DEFAULT_SETTINGS, type CarotteDB } from '../data/db';
 import { applyRemoteOps, sharedKeysFor, type Entity } from '../data/sharedRepo';
 import { deviceId } from './clock';
 import type { Op } from './merge';
@@ -20,23 +23,29 @@ const isObj = (v: unknown): v is Rec => typeof v === 'object' && v !== null && !
 const FORBIDDEN = new Set(['__proto__', 'constructor', 'prototype']);
 const ENTITIES: Entity[] = ['settings', 'product', 'line'];
 
-const stamp = (ms: number) => `${String(ms).padStart(13, '0')}-0000-${deviceId()}`;
+/**
+ * Partie « appareil » des horodatages d'origine enregistrés localement. Les horodatages se comparent comme des chaînes
+ * et les identifiants d'appareil s'écrivent en [0-9a-z] (clock.ts) : « ! » (0x21) est inférieur à « 0 » (0x30), donc
+ * à n'importe quel appareil. À heure égale, la valeur d'une photographie l'emporte sur une valeur locale jamais saisie
+ * ici (réglages écrits d'office dans la base neuve d'un tabac rejoint, lignes de jeu jamais comptées).
+ */
+export const LOCAL_LEGACY_DEVICE = '!';
 
 /** Horodatage d'origine d'une valeur sans horodatage : date de la ligne (jamais dans le futur), sinon 0. */
-function legacyStamp(e: Entity, r: Rec): string {
+function legacyStamp(e: Entity, r: Rec, device: string): string {
   const u = r.updatedAt;
   const ms = e === 'line' && typeof u === 'number' && Number.isFinite(u) ? Math.min(Math.max(0, Math.floor(u)), Date.now()) : 0;
-  return stamp(ms);
+  return `${String(ms).padStart(13, '0')}-0000-${device}`;
 }
 
 /** Horodatage de chaque champ partagé : celui enregistré, sinon l'horodatage d'origine pour une valeur présente. */
-function fullClock(e: Entity, r: Rec): Record<string, string> {
+function fullClock(e: Entity, r: Rec, device: string): Record<string, string> {
   const own = isObj(r._clock) ? r._clock : {};
   const keys = sharedKeysFor(e, r);
   const shared = (k: string) => (k.startsWith('user.') ? keys.includes('user') : k !== 'user' && keys.includes(k));
   const out: Record<string, string> = {};
   for (const [k, t] of Object.entries(own)) if (shared(k) && typeof t === 'string') out[k] = t;
-  const legacy = legacyStamp(e, r);
+  const legacy = legacyStamp(e, r, device);
   for (const k of keys) {
     if (k === 'user') {
       for (const [uk, uv] of Object.entries(isObj(r.user) ? r.user : {})) if (uv !== undefined) out['user.' + uk] ??= legacy;
@@ -75,7 +84,18 @@ function etatRecord(e: Entity, r: Rec): EtatRecord {
       out[k] = r[k];
     }
   }
-  out._clock = fullClock(e, r);
+  const clock = fullClock(e, r, deviceId());
+  if (e === 'settings') {
+    const own = isObj(r._clock) ? r._clock : {};
+    const defaults = DEFAULT_SETTINGS as unknown as Rec;
+    for (const k of keys) {
+      if (!Object.hasOwn(own, k) && defaults[k] !== undefined && JSON.stringify(r[k]) === JSON.stringify(defaults[k])) {
+        delete out[k];
+        delete clock[k];
+      }
+    }
+  }
+  out._clock = clock;
   return out as EtatRecord;
 }
 
@@ -109,8 +129,9 @@ export async function hasLocalData(d: CarotteDB): Promise<boolean> {
 
 /**
  * Avant d'appliquer une photographie à une base qui a déjà des données : chaque valeur partagée sans horodatage reçoit
- * son horodatage d'origine (enregistré, valeurs inchangées). Sans cela, n'importe quelle valeur reçue la remplacerait,
- * même une ligne jamais comptée face à un comptage local plus récent.
+ * son horodatage d'origine (enregistré, valeurs inchangées), avec l'appareil LOCAL_LEGACY_DEVICE. Sans cela, n'importe
+ * quelle valeur reçue la remplacerait, même une ligne jamais comptée face à un comptage local plus récent ; avec lui,
+ * à heure égale (réglages, lignes jamais comptées : heure 0), c'est la photographie qui gagne.
  */
 export async function stampLegacy(d: CarotteDB): Promise<void> {
   await d.transaction('rw', d.countLines, d.products, d.settings, async () => {
@@ -119,7 +140,7 @@ export async function stampLegacy(d: CarotteDB): Promise<void> {
       const table = (e === 'line' ? d.countLines : e === 'product' ? d.products : d.settings) as unknown as { put(r: Rec): Promise<unknown> };
       for (const r of all[e]) {
         const own = isObj(r._clock) ? r._clock : {};
-        const clock = fullClock(e, r);
+        const clock = fullClock(e, r, LOCAL_LEGACY_DEVICE);
         if (Object.keys(clock).some((k) => !Object.hasOwn(own, k))) await table.put({ ...r, _clock: { ...own, ...clock } });
       }
     }

@@ -2,9 +2,10 @@ import 'fake-indexeddb/auto';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { handle, type RelayEnv } from '../../relay/src/handlers';
 import { createMemoryStore } from '../../relay/src/memoryStore';
-import { CarotteDB } from '../../src/data/db';
+import { CarotteDB, DEFAULT_SETTINGS } from '../../src/data/db';
 import { applyRemoteOps } from '../../src/data/sharedRepo';
-import { createRelayClient } from '../../src/sync/relayClient';
+import { createRelayClient, type RelayClient } from '../../src/sync/relayClient';
+import { resetClockForTests } from '../../src/sync/clock';
 import { createSyncEngine, type SyncStatus } from '../../src/sync/engine';
 import { deriveChannel, decryptJson, encryptJson, generateTabacKey } from '../../src/sync/crypto';
 import type { Op } from '../../src/sync/merge';
@@ -59,8 +60,23 @@ async function settle(times = 50) {
   for (let i = 0; i < times; i++) await pause();
 }
 
+/** Identifiant d'appareil du « téléphone » qui agit ensuite (l'horloge est commune au module dans les tests). */
+function asDevice(id: string) {
+  localStorage.setItem('carotte:device', id);
+  resetClockForTests();
+}
+
+async function until(cond: () => Promise<boolean> | boolean, times = 500) {
+  for (let i = 0; i < times && !(await cond()); i++) await pause();
+  expect(await cond()).toBe(true);
+}
+
+const DAY = 24 * 3_600_000;
+
 beforeEach(() => {
   localStorage.removeItem('carotte:hlc');
+  localStorage.removeItem('carotte:device');
+  resetClockForTests();
 });
 afterEach(async () => {
   vi.useRealTimers();
@@ -490,6 +506,192 @@ describe('moteur de synchronisation', () => {
       e.stop();
     } finally {
       delete (document as unknown as Record<string, unknown>).visibilityState;
+    }
+  });
+
+  for (const [principal, joiner] of [['zzzzzzzz', 'aaaaaaaa'], ['aaaaaaaa', 'zzzzzzzz']]) {
+    it(`rejoindre : les réglages créés par l’app sur le téléphone qui rejoint ne l’emportent pas sur ceux du tabac (appareils ${principal[0]} / ${joiner[0]})`, async () => {
+      const key = generateTabacKey();
+      const r = fakeRelay();
+      const P = phone();
+      await P.countLines.put({ id: 'm1', code: '123', name: 'Astro', linearQty: 1, stockQty: 0, updatedAt: Date.now() - 50_000 });
+      await P.settings.put({ key: 'main', shopName: 'Tabac du Port', sortCount: 'updatedAt', hiddenGames: ['f:goal'] } as never);
+      asDevice(principal);
+      await createSyncEngine({ relay: r.client, key, db: P }).syncNow();
+
+      // Ligne écrite par syncSettingsNameAtStartup dans la base neuve d'un tabac rejoint (sans horodatage).
+      const J = phone();
+      await J.settings.put({ ...DEFAULT_SETTINGS, shopName: 'Tabac du Port', key: 'main' } as never);
+      asDevice(joiner);
+      await createSyncEngine({ relay: r.client, key, db: J }).syncNow();
+      expect((await J.settings.get('main'))!).toMatchObject({ shopName: 'Tabac du Port', sortCount: 'updatedAt', hiddenGames: ['f:goal'] });
+      expect((await J.countLines.get('m1'))!.name).toBe('Astro');
+    });
+  }
+
+  it('premier contact sans photographie, canal déjà écrit par un employé : le tabac publie quand même son état', async () => {
+    const key = generateTabacKey();
+    const r = fakeRelay();
+    const { canal, ecriture } = await deriveChannel(key);
+    const now = Date.now();
+    await r.client.post(canal, { ecriture, messages: [await encryptJson(key, { v: 1, ops: [lineOp('e1', { name: 'Employé', linearQty: 2 }, hlcAt(now))] })] });
+    const P = phone();
+    await P.countLines.put({ id: 'm1', code: '123', name: 'Astro', linearQty: 1, stockQty: 0, updatedAt: now - 50_000 });
+    await createSyncEngine({ relay: r.client, key, db: P }).syncNow();
+    expect(await r.store.getPhoto(canal)).not.toBeNull();
+
+    const C = phone();
+    await createSyncEngine({ relay: r.client, key, db: C }).syncNow();
+    expect((await C.countLines.get('m1'))!.name).toBe('Astro');
+    expect((await C.countLines.get('e1'))!.name).toBe('Employé');
+  });
+
+  it('un employé a publié avant le tabac principal : le principal garde ses réglages et ses comptages d’avant le partage', async () => {
+    const key = generateTabacKey();
+    const r = fakeRelay();
+    const E = phone();
+    await E.settings.put({ ...DEFAULT_SETTINGS, shopName: 'Tabac du Port', key: 'main' } as never);
+    await E.countLines.put({ id: 'game:f:cash', gameId: 'f:cash', code: '', name: 'Cash', linearQty: 0, stockQty: 0, updatedAt: 0 });
+    asDevice('zzzzzzzz');
+    await localWrite(E, lineOp('e1', { name: 'Employé', linearQty: 2 }, hlcAt(Date.now() - 5000, 0, 'zzzzzzzz')));
+    await createSyncEngine({ relay: r.client, key, db: E }).syncNow();
+    expect(await r.store.getPhoto((await deriveChannel(key)).canal)).not.toBeNull();
+
+    const P = phone();
+    await P.settings.put({ key: 'main', shopName: 'Tabac du Port', sortCount: 'updatedAt' } as never);
+    await P.countLines.put({ id: 'game:f:cash', gameId: 'f:cash', code: '', name: 'Cash', linearQty: 6, stockQty: 1, updatedAt: Date.now() - 60_000 });
+    asDevice('aaaaaaaa');
+    await createSyncEngine({ relay: r.client, key, db: P }).syncNow();
+    expect((await P.settings.get('main'))!.sortCount).toBe('updatedAt');
+    expect((await P.countLines.get('game:f:cash'))!).toMatchObject({ linearQty: 6, stockQty: 1 });
+    expect((await P.countLines.get('e1'))!.name).toBe('Employé');
+  });
+
+  it('plus de 25 jours sans réception : la dernière photographie est appliquée avant les messages', async () => {
+    const key = generateTabacKey();
+    const r = fakeRelay();
+    const { canal, ecriture } = await deriveChannel(key);
+    let t = Date.now();
+    const A = phone();
+    const e = createSyncEngine({ relay: r.client, key, db: A, now: () => t });
+    await e.syncNow();
+    expect((await A.syncState.get('dernierPull'))!.value).toBe(t);
+
+    // Pendant ce temps : des messages, une photographie qui les couvre, puis le ménage du relais.
+    const stamp = hlcAt(Date.now());
+    await r.client.post(canal, { ecriture, messages: [await encryptJson(key, { v: 1, ops: [lineOp('l1', { name: 'Cash', linearQty: 9 }, stamp)] })] });
+    const etat = { line: [{ id: 'l1', name: 'Cash', linearQty: 9, _clock: { name: stamp, linearQty: stamp } }], product: [], settings: [] };
+    await r.client.putPhoto(canal, { ecriture, jusqua: await r.store.lastN(canal), ...(await encryptJson(key, { v: 1, etat })) });
+    await r.store.pruneBefore(canal, await r.store.lastN(canal), Number.MAX_SAFE_INTEGER);
+    const photoGets = () => r.requests.filter((q) => q.method === 'GET' && q.path.endsWith('/photo')).length;
+    const gets = photoGets();
+
+    t += 24 * DAY;
+    await e.syncNow();
+    expect(photoGets()).toBe(gets);
+    expect(await A.countLines.get('l1')).toBeUndefined();
+
+    // 26 jours après le dernier pull réussi
+    t += 26 * DAY;
+    await e.syncNow();
+    expect(photoGets()).toBe(gets + 1);
+    expect((await A.countLines.get('l1'))!).toMatchObject({ name: 'Cash', linearQty: 9 });
+    expect((await A.syncState.get('lastN'))!.value).toBe(await r.store.lastN(canal));
+  });
+
+  it('relais défaillant qui renvoie toujours la même page pleine : pas de boucle infinie ; seuls les messages nouveaux sont comptés', async () => {
+    const page = Array.from({ length: 500 }, (_, i) => ({ n: i + 1, iv: 'x', data: 'y' }));
+    let lists = 0;
+    const relay: RelayClient = {
+      post: async () => ({ dernier: 500 }),
+      list: async () => {
+        if (++lists > 5) throw new Error('boucle');
+        return { messages: page, dernier: 500 };
+      },
+      putPhoto: vi.fn(async () => ({ ok: true })),
+      getPhoto: async () => null,
+      postCodes: async () => ({ ok: true }),
+    };
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const A = phone();
+    const e = createSyncEngine({ relay, key: generateTabacKey(), db: A });
+    await e.syncNow();
+    expect(e.status()).toBe('ok');
+    expect(lists).toBeLessThanOrEqual(3);
+    expect((await A.syncState.get('lastN'))!.value).toBe(500);
+    expect((await A.syncState.get('vusDepuisPhoto'))!.value).toBe(500);
+    expect(relay.putPhoto).not.toHaveBeenCalled();
+  });
+
+  it('une opération mise en file pendant une synchronisation part environ 2 s après, pas au prochain intervalle', async () => {
+    const key = generateTabacKey();
+    const r = fakeRelay();
+    const A = phone();
+    await localWrite(A, lineOp('l1', { name: 'Cash', linearQty: 1 }, hlcAt(Date.now())));
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
+    let injected = false;
+    const fetchFn: FetchFn = async (input, init) => {
+      const res = await r.fetchFn(input, init);
+      if (!injected && init?.method === 'POST') {
+        injected = true;
+        // écriture locale pendant la synchronisation : son délai de 2 s tombe pendant qu'elle est encore en cours
+        await A.opsOut.add({ op: lineOp('l2', { name: 'Goal', linearQty: 2 }, hlcAt(Date.now() + 1)) });
+        window.dispatchEvent(new Event('carotte:ops-queued'));
+        vi.advanceTimersByTime(2_000);
+      }
+      return res;
+    };
+    try {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
+      const e = createSyncEngine({ relay: createRelayClient(RELAY, fetchFn), key, db: A, intervalMs: 600_000 });
+      e.start();
+      await e.syncNow();
+      expect(await A.opsOut.count()).toBe(1);
+      await vi.advanceTimersByTimeAsync(2_000);
+      await until(async () => (await A.opsOut.count()) === 0);
+      expect(r.requests.filter((q) => q.method === 'POST')).toHaveLength(2);
+      e.stop();
+    } finally {
+      delete (document as unknown as Record<string, unknown>).visibilityState;
+    }
+  });
+
+  it('opération trop volumineuse pour le relais : gardée en file, statut « erreur », les autres partent', async () => {
+    const key = generateTabacKey();
+    const r = fakeRelay();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const A = phone();
+    await A.opsOut.add({ op: lineOp('gros', { name: 'x'.repeat(70_000) }, hlcAt(Date.now())) });
+    await A.opsOut.add({ op: lineOp('l1', { name: 'Cash', linearQty: 1 }, hlcAt(Date.now(), 1)) });
+    const e = createSyncEngine({ relay: r.client, key, db: A });
+    await e.syncNow();
+    expect(e.status()).toBe('erreur');
+    expect(warn).toHaveBeenCalled();
+    const left = await A.opsOut.toArray();
+    expect(left.map((x) => x.op.id)).toEqual(['gros']);
+    const { canal } = await deriveChannel(key);
+    expect(await r.store.listMessages(canal, 0, 100)).toHaveLength(1);
+    expect(e.nextDelayMs()).toBeNull();
+  });
+
+  it('moteur de la page : aucun si le tabac de la base ouverte n’est plus dans le registre (jamais la clé d’un autre tabac)', async () => {
+    const saved = localStorage.getItem('carotte:tabacs');
+    try {
+      vi.resetModules();
+      vi.stubEnv('VITE_RELAY_URL', RELAY);
+      const registry = await import('../../src/tabacs/registry');
+      const { dbTabacId } = await import('../../src/data/db');
+      localStorage.setItem('carotte:tabacs', JSON.stringify({
+        current: 'autre', tabacs: [{ id: 'autre', name: 'Autre', key: generateTabacKey(), addedAt: 1 }],
+      }));
+      registry.resetRegistryMemoryForTests();
+      expect(registry.listTabacs().some((t) => t.id === dbTabacId)).toBe(false);
+      const { startSyncEngine } = await import('../../src/sync/engineInstance');
+      expect(startSyncEngine()).toBeUndefined();
+    } finally {
+      vi.unstubAllEnvs();
+      if (saved === null) localStorage.removeItem('carotte:tabacs');
+      else localStorage.setItem('carotte:tabacs', saved);
     }
   });
 });

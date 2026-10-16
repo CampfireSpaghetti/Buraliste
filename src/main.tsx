@@ -30,14 +30,20 @@ void requestPersistence().then(setPersisted);
 const skipStartup = test && localStorage.getItem('carotte:nosync') === '1';
 if (!skipStartup) {
   // Listes publiques (Douane, FDJ), puis codes partagés : appliqués aussi aux références qui viennent d'arriver.
+  // Partage entre téléphones du tabac (seulement si le relais est configuré), une fois les listes publiques en place
+  // (les données reçues sur un produit officiel ne s'appliquent qu'à une fiche présente sur ce téléphone), ou au plus
+  // tard après 15 s si elles tardent (elles continuent d'arriver).
+  const startSync = () => {
+    clearTimeout(syncFallback);
+    const engine = startSyncEngine();
+    if (test && engine) installSyncTestHooks(engine);
+  };
+  const syncFallback = setTimeout(startSync, 15_000);
   void (async () => {
     const changed = (r: PromiseSettledResult<{ updated: boolean }>) => r.status === 'fulfilled' && r.value.updated;
     const [refs, fdj] = await Promise.allSettled([syncReferences(), syncFdjGames()]);
     for (const r of [refs, fdj]) if (r.status === 'rejected') console.error('Liste non mise à jour', r.reason);
-    // Partage entre téléphones du tabac (seulement si le relais est configuré), une fois les listes publiques en place :
-    // les données reçues sur un produit officiel ne s'appliquent qu'à une fiche présente sur ce téléphone.
-    const engine = startSyncEngine();
-    if (test && engine) installSyncTestHooks(engine);
+    startSync();
     const codes = await syncSharedCodes(fetch, changed(refs) || changed(fdj)).catch((e) => (console.error('Codes partagés non reçus', e), undefined));
     if (changed(refs) || changed(fdj) || codes?.updated) window.dispatchEvent(new CustomEvent('carotte:catalog-changed'));
   })();

@@ -37,6 +37,8 @@ export type SyncEngineOptions = {
   /** Base du tabac (par défaut celle de la page). */
   db?: CarotteDB;
   intervalMs?: number;
+  /** Horloge murale (ms) : date du dernier pull réussi, absence de plus de 25 jours. */
+  now?: () => number;
   /** Appelé quand des données reçues ont changé la base (par défaut : rafraîchir l'écran). */
   onChange?: () => void;
 };
@@ -59,6 +61,12 @@ const MAX_DELAY_MS = 300_000;
 const K_LAST = 'lastN';
 const K_SEEN = 'vusDepuisPhoto';
 const K_PHOTO_TODO = 'photoAFaire';
+const K_PULL = 'dernierPull';
+/**
+ * Le relais supprime les messages couverts par la photographie précédente et reçus il y a plus de 30 jours : après
+ * 25 jours sans réception, on relit la dernière photographie avant les messages (R24).
+ */
+const STALE_PULL_MS = 25 * 24 * 3_600_000;
 
 const enc = new TextEncoder();
 const utf8Length = (s: string) => enc.encode(s).length;
@@ -73,7 +81,7 @@ type Outgoing = { seqs: number[]; ops: Op[]; size: number };
 
 /**
  * Regroupe la file en envois : messages de 200 opérations au plus, envois de 200 messages au plus et de moins de
- * 60 000 octets. Une opération qui dépasse à elle seule la limite d'un envoi est mise à part (elle bloquerait la file).
+ * 60 000 octets. Une opération qui dépasse à elle seule la limite d'un envoi est mise à part (`tooBig`).
  */
 function pack(rows: Row[]): { posts: Outgoing[][]; tooBig: number[] } {
   const messages: Outgoing[] = [];
@@ -117,12 +125,15 @@ export function createSyncEngine(opts: SyncEngineOptions): SyncEngine {
   const { relay, key } = opts;
   const intervalMs = opts.intervalMs ?? 10_000;
   const onChange = opts.onChange ?? notifyDataChanged;
+  const now = opts.now ?? Date.now;
 
   let channel: Promise<{ canal: string; ecriture: string }> | undefined;
   let inflight: Promise<void> | undefined;
   let failures = 0;
   let refused = false;
   let pending = false;
+  /** Opérations en file qui ne pourront jamais partir (trop volumineuses) : gardées, statut « erreur ». */
+  let stuck = 0;
   let lastEmitted: SyncStatus | undefined;
   let started = false;
   let interval: ReturnType<typeof setInterval> | undefined;
@@ -142,7 +153,7 @@ export function createSyncEngine(opts: SyncEngineOptions): SyncEngine {
   function computeStatus(): SyncStatus {
     if (refused) return 'refuse';
     if (offline()) return 'hors-ligne';
-    if (failures > 0) return 'erreur';
+    if (failures > 0 || stuck > 0) return 'erreur';
     if (pending) return 'attente';
     return 'ok';
   }
@@ -167,8 +178,10 @@ export function createSyncEngine(opts: SyncEngineOptions): SyncEngine {
       const ops: Op[] = [];
       let maxN = last;
       let skipped = 0;
+      let fresh = 0;
       for (const m of list) {
         if (!isObj(m) || typeof m.n !== 'number' || !Number.isInteger(m.n) || m.n <= last) continue;
+        fresh++;
         maxN = Math.max(maxN, m.n);
         const body = await decryptJson(key, m);
         if (!isObj(body) || body.v !== 1 || !Array.isArray(body.ops)) {
@@ -182,44 +195,71 @@ export function createSyncEngine(opts: SyncEngineOptions): SyncEngine {
       if (changes > 0) onChange();
       // Après application seulement. Dernier numéro reçu (pas `dernier` du relais : un message enregistré entre la
       // lecture de la page et celle de `dernier` serait sauté).
-      const seen = (await numState(K_SEEN)) + list.length;
+      const seen = (await numState(K_SEEN)) + fresh;
       await d.syncState.bulkPut([{ key: K_LAST, value: maxN }, { key: K_SEEN, value: seen }]);
+      if (list.length < PAGE) break;
+      if (maxN === last) {
+        // Page pleine sans aucun message nouveau : relais défaillant, on s'arrête (pas de boucle sans fin).
+        console.warn('Synchronisation : le relais renvoie une page sans message nouveau, lecture arrêtée.');
+        break;
+      }
       last = maxN;
-      if (list.length < PAGE) return;
     }
+    await d.syncState.put({ key: K_PULL, value: now() });
+  }
+
+  /** Photographie lisible du canal ; `null` si le relais n'en a pas, `undefined` si elle est illisible. */
+  async function readPhoto(canal: string): Promise<{ jusqua: number; etat: Record<string, unknown> } | undefined | null> {
+    const photo = await relay.getPhoto(canal);
+    if (!photo) return null;
+    const body = await decryptJson(key, photo);
+    if (isObj(body) && body.v === 1 && isObj(body.etat) && Number.isInteger(photo.jusqua) && photo.jusqua >= 0) {
+      return { jusqua: photo.jusqua, etat: body.etat };
+    }
+    console.warn('Synchronisation : photographie illisible ignorée.');
+    return undefined;
+  }
+
+  /** Applique une photographie (fusion champ par champ) et reprend la lecture des messages après elle. */
+  async function applyPhoto(photo: { jusqua: number; etat: Record<string, unknown> }): Promise<void> {
+    await stampLegacy(d);
+    if ((await applyEtat(d, photo.etat)) > 0) onChange();
+    await d.syncState.bulkPut([{ key: K_LAST, value: photo.jusqua }, { key: K_SEEN, value: 0 }]);
+  }
+
+  /** Plus de 25 jours sans réception : les messages manqués ont pu être supprimés ; la photographie les couvre. */
+  async function catchUp(canal: string): Promise<void> {
+    const photo = await readPhoto(canal);
+    if (photo && photo.jusqua > (await numState(K_LAST))) await applyPhoto(photo);
   }
 
   /** Premier contact : photographie (si elle existe) puis messages qui la suivent. */
   async function join(canal: string): Promise<void> {
-    const photo = await relay.getPhoto(canal);
+    const photo = await readPhoto(canal);
     if (photo) {
-      const body = await decryptJson(key, photo);
-      if (isObj(body) && body.v === 1 && isObj(body.etat) && Number.isInteger(photo.jusqua) && photo.jusqua >= 0) {
-        await stampLegacy(d);
-        if ((await applyEtat(d, body.etat)) > 0) onChange();
-        await d.syncState.bulkPut([{ key: K_LAST, value: photo.jusqua }, { key: K_SEEN, value: 0 }]);
-        return;
-      }
-      console.warn('Synchronisation : photographie illisible ignorée.');
+      await applyPhoto(photo);
+      return;
     }
-    // Pas de photographie lisible : tout le canal. S'il est vide et sans photographie alors que la base a des
-    // données (tabac existant au premier contact avec le relais), son état sera publié.
-    const todo = !photo && (await hasLocalData(d));
+    // Pas de photographie lisible : tout le canal. Si le relais n'a aucune photographie alors que la base a des
+    // données partagées (tabac existant au premier contact, même si un employé a déjà écrit : R25), son état
+    // sera publié après lecture des messages.
+    const todo = photo === null && (await hasLocalData(d));
     await d.syncState.bulkPut([{ key: K_LAST, value: 0 }, { key: K_SEEN, value: 0 }, { key: K_PHOTO_TODO, value: todo }]);
     await pull(canal);
-    if (todo && (await numState(K_LAST)) > 0) await d.syncState.put({ key: K_PHOTO_TODO, value: false });
   }
 
   // ---------------------------------------------------------------- envoi
 
   async function send(canal: string, ecriture: string): Promise<void> {
     const rows = (await d.opsOut.orderBy('seq').toArray()).filter((r): r is Row => typeof r.seq === 'number');
+    stuck = 0;
     if (rows.length === 0) return;
     const { posts, tooBig } = pack(rows);
-    if (tooBig.length) {
-      console.warn(`Synchronisation : ${tooBig.length} opération(s) trop volumineuse(s) pour le relais, abandonnée(s).`);
-      await d.opsOut.bulkDelete(tooBig);
-    }
+    // Une opération plus grosse qu'un envoi (limite du relais : 64 Ko par requête) ne partira jamais. Elle n'est pas
+    // effacée (rien ne disparaît sans que le gérant le voie) mais sautée, pour ne pas bloquer les autres ; le statut
+    // reste « erreur » tant qu'elle est en file.
+    stuck = tooBig.length;
+    if (stuck) console.warn(`Synchronisation : ${stuck} opération(s) trop volumineuse(s) pour le relais, non envoyée(s).`);
     for (const post of posts) {
       const messages: Sealed[] = [];
       for (const m of post) messages.push(await encryptJson(key, { v: 1, ops: m.ops }));
@@ -251,7 +291,7 @@ export function createSyncEngine(opts: SyncEngineOptions): SyncEngine {
 
   async function refreshPending() {
     try {
-      pending = (await d.opsOut.count()) > 0;
+      pending = (await d.opsOut.count()) > stuck;
     } catch {
       /* base indisponible : statut inchangé */
     }
@@ -267,6 +307,7 @@ export function createSyncEngine(opts: SyncEngineOptions): SyncEngine {
       channel ??= deriveChannel(key);
       const { canal, ecriture } = await channel;
       if ((await getState(K_LAST)) === undefined) await join(canal);
+      else if (now() - (await numState(K_PULL)) > STALE_PULL_MS) await catchUp(canal);
       await send(canal, ecriture);
       await pull(canal);
       await maybePublish(canal, ecriture);
@@ -293,6 +334,8 @@ export function createSyncEngine(opts: SyncEngineOptions): SyncEngine {
     }
     await refreshPending();
     emitStatus();
+    // Écriture faite pendant la synchronisation (son délai de 2 s a pu tomber pendant qu'elle tournait) : envoi 2 s après.
+    if (started && pending && !refused && failures === 0) scheduleSend();
   }
 
   function syncNow(): Promise<void> {
@@ -325,15 +368,18 @@ export function createSyncEngine(opts: SyncEngineOptions): SyncEngine {
   const onVisibility = () => {
     if (document.visibilityState === 'visible') auto();
   };
-  const onQueued = () => {
-    if (!started) return;
-    pending = true;
-    emitStatus();
+  function scheduleSend() {
     if (sendTimer !== undefined) clearTimeout(sendTimer);
     sendTimer = setTimeout(() => {
       sendTimer = undefined;
       auto();
     }, SEND_DELAY_MS);
+  }
+  const onQueued = () => {
+    if (!started) return;
+    pending = true;
+    emitStatus();
+    scheduleSend();
   };
 
   function start() {
