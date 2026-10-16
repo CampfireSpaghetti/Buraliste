@@ -29,3 +29,9 @@ export function formatIsoDateFr(iso: string): string {
   const months = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
   return `${d === 1 ? '1er' : d} ${months[m - 1]} ${y}`;
 }
+
+/** Colonne Code à l'écran : « … » + 6 derniers caractères (le code complet reste dans la fiche et l'export). */
+export function shortCode(code: string): string {
+  if (!code) return '—';
+  return code.length > 6 ? '…' + code.slice(-6) : code;
+}

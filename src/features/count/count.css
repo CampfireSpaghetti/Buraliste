@@ -1,0 +1,34 @@
+.count { display: flex; flex-direction: column; gap: 10px; }
+.count-actions { display: flex; gap: 8px; }
+.count-actions .btn { flex: 1; padding: 0 8px; }
+.sortbar { display: flex; align-items: center; gap: 6px; }
+.count-table-wrap { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.count-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.count-table thead th {
+  position: sticky; top: 0; background: var(--surface); z-index: 1;
+  font-size: 12px; letter-spacing: .07em; text-transform: uppercase; color: var(--accent); text-align: left; padding: 8px 6px; border-bottom: 2px solid var(--fg);
+}
+.count-table td { border-bottom: 1px solid var(--line); padding: 0; height: 52px; }
+.count-table .c-qty { text-align: right; }
+.count-table .c-code { width: 22%; } .count-table .c-date { width: 24%; font-size: 13px; color: var(--muted); white-space: nowrap; padding-right: 6px; }
+.cell-btn { width: 100%; min-height: 52px; border: 0; background: transparent; text-align: left; padding: 0 6px; font-size: 16px; color: var(--fg); }
+.c-code .cell-btn { font-size: 13px; color: var(--muted); }
+.cell-btn.qty { text-align: right; font-size: 20px; font-weight: 700; }
+.count-table tr.hit td { background: var(--highlight); transition: background .6s; }
+.count-table tfoot th, .count-table tfoot td { position: sticky; bottom: 0; background: var(--surface); border-top: 2px solid var(--fg); font-weight: 700; padding: 10px 6px; text-align: left; }
+.count-table tfoot td.c-qty { text-align: right; font-size: 20px; }
+.swipe-del { min-height: 44px; width: 100%; border: 0; border-radius: 8px; background: var(--danger); color: #fff; font-weight: 700; }
+.empty { padding: 16px; margin: 0; }
+.keypad { display: flex; flex-direction: column; gap: 10px; }
+.keypad-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.keypad-head b { font-size: 18px; }
+.keypad-display { font-size: 40px; font-weight: 700; text-align: right; min-height: 56px; padding: 0 8px; border-bottom: 2px solid var(--fg); }
+.keypad-keys { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.keypad-keys button { min-height: 56px; border: 0; border-radius: 10px; background: var(--bg); font-size: 24px; font-weight: 700; color: var(--fg); }
+.keypad-keys button.small { font-size: 15px; }
+.keypad-hint { text-align: center; margin: 0; }
+.scan-mode { display: flex; flex-direction: column; gap: 10px; }
+.scan-mode .scanner-cam { min-height: 220px; max-height: 38vh; }
+.last-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 8px 12px; display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+.line-form { display: flex; flex-direction: column; gap: 12px; }
+.btn.danger { border-color: var(--danger); color: var(--danger); }

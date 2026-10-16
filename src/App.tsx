@@ -9,6 +9,7 @@ import { ProductForm } from './features/catalog/ProductForm';
 import { AttachToReference } from './features/catalog/AttachToReference';
 import { CatalogScreen } from './features/catalog/CatalogScreen';
 import { CompareView } from './features/catalog/CompareView';
+import { CountScreen } from './features/count/CountScreen';
 import { useSettings } from './store';
 import './ui/panel.css';
 
@@ -67,6 +68,7 @@ function Shell() {
         <h2 className="screen-title">{TITLES[tab]}</h2>
         {tab === 'scanner' && <ScannerScreen />}
         {tab === 'catalogue' && <CatalogScreen />}
+        {tab === 'grattage' && <CountScreen />}
       </main>
       <TabBar current={tab} onChange={go} />
       {nav.stack.map((v, i) => <ViewLayer key={i} view={v} />)}
