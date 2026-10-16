@@ -20,10 +20,129 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  relay:
+    # Relais de partage entre téléphones (Cloudflare Worker + base D1) : déployé à chaque publication,
+    # seulement si les secrets Cloudflare sont présents. L'adresse obtenue est transmise à la construction de l'app.
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    outputs:
+      url: ${{ steps.deploy.outputs.url }}
+    env:
+      WRANGLER_SEND_METRICS: 'false'
+    steps:
+      - name: Relais configuré ?
+        id: check
+        env:
+          CF: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -n "$CF" ] && [ -n "$CF_ACCOUNT" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            if [ -n "$CF" ]; then echo "::warning::Secret CLOUDFLARE_ACCOUNT_ID absent : le relais n'est pas déployé."; fi
+            echo "Relais non configuré (secrets Cloudflare absents) : l'app est publiée sans partage entre téléphones." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.check.outputs.enabled == 'true'
+        with:
+          ref: ${{ github.event_name == 'push' && github.sha || 'main' }}
+      - uses: actions/setup-node@v4
+        if: steps.check.outputs.enabled == 'true'
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: relay/package-lock.json
+      - name: Installation de wrangler
+        if: steps.check.outputs.enabled == 'true'
+        working-directory: relay
+        run: npm ci
+      - name: Adresse workers.dev du compte Cloudflare
+        id: subdomain
+        if: steps.check.outputs.enabled == 'true'
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          # Un compte Cloudflare neuf n'a pas encore d'adresse workers.dev : on en réserve une (wrangler ne le fait pas en CI).
+          api="https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT/workers/subdomain"
+          read_sub() { node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{process.stdout.write(JSON.parse(s).result?.subdomain||"")}catch{}})'; }
+          sub=$(curl -sS -H "Authorization: Bearer $CF_TOKEN" "$api" | read_sub)
+          if [ -z "$sub" ]; then
+            base="la-carotte-$(printf '%s' "$OWNER" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9-' '-')"
+            for name in "$base" "$base-$(openssl rand -hex 3)"; do
+              sub=$(curl -sS -X PUT -H "Authorization: Bearer $CF_TOKEN" -H "Content-Type: application/json" \
+                --data "{\"subdomain\":\"$name\"}" "$api" | read_sub)
+              if [ -n "$sub" ]; then break; fi
+            done
+          fi
+          if [ -z "$sub" ]; then
+            echo "::error::Impossible d'obtenir l'adresse workers.dev du compte Cloudflare (vérifier la clé CLOUDFLARE_API_TOKEN)."
+            exit 1
+          fi
+          echo "subdomain=$sub" >> "$GITHUB_OUTPUT"
+      - name: Base D1
+        if: steps.check.outputs.enabled == 'true'
+        working-directory: relay
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -o pipefail
+          d1_id() {
+            npx wrangler d1 list --json | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const a=JSON.parse(s.slice(s.search(/^\[/m),s.lastIndexOf("]")+1));const db=a.find(d=>d.name==="la-carotte");process.stdout.write(db?db.uuid:"")})'
+          }
+          id=$(d1_id)
+          if [ -z "$id" ]; then
+            npx wrangler d1 create la-carotte
+            id=$(d1_id)
+          fi
+          if ! [[ "$id" =~ ^[0-9a-f-]{36}$ ]]; then
+            echo "::error::Base D1 « la-carotte » introuvable."
+            exit 1
+          fi
+          sed -i "s/A_REMPLACER_AU_DEPLOIEMENT/$id/" wrangler.toml
+          npx wrangler d1 execute la-carotte --remote --yes --file schema.sql
+      - name: Déploiement du relais
+        id: deploy
+        if: steps.check.outputs.enabled == 'true'
+        working-directory: relay
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          RELAY_GITHUB_TOKEN: ${{ secrets.RELAY_GITHUB_TOKEN }}
+          SUBDOMAIN: ${{ steps.subdomain.outputs.subdomain }}
+        run: |
+          set -o pipefail
+          secrets="$RUNNER_TEMP/relay-secrets.json"
+          trap 'rm -f "$secrets"' EXIT
+          args=()
+          if [ -n "$RELAY_GITHUB_TOKEN" ]; then
+            # Le jeton GitHub devient le secret GITHUB_TOKEN du Worker (jamais affiché).
+            node -e 'require("fs").writeFileSync(process.argv[1], JSON.stringify({ GITHUB_TOKEN: process.env.RELAY_GITHUB_TOKEN }), { mode: 0o600 })' "$secrets"
+            args=(--secrets-file "$secrets")
+          else
+            echo "::warning::Secret RELAY_GITHUB_TOKEN absent : les codes-barres des téléphones ne partiront pas vers la liste commune."
+          fi
+          npx wrangler deploy "${args[@]}" 2>&1 | tee "$RUNNER_TEMP/relay-deploy.log"
+          url=$(grep -oE 'https://la-carotte-relais\.[A-Za-z0-9-]+\.workers\.dev' "$RUNNER_TEMP/relay-deploy.log" | head -n 1 || true)
+          if [ -z "$url" ]; then url="https://la-carotte-relais.$SUBDOMAIN.workers.dev"; fi
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Relais de partage déployé"
+            echo
+            echo "Adresse : $url"
+            echo
+            echo "Elle est transmise automatiquement à l'app : rien à copier."
+          } >> "$GITHUB_STEP_SUMMARY"
+
   build-deploy:
+    needs: relay
     runs-on: ubuntu-latest
     # Pour un message (issue), seulement ceux des téléphones jumelés : titre « [codes-barres] » et compte du propriétaire.
-    if: github.event_name != 'issues' || (startsWith(github.event.issue.title, '[codes-barres]') && github.event.issue.user.login == github.repository_owner)
+    # Le job relay est ignoré hors publication (issue, planification) : la construction a lieu quand même.
+    if: always() && (needs.relay.result == 'success' || needs.relay.result == 'skipped') && (github.event_name != 'issues' || (startsWith(github.event.issue.title, '[codes-barres]') && github.event.issue.user.login == github.repository_owner))
     environment:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
@@ -68,6 +187,28 @@ jobs:
             git pull --rebase origin main
             git push
           fi
+      - name: Adresse du relais
+        env:
+          FROM_JOB: ${{ needs.relay.outputs.url }}
+          FROM_VAR: ${{ vars.RELAY_URL }}
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          # 1. adresse du relais tout juste déployé ; 2. variable RELAY_URL ; 3. adresse workers.dev du compte Cloudflare.
+          url="$FROM_JOB"
+          if [ -z "$url" ]; then url="$FROM_VAR"; fi
+          if [ -z "$url" ] && [ -n "$CF_TOKEN" ] && [ -n "$CF_ACCOUNT" ]; then
+            sub=$(curl -sS -H "Authorization: Bearer $CF_TOKEN" "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT/workers/subdomain" |
+              node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{process.stdout.write(JSON.parse(s).result?.subdomain||"")}catch{}})' || true)
+            if [ -n "$sub" ]; then url="https://la-carotte-relais.$sub.workers.dev"; fi
+          fi
+          url="${url%/}"
+          if [ -n "$url" ] && ! [[ "$url" =~ ^https://[A-Za-z0-9.-]+(:[0-9]+)?(/[A-Za-z0-9._~/-]*)?$ ]]; then
+            echo "::warning::Adresse du relais invalide, ignorée : l'app est construite sans partage entre téléphones."
+            url=""
+          fi
+          echo "VITE_RELAY_URL=$url" >> "$GITHUB_ENV"
+          if [ -n "$url" ]; then echo "Relais : $url"; else echo "Relais non configuré : le partage entre téléphones affichera « Bientôt disponible »."; fi
       - run: npm run build
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

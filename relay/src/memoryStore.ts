@@ -17,8 +17,9 @@ export function createMemoryStore(): Store {
       return c ? { ecritureHash: c.ecritureHash } : null;
     },
     async createChannel(canal, ecritureHash, now) {
-      if (canaux.has(canal)) return;
+      if (canaux.has(canal)) return false;
       canaux.set(canal, { ecritureHash, cree: now, dernier: 0, messages: [], photo: null });
+      return true;
     },
     async appendMessages(canal, msgs, now) {
       const c = canaux.get(canal);

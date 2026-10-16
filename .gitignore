@@ -5,3 +5,4 @@ test-results/
 playwright-report/
 *.local
 public/zxing/
+.wrangler/

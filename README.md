@@ -22,6 +22,45 @@ Adresse : **https://wongmichel2048.github.io/Buraliste/**
 
 Ensuite, chaque modification fusionnée dans `main` est publiée automatiquement, et les listes officielles (tabacs Douane et jeux de grattage FDJ) sont mises à jour chaque lundi.
 
+## Mettre en service le partage entre téléphones (administrateur)
+
+Le partage permet aux téléphones d'un même tabac de voir les mêmes comptages, ruptures et réglages. Il passe par un petit relais gratuit chez Cloudflare. Tout est chiffré sur le téléphone avant l'envoi : Cloudflare ne peut rien lire. Seul l'administrateur a besoin d'un compte ; les gérants et les employés n'ont rien à créer.
+
+À faire une seule fois, en 15 minutes environ :
+
+1. **Créer un compte Cloudflare gratuit.** Aller sur <https://dash.cloudflare.com/sign-up>, saisir une adresse e-mail et un mot de passe, puis cliquer sur le lien reçu par e-mail. L'offre gratuite suffit.
+
+2. **Créer une clé API Cloudflare.**
+   1. Dans Cloudflare : icône de profil en haut à droite → **Profil** → **Jetons d'API** (*API Tokens*) → **Créer un jeton**.
+   2. En face du modèle **Modifier Cloudflare Workers** (*Edit Cloudflare Workers*), cliquer sur **Utiliser le modèle**. Ce modèle donne aussi accès à la base de données D1 : rien à ajouter.
+   3. Laisser les réglages proposés. Si une liste « Ressources de zone » demande un choix, prendre **Toutes les zones**.
+   4. **Continuer vers le résumé** → **Créer le jeton**, puis **copier** le jeton affiché : il ne sera plus jamais montré.
+
+3. **Coller les secrets dans GitHub.**
+   1. Retrouver l'**identifiant du compte Cloudflare** : c'est la longue suite de 32 lettres et chiffres qui apparaît dans l'adresse de la page juste après `dash.cloudflare.com/` (elle est aussi affichée sur la page **Workers et Pages**, à droite, sous « ID du compte »).
+   2. Créer une **clé GitHub** pour l'envoi des codes-barres : sur GitHub, photo de profil → **Settings** → **Developer settings** → **Personal access tokens** → **Fine-grained tokens** → **Generate new token**.
+      - *Token name* : `La Carotte relais` ; *Expiration* : la durée la plus longue proposée ;
+      - *Repository access* : **Only select repositories** → **Buraliste** ;
+      - *Permissions* → *Repository permissions* → **Issues** : **Read and write** (rien d'autre) ;
+      - **Generate token**, puis copier la clé.
+   3. Dans le dépôt Buraliste sur GitHub : **Settings** → **Secrets and variables** → **Actions** → onglet **Secrets** → **New repository secret**. Créer ces trois secrets, en recopiant les noms exactement (en majuscules) :
+
+      | Nom du secret | Valeur à coller |
+      |---|---|
+      | `CLOUDFLARE_API_TOKEN` | le jeton Cloudflare (étape 2) |
+      | `CLOUDFLARE_ACCOUNT_ID` | l'identifiant du compte Cloudflare (étape 3.1) |
+      | `RELAY_GITHUB_TOKEN` | la clé GitHub (étape 3.2) |
+
+4. **Lancer le workflow « Déploiement ».** Dans le dépôt : onglet **Actions** → **Déploiement** (colonne de gauche) → bouton **Run workflow** → **Run workflow**. Attendre la coche verte, en quelques minutes.
+
+C'est terminé : **il n'y a rien à recopier**. Le workflow crée la base de données, installe le relais et donne son adresse à l'app, qui est republiée aussitôt. L'adresse est affichée pour information dans le résumé du job `relay`.
+
+Ensuite :
+
+- chaque publication de l'app met aussi le relais à jour, automatiquement ;
+- quand la clé GitHub arrive à expiration, en créer une nouvelle (étape 3.2), remplacer le secret `RELAY_GITHUB_TOKEN`, puis relancer le workflow ;
+- tant que ces secrets ne sont pas renseignés, l'app fonctionne comme avant et les options de partage affichent « Bientôt disponible ».
+
 ## Partage des codes-barres (liste commune)
 
 Les codes-barres rattachés à un produit officiel (et les codes de jeux FDJ appris) peuvent être partagés automatiquement entre vos téléphones, et avec tous les buralistes qui utilisent l'app :
@@ -53,6 +92,7 @@ npm test           # tests unitaires (Vitest)
 npm run e2e        # tests de bout en bout (Playwright)
 npm run refs:update  # récupère la dernière liste officielle Douane
 npm run fdj:update   # récupère la gamme des jeux de grattage (fdj.fr)
+npm run relay:mock   # faux relais de partage sur http://localhost:8787 (tests de bout en bout)
 ```
 
 Conception : `docs/superpowers/specs/2026-10-16-la-carotte-design.md` · Plan : `docs/superpowers/plans/2026-10-16-la-carotte.md`

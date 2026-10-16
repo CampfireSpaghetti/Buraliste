@@ -11,7 +11,8 @@
     "e2e": "playwright test",
     "refs:update": "node scripts/douane/update.ts",
     "postinstall": "node scripts/copy-zxing.mjs",
-    "fdj:update": "node scripts/fdj/update.ts"
+    "fdj:update": "node scripts/fdj/update.ts",
+    "relay:mock": "node scripts/mock-relay.ts"
   },
   "dependencies": {
     "@fontsource/alfa-slab-one": "5.3.0",
@@ -32,6 +33,7 @@
     "@vitejs/plugin-react": "6.1.1",
     "fake-indexeddb": "6.2.5",
     "jsdom": "29.1.1",
+    "sql.js": "1.14.2",
     "typescript": "5.9.3",
     "vite": "8.3.1",
     "vite-plugin-pwa": "1.3.0",

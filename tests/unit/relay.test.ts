@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect, vi } from 'vitest';
 import { handle } from '../../relay/src/handlers.ts';
-import type { RelayEnv } from '../../relay/src/handlers.ts';
+import type { RelayEnv, Store } from '../../relay/src/handlers.ts';
 import { createMemoryStore } from '../../relay/src/memoryStore.ts';
 
 const ORIGIN = 'https://wongmichel2048.github.io';
@@ -93,6 +93,31 @@ describe('relais : messages', () => {
     expect(r.status).toBe(413);
   });
 
+  it('100 Ko de messages : 413 (la limite de 1 Mo ne vaut que pour la photographie)', async () => {
+    const { env } = makeEnv();
+    const r = await post(env, 'c1', 'w1', [{ iv: 'a', data: 'x'.repeat(100_000) }]);
+    expect(r.status).toBe(413);
+  });
+
+  it('premier envoi simultané : celui qui perd la création est comparé à l’empreinte enregistrée', async () => {
+    // getChannel répond « inconnu » (lu avant l'insertion concurrente), createChannel répond false.
+    const base = createMemoryStore();
+    const { env } = makeEnv({ store: base });
+    await post(env, 'c1', 'w1', [{ iv: 'a', data: 'b' }]);
+    let stale = 0;
+    const racing: Store = {
+      ...base,
+      getChannel: async (canal) => (stale-- > 0 ? null : base.getChannel(canal)),
+    };
+    const env2: RelayEnv = { ...env, store: racing };
+    stale = 1;
+    expect((await post(env2, 'c1', 'autre', [{ iv: 'x', data: 'y' }])).status).toBe(403);
+    stale = 1;
+    expect((await post(env2, 'c1', 'w1', [{ iv: 'c', data: 'd' }])).status).toBe(200);
+    const list = await base.listMessages('c1', 0, 10);
+    expect(list.map((m) => m.iv)).toEqual(['a', 'c']);
+  });
+
   it('plus de 120 requêtes par minute sur un canal : 429, puis reprise après la minute', async () => {
     const { env, clock } = makeEnv();
     for (let i = 0; i < 120; i++) expect((await call(env, 'GET', '/v1/canaux/c1/messages')).status).toBe(200);
@@ -154,9 +179,26 @@ describe('relais : photographie', () => {
     expect((await call(env, 'PUT', '/v1/canaux/c1/photo', { jusqua: 1, iv: 'i', data: 'd' })).status).toBe(400);
   });
 
-  it('corps de plus de 64 Ko : 413', async () => {
+  it('photographie de 100 Ko : acceptée (limite propre à la photographie : 1 Mo)', async () => {
     const { env } = makeEnv();
-    const r = await call(env, 'PUT', '/v1/canaux/c1/photo', { ecriture: 'w1', jusqua: 1, iv: 'i', data: 'x'.repeat(70_000) });
+    const data = 'x'.repeat(100_000);
+    const r = await call(env, 'PUT', '/v1/canaux/c1/photo', { ecriture: 'w1', jusqua: 1, iv: 'i', data });
+    expect(r.status).toBe(200);
+    expect(((await (await call(env, 'GET', '/v1/canaux/c1/photo')).json()) as { data: string }).data).toBe(data);
+  });
+
+  it('corps de plus de 1 Mo : 413', async () => {
+    const { env } = makeEnv();
+    const r = await call(env, 'PUT', '/v1/canaux/c1/photo', { ecriture: 'w1', jusqua: 1, iv: 'i', data: 'x'.repeat(1024 * 1024) });
+    expect(r.status).toBe(413);
+    expect(await env.store.getChannel('c1')).toBeNull();
+  });
+
+  it('Content-Length annoncé au-delà de 1 Mo : 413', async () => {
+    const { env } = makeEnv();
+    const r = await call(env, 'PUT', '/v1/canaux/c1/photo', { ecriture: 'w1', jusqua: 1, iv: 'i', data: 'd' }, {
+      'Content-Length': String(1024 * 1024 + 1),
+    });
     expect(r.status).toBe(413);
   });
 
@@ -231,6 +273,47 @@ describe('relais : codes-barres', () => {
     expect((await call(env, 'POST', '/v1/codes', { items: [{ kind: 'barcode', code: 5, ref: 'r' }] })).status).toBe(400);
     expect((await call(env, 'POST', '/v1/codes', { items: [{ kind: 'autre' }] })).status).toBe(400);
     expect((await call(env, 'POST', '/v1/codes', 'pas du json')).status).toBe(400);
+  });
+
+  it('seuls les champs connus partent dans l’issue', async () => {
+    const { env, fetchMock } = makeEnv();
+    const r = await call(env, 'POST', '/v1/codes', {
+      items: [
+        { kind: 'barcode', code: '3000000000001', ref: 'r1', pirate: '<script>', extra: { a: 1 } },
+        { kind: 'fdjPrefix', prefix: '12345678', ref: 'r2', code: 'intrus' },
+      ],
+    });
+    expect(r.status).toBe(202);
+    const body = JSON.parse((fetchMock.mock.calls[0] as [string, RequestInit])[1].body as string).body as string;
+    expect(body).not.toContain('pirate');
+    expect(body).not.toContain('<script>');
+    expect(body).not.toContain('extra');
+    expect(body).not.toContain('intrus');
+    const payload = JSON.parse(/```json\s*([\s\S]*?)```/.exec(body)![1]);
+    expect(payload.items).toEqual([
+      { kind: 'barcode', code: '3000000000001', ref: 'r1' },
+      { kind: 'fdjPrefix', prefix: '12345678', ref: 'r2' },
+    ]);
+  });
+
+  it('chaînes trop longues : 400 (code ≤ 32, préfixe ≤ 32, référence ≤ 64)', async () => {
+    const { env, fetchMock } = makeEnv();
+    const ok = await call(env, 'POST', '/v1/codes', {
+      items: [
+        { kind: 'barcode', code: '1'.repeat(32), ref: 'r'.repeat(64) },
+        { kind: 'fdjPrefix', prefix: '2'.repeat(32), ref: 'r' },
+      ],
+    });
+    expect(ok.status).toBe(202);
+    for (const item of [
+      { kind: 'barcode', code: '1'.repeat(33), ref: 'r' },
+      { kind: 'barcode', code: '1', ref: 'r'.repeat(65) },
+      { kind: 'fdjPrefix', prefix: '2'.repeat(33), ref: 'r' },
+      { kind: 'fdjPrefix', prefix: '2', ref: 'r'.repeat(65) },
+    ]) {
+      expect((await call(env, 'POST', '/v1/codes', { items: [items[0], item] })).status).toBe(400);
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('GitHub en erreur ou injoignable : 502', async () => {
