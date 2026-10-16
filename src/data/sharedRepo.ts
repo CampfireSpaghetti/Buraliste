@@ -7,10 +7,12 @@
  * sans horodatage ni opération.
  */
 import type { Table } from 'dexie';
-import { applyFields, diffFields, type Clocked, type Op } from '../sync/merge';
+import { applyFields, diffFields, withoutClock, type Clocked, type Op } from '../sync/merge';
 import { observe, tick } from '../sync/clock';
 import { relayUrl } from '../sync/relayConfig';
 import { syncRegistryName } from '../tabacs/registry';
+// Import circulaire voulu : db.ts appelle writeShared, et ce module utilise `db` ; des deux côtés, seulement
+// dans des fonctions (jamais à l'évaluation du module), donc l'ordre de chargement est sans effet.
 import { db, dbTabacId, DEFAULT_SETTINGS } from './db';
 
 export type Entity = Op['e'];
@@ -49,25 +51,40 @@ function blank(e: Entity, id: string): Row {
   return { key: 'main', ...DEFAULT_SETTINGS };
 }
 
-function withoutClock<T extends object>(r: T): T {
-  const { _clock: _c, ...rest } = r as T & { _clock?: unknown };
-  return rest as T;
-}
-
 function notifyQueued() {
   if (typeof window !== 'undefined') window.dispatchEvent(new Event(OPS_QUEUED_EVENT));
 }
 
+/** Valeurs partagées de `before` (champs partagés seulement), puis `f` appliqué par-dessus. */
+function sharedValues(before: Record<string, unknown>, keys: string[], f: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const k of keys) if (k !== 'user' && before[k] !== undefined) out[k] = before[k];
+  if (keys.includes('user')) out.user = { ...((before.user as Record<string, unknown> | undefined) ?? {}) };
+  for (const [k, v] of Object.entries(f)) {
+    const target = k.startsWith('user.') ? (out.user as Record<string, unknown>) : out;
+    const field = k.startsWith('user.') ? k.slice('user.'.length) : k;
+    if (v === null) delete target[field];
+    else target[field] = v;
+  }
+  return out;
+}
+
 /**
- * Écrit `next` (enregistrement complet) pour `e`/`id`. Les champs partagés modifiés reçoivent un horodatage
- * `t = tick()` ; ils forment l'opération mise en file si le relais est configuré.
+ * Écrit `next` (enregistrement complet) pour `e`/`id` et renvoie l'enregistrement stocké (sans horodatages).
+ * Les champs partagés modifiés reçoivent un horodatage `t = tick()` ; ils forment l'opération mise en file si le
+ * relais est configuré. Les champs non partagés sont pris de `next` tels quels.
+ *
+ * `base` (R21) : l'état dont l'écran est parti (pavé, formulaire). S'il est donné, seuls les champs partagés où
+ * `next` diffère de `base` sont écrits ; les autres gardent la valeur stockée, même si un autre téléphone l'a
+ * changée entre-temps (une copie périmée ne défait pas sa modification). Sans `base` : différence avec le stocké.
+ *
  * Une ligne jamais horodatée (ligne de jeu créée d'office, ancienne donnée) est partagée en entier à sa première
  * écriture, pour qu'un autre téléphone qui ne la connaît pas la reçoive complète.
  * Peut être appelée dans une transaction englobante, à condition qu'elle inclue la table de l'entité et `opsOut`.
  */
-export async function writeShared(e: Entity, id: string, next: object): Promise<void> {
+export async function writeShared<T extends object>(e: Entity, id: string, next: T, base?: T): Promise<T> {
   const table = tableFor(e);
-  const queued = await db.transaction('rw', table, db.opsOut, async () => {
+  const [stored, queued] = await db.transaction('rw', table, db.opsOut, async (): Promise<[Row, boolean]> => {
     const current = await table.get(id);
     const clock = current?._clock ?? {};
     // L'horloge ne doit jamais être en retard sur un horodatage déjà stocké (stockage local effacé…).
@@ -78,34 +95,74 @@ export async function writeShared(e: Entity, id: string, next: object): Promise<
 
     const keys = sharedKeysFor(e, record);
     const before = { ...implicit(e), ...(current ? withoutClock(current) : {}) };
-    const f = diffFields(before, record, keys);
+    let f = diffFields(before, record, keys);
+    if (base && current) {
+      const fromBase = diffFields({ ...implicit(e), ...withoutClock(base as Row) }, record, keys);
+      f = Object.fromEntries(Object.entries(f).filter(([k]) => Object.hasOwn(fromBase, k)));
+    }
+    const out = { ...record, ...sharedValues(before, keys, f) };
+    for (const k of keys) if (k !== 'user' && before[k] === undefined && !(k in f)) delete out[k];
     if (e === 'line' && current) {
-      for (const k of keys) if (!Object.hasOwn(clock, k) && record[k] !== undefined && !(k in f)) f[k] = record[k];
+      for (const k of keys) if (!Object.hasOwn(clock, k) && out[k] !== undefined && !(k in f)) f[k] = out[k];
     }
 
     if (Object.keys(f).length === 0) {
-      await table.put(current?._clock ? { ...record, _clock: current._clock } : record);
-      return false;
+      await table.put(current?._clock ? { ...out, _clock: current._clock } : out);
+      return [out, false];
     }
     const t = tick();
     const applied = applyFields(current ? { _clock: clock } : undefined, f, t).record;
-    await table.put({ ...record, _clock: applied._clock });
-    if (!relayUrl()) return false;
+    await table.put({ ...out, _clock: applied._clock });
+    if (!relayUrl()) return [out, false];
     await db.opsOut.add({ op: { e, id, f, t } });
-    return true;
+    return [out, true];
   });
   if (queued) notifyQueued();
+  const { key: _k, ...result } = stored;
+  return (e === 'settings' ? result : stored) as T;
 }
 
 const ENTITIES = new Set<string>(['line', 'product', 'settings']);
 const STAMP = /^(\d{13})-\d{4}-.+$/;
 const MAX_AHEAD_MS = 24 * 3_600_000;
 
-/** Garde les seules clés qu'un autre téléphone a le droit d'écrire (R16). */
+type Check = (v: unknown) => boolean;
+const isNum: Check = (v) => typeof v === 'number' && Number.isFinite(v);
+const isStr: Check = (v) => typeof v === 'string';
+const isBool: Check = (v) => typeof v === 'boolean';
+const isStrList: Check = (v) => Array.isArray(v) && v.every(isStr);
+const isPlain: Check = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);
+const isScalar: Check = (v) => isStr(v) || isNum(v) || isBool(v) || isStrList(v);
+
+/** Type attendu de chaque champ partagé (`user.<champ>` : champs connus de ProductFields). */
+const VALUE_TYPES: Record<string, Check> = {
+  linearQty: isNum, stockQty: isNum, updatedAt: isNum,
+  deleted: isBool, outOfStock: isBool,
+  gameId: isStr, code: isStr, name: isStr, shopName: isStr, source: isStr,
+  sortCount: (v) => v === 'name' || v === 'updatedAt',
+  pinnedSubstitutes: isStrList, hiddenGames: isStrList,
+  base: isPlain,
+  'user.kind': isStr, 'user.name': isStr, 'user.brand': isStr, 'user.format': isStr, 'user.fdjPrefix': isStr,
+  'user.origin': isStr, 'user.effectiveDate': isStr, 'user.status': isStr, 'user.gameType': isStr, 'user.notes': isStr,
+  'user.nicotineMg': isNum, 'user.strength': isNum, 'user.price': isNum, 'user.previousPrice': isNum,
+  'user.ticketPrice': isNum, 'user.maxPrize': isNum,
+  'user.isNew': isBool,
+  'user.barcodes': isStrList, 'user.tasteTags': isStrList,
+};
+
+/** Champs facultatifs : `null` (effacé) n'est accepté que pour eux, jamais pour un champ obligatoire (ligne, produit). */
+const OPTIONAL = new Set(['gameId', 'hiddenGames']);
+
+/** Un champ `user.<champ>` inconnu (version plus récente de l'app) n'accepte qu'une valeur simple. */
+const validValue = (k: string, v: unknown) =>
+  v === null ? OPTIONAL.has(k) || k.startsWith('user.') : (VALUE_TYPES[k] ?? (k.startsWith('user.') ? isScalar : () => false))(v);
+
+/** Garde les seules clés qu'un autre téléphone a le droit d'écrire (R16), avec une valeur du bon type. */
 function allowedFields(op: Op, local: Row | undefined): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   const keys = new Set(SHARED_KEYS[op.e]);
   for (const [k, v] of Object.entries(op.f)) {
+    if (!validValue(k, v)) continue;
     if (op.e === 'product') {
       if (k.startsWith('user.')) out[k] = v;
       else if (k === 'source') {

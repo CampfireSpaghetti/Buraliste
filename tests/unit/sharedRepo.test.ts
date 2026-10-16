@@ -1,8 +1,8 @@
 import 'fake-indexeddb/auto';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
-  db, addCountLines, clearUserField, deleteCountLine, getSettings, listCountLines, listProducts, patchUserFields,
-  putProduct, restoreCountLine, saveSettings, setOutOfStock, setPinned, upsertCountLine,
+  db, addCountLines, clearUserField, deleteCountLine, getSettings, hideGame, listCountLines, listProducts, patchUserFields,
+  putProduct, restoreCountLine, saveSettings, setOutOfStock, setPinned, unhideGame, upsertCountLine,
 } from '../../src/data/db';
 import { SHARED_KEYS, applyRemoteOps, writeShared } from '../../src/data/sharedRepo';
 import { resetClockForTests } from '../../src/sync/clock';
@@ -12,7 +12,7 @@ import { restoreFromText } from '../../src/data/backupData';
 import { serializeBackup } from '../../src/domain/backup';
 import type { ReferenceFile } from '../../src/domain/catalog';
 import type { CountLine, Product } from '../../src/domain/types';
-import type { Op } from '../../src/sync/merge';
+import { applyFields, withoutClock, type Op } from '../../src/sync/merge';
 
 const RELAY = 'https://relais.example.workers.dev';
 const line = (over: Partial<CountLine> = {}): CountLine => ({ id: 'l1', code: '0417', name: 'Cash', linearQty: 3, stockQty: 12, updatedAt: 0, ...over });
@@ -337,5 +337,106 @@ describe('listes publiques et sauvegarde (R17)', () => {
       expect.objectContaining({ e: 'settings', id: 'main', f: { shopName: 'Tabac du Centre' } }),
     ]));
     expect((await db.countLines.get('l'))!._clock).toBeDefined();
+  });
+});
+
+describe('instantané de départ (R21) : une copie périmée ne défait pas la modification d’un autre téléphone', () => {
+  it('B met le stock à 20 ; A, dont le pavé avait 12, ne change que le linéaire : le stock reste 20 partout', async () => {
+    await upsertCountLine(line({ stockQty: 12 }));
+    const snapshotA = (await listCountLines())[0];
+    const phoneB = applyFields({ ...snapshotA }, {}, '');
+    const tB = hlcAt(Date.now() + 1000, 0, 'bbbbbbbb');
+    const opB: Op = { e: 'line', id: 'l1', f: { stockQty: 20, updatedAt: Date.now() - 5000 }, t: tB };
+    const recordB = applyFields(phoneB.record, opB.f, opB.t).record;
+    expect(await applyRemoteOps([opB])).toBe(1);
+    await db.opsOut.clear();
+
+    const saved = await upsertCountLine({ ...snapshotA, linearQty: 5 }, snapshotA);
+    expect(saved).toMatchObject({ linearQty: 5, stockQty: 20 });
+    expect((await listCountLines())[0]).toMatchObject({ linearQty: 5, stockQty: 20 });
+    const [opA] = await queued();
+    expect(Object.keys(opA.f).sort()).toEqual(['linearQty', 'updatedAt']);
+    expect(applyFields(recordB, opA.f, opA.t).record).toMatchObject({ linearQty: 5, stockQty: 20 });
+  });
+
+  it('sans instantané, le comportement reste « différence avec la valeur stockée »', async () => {
+    await upsertCountLine(line({ stockQty: 12 }));
+    await applyRemoteOps([{ e: 'line', id: 'l1', f: { stockQty: 20 }, t: hlcAt(Date.now() + 1000) }]);
+    await upsertCountLine({ ...line({ stockQty: 12 }), linearQty: 5 });
+    expect((await listCountLines())[0].stockQty).toBe(12);
+  });
+
+  it('putProduct avec instantané : un champ user changé ailleurs reste, seul le champ du formulaire part', async () => {
+    await db.products.put(product({ user: { notes: 'a' } }));
+    const snapshot = withoutClock((await db.products.get('p1'))!);
+    await applyRemoteOps([{ e: 'product', id: 'p1', f: { 'user.notes': 'b', outOfStock: true }, t: hlcAt(Date.now() + 1000) }]);
+    await db.opsOut.clear();
+    await putProduct({ ...snapshot, user: { ...snapshot.user, tasteTags: ['doux'] } }, snapshot);
+    expect((await db.products.get('p1'))!).toMatchObject({ outOfStock: true, user: { notes: 'b', tasteTags: ['doux'] } });
+    expect((await queued()).map((o) => o.f)).toEqual([{ 'user.tasteTags': ['doux'] }]);
+  });
+
+  it('hideGame sur A puis unhideGame d’un autre jeu sur B, avec une synchronisation entre les deux : rien n’est écrasé', async () => {
+    // Ce téléphone joue B : jeux cachés [g2]. A cache g1, son opération arrive, puis B remet g2 dans la liste.
+    await saveSettings({ hiddenGames: ['g2'] });
+    await applyRemoteOps([{ e: 'settings', id: 'main', f: { hiddenGames: ['g2', 'g1'] }, t: hlcAt(Date.now() + 1000, 0, 'aaaaaaaa') }]);
+    await db.opsOut.clear();
+    await unhideGame('g2');
+    expect((await getSettings()).hiddenGames).toEqual(['g1']);
+    expect((await queued()).map((o) => o.f)).toEqual([{ hiddenGames: ['g1'] }]);
+    await hideGame('g3');
+    await hideGame('g3');
+    expect((await getSettings()).hiddenGames).toEqual(['g1', 'g3']);
+    await unhideGame('absent');
+    expect(await db.opsOut.count()).toBe(2);
+  });
+});
+
+describe('réglages non partagés', () => {
+  it('saveSettings({shareToken}) et saveSettings({referencesVersion}) ne mettent rien en file', async () => {
+    await saveSettings({ shareToken: 'secret' });
+    await saveSettings({ referencesVersion: 'v9' });
+    expect(await db.opsOut.count()).toBe(0);
+    expect(await getSettings()).toMatchObject({ shareToken: 'secret', referencesVersion: 'v9' });
+  });
+});
+
+describe('types des valeurs reçues', () => {
+  it('une valeur du mauvais type est retirée, null reste un effacement, le reste est appliqué', async () => {
+    await db.products.put(product({ user: { notes: 'x' } }));
+    await applyRemoteOps([
+      { e: 'line', id: 'r1', f: { code: 1, name: 'A', linearQty: '5', stockQty: 2, updatedAt: 3, deleted: 'oui', gameId: null }, t: hlcAt(Date.now()) },
+      { e: 'settings', id: 'main', f: { shopName: 42, sortCount: 'n’importe', hiddenGames: ['g', 3] }, t: hlcAt(Date.now()) },
+      { e: 'product', id: 'p1', f: { outOfStock: 'oui', pinnedSubstitutes: 'p2', 'user.tasteTags': 'doux', 'user.price': '12', 'user.name': 'Bon', 'user.notes': null }, t: hlcAt(Date.now()) },
+    ]);
+    const l = (await db.countLines.get('r1'))!;
+    expect(l).toMatchObject({ code: '', name: 'A', linearQty: 0, stockQty: 2, updatedAt: 3 });
+    expect(l.deleted).toBeUndefined();
+    expect(await getSettings()).toMatchObject({ shopName: 'Mon tabac', sortCount: 'name' });
+    expect((await getSettings()).hiddenGames).toBeUndefined();
+    const p = (await db.products.get('p1'))!;
+    expect(p).toMatchObject({ outOfStock: false, pinnedSubstitutes: [], user: { name: 'Bon' } });
+    expect(p.user).not.toHaveProperty('notes');
+    expect(p.user).not.toHaveProperty('tasteTags');
+    expect(p.user).not.toHaveProperty('price');
+  });
+
+  it('null n’efface qu’un champ facultatif : un champ obligatoire reçu à null est ignoré', async () => {
+    await upsertCountLine(line({ gameId: 'g1' }));
+    await saveSettings({ hiddenGames: ['g1'] });
+    await db.products.put(product());
+    const t = hlcAt(Date.now() + 1000);
+    await applyRemoteOps([
+      { e: 'line', id: 'l1', f: { gameId: null, linearQty: null, name: null }, t },
+      { e: 'settings', id: 'main', f: { hiddenGames: null, shopName: null }, t },
+      { e: 'product', id: 'p1', f: { outOfStock: null, pinnedSubstitutes: null }, t },
+    ]);
+    const l = (await db.countLines.get('l1'))!;
+    expect(l.gameId).toBeUndefined();
+    expect(l).toMatchObject({ linearQty: 3, name: 'Cash' });
+    const s = await getSettings();
+    expect(s.hiddenGames).toBeUndefined();
+    expect(s.shopName).toBe('Mon tabac');
+    expect((await db.products.get('p1'))!).toMatchObject({ outOfStock: false, pinnedSubstitutes: [] });
   });
 });

@@ -85,7 +85,7 @@ export function CountScreen() {
     const next = k.chain && k.field === 'linearQty';
     // Le pavé du stock remplace directement celui du linéaire : la caméra reste en pause entre les deux.
     setKeypad(next ? { ...k, field: 'stockQty', chain: false, snapshot: line, lineId: line.id, initial: line.stockQty } : null);
-    const saved = await actions.upsertCountLine(line);
+    const saved = await actions.upsertCountLine(line, existing);
     setHitId(line.id);
     setTimeout(() => setHitId((h) => (h === line.id ? undefined : h)), 1500);
     if (scanning) {
@@ -98,7 +98,7 @@ export function CountScreen() {
     setLineForm(null);
     // Un jeu du catalogue enlevé de la liste n'y revient pas tout seul (marqué avant la suppression,
     // sinon la liste complète le recréerait aussitôt).
-    if (line.gameId) await actions.saveSettings({ hiddenGames: [...new Set([...hidden, line.gameId])] });
+    if (line.gameId) await actions.hideGame(line.gameId);
     const removed = await actions.deleteCountLine(line.id);
     setToast({ message: 'Ligne supprimée', undo: removed });
   };
@@ -168,7 +168,6 @@ export function CountScreen() {
           form={lineForm}
           games={games}
           lines={rawLines ?? []}
-          hiddenGames={hidden}
           onMerged={(l) => setToast({ message: `Ligne existante mise à jour : ${l.name}` })}
           products={products ?? []}
           onClose={() => setLineForm(null)}
@@ -206,7 +205,7 @@ export function CountScreen() {
             const undo = toast.undo;
             if (undo) {
               void actions.restoreCountLine(undo);
-              if (undo.gameId) void actions.saveSettings({ hiddenGames: hidden.filter((g) => g !== undo.gameId) });
+              if (undo.gameId) void actions.unhideGame(undo.gameId);
             }
             setToast(null);
           }}
@@ -217,7 +216,7 @@ export function CountScreen() {
   );
 }
 
-function LineFormSheet({ form, games, lines, hiddenGames, products, onClose, onDelete, onMerged }: { form: LineForm; games: Product[]; lines: CountLine[]; hiddenGames: string[]; products: Product[]; onClose: () => void; onDelete: (l: CountLine) => void; onMerged: (l: CountLine) => void }) {
+function LineFormSheet({ form, games, lines, products, onClose, onDelete, onMerged }: { form: LineForm; games: Product[]; lines: CountLine[]; products: Product[]; onClose: () => void; onDelete: (l: CountLine) => void; onMerged: (l: CountLine) => void }) {
   const editing = form.mode === 'edit' ? form.line : undefined;
   const [name, setName] = useState(editing?.name ?? '');
   const [code, setCode] = useState(editing?.code ?? '');
@@ -231,7 +230,7 @@ function LineFormSheet({ form, games, lines, hiddenGames, products, onClose, onD
     if (!valid) return;
     const c = normalizeCode(code);
     if (editing) {
-      await actions.upsertCountLine({ ...editing, name: name.trim(), code: c, linearQty, stockQty });
+      await actions.upsertCountLine({ ...editing, name: name.trim(), code: c, linearQty, stockQty }, editing);
     } else {
       // Rattache la ligne à un jeu connu (même nom, ou code reconnu) pour que les scans la retrouvent.
       const byName = games.find((g) => fold(effectiveFields(g).name) === fold(name.trim()));
@@ -239,9 +238,9 @@ function LineFormSheet({ form, games, lines, hiddenGames, products, onClose, onD
       const gameId = byName?.id ?? (byCode?.type === 'product' && effectiveFields(byCode.product).kind === 'jeu-fdj' ? byCode.product.id : undefined);
       // Un jeu déjà dans la liste n'a qu'une ligne : on la met à jour au lieu d'en créer une seconde (total juste).
       const same = lines.find((l) => (gameId && l.gameId === gameId) || fold(l.name) === fold(name.trim()));
-      if (gameId) await actions.saveSettings({ hiddenGames: hiddenGames.filter((g) => g !== gameId) });
+      if (gameId) await actions.unhideGame(gameId);
       if (same) {
-        const updated = await actions.upsertCountLine({ ...same, linearQty, stockQty, code: same.code || c });
+        const updated = await actions.upsertCountLine({ ...same, linearQty, stockQty, code: same.code || c }, same);
         onMerged(updated);
       } else {
         await actions.upsertCountLine({ id: newId(), gameId, code: c, name: name.trim(), linearQty, stockQty, updatedAt: 0 });

@@ -1,8 +1,9 @@
 import Dexie, { type Table } from 'dexie';
 import type { CountLine, Product, ProductFields, Settings } from '../domain/types';
 import type { Contribution } from '../domain/sharing';
-import type { Clocked, Op } from '../sync/merge';
+import { withoutClock, type Clocked, type Op } from '../sync/merge';
 import { currentTabac, DEFAULT_TABAC_NAME, dbNameFor, ensureRegistry, listTabacs, syncRegistryName } from '../tabacs/registry';
+// Import circulaire voulu avec sharedRepo.ts : chacun n'utilise l'autre que dans des fonctions (voir sharedRepo.ts).
 import { writeShared } from './sharedRepo';
 
 export type OutboxItem = Contribution & { id?: number; createdAt: number };
@@ -78,6 +79,20 @@ export async function saveSettings(patch: Partial<Settings>): Promise<Settings> 
   return next;
 }
 
+/** Jeux enlevés de la liste : lus dans la transaction, jamais reconstruits depuis une copie de l'écran (R21). */
+async function updateHiddenGames(fn: (ids: string[]) => string[]): Promise<Settings> {
+  return db.transaction('rw', db.settings, db.opsOut, async () => {
+    const current = await getSettings();
+    const before = current.hiddenGames ?? [];
+    const after = fn(before);
+    if (after.length === before.length && after.every((g, i) => g === before[i])) return current;
+    return saveSettings({ hiddenGames: after });
+  });
+}
+
+export const hideGame = (gameId: string) => updateHiddenGames((ids) => (ids.includes(gameId) ? ids : [...ids, gameId]));
+export const unhideGame = (gameId: string) => updateHiddenGames((ids) => ids.filter((g) => g !== gameId));
+
 /**
  * Au démarrage : le nom du tabac dans le registre suit `settings.shopName`. Dans une base neuve (tabac créé ou
  * rejoint), il n'y a pas encore de réglages : on y écrit le nom du registre, sans horloge, pour que les
@@ -98,15 +113,10 @@ export async function syncSettingsNameAtStartup(): Promise<void> {
 export const listProducts = () => db.products.toArray();
 export const getProduct = (id: string) => db.products.get(id);
 
-const withoutClock = <T extends object>(r: Clocked<T>): T => {
-  const { _clock: _c, ...rest } = r;
-  return rest as T;
-};
-
-export async function putProduct(p: Product): Promise<Product> {
+/** `base` : la fiche dont le formulaire est parti (R21) ; seuls les champs changés depuis sont écrits. */
+export async function putProduct(p: Product, base?: Product): Promise<Product> {
   const next = { ...withoutClock<Product>(p), updatedAt: Date.now() };
-  await writeShared('product', next.id, next);
-  return next;
+  return writeShared('product', next.id, next, base && withoutClock<Product>(base));
 }
 
 async function update(id: string, fn: (p: Product) => Product): Promise<Product> {
@@ -134,10 +144,10 @@ export const setPinned = (id: string, ids: string[]) => update(id, (p) => ({ ...
 export const listCountLines = async (): Promise<CountLine[]> =>
   (await db.countLines.toArray()).filter((l) => l.deleted !== true).map((l) => withoutClock<CountLine>(l));
 
-export async function upsertCountLine(line: CountLine): Promise<CountLine> {
+/** `base` : la ligne dont le pavé ou le formulaire est parti (R21) ; seuls les champs changés depuis sont écrits. */
+export async function upsertCountLine(line: CountLine, base?: CountLine): Promise<CountLine> {
   const next = { ...withoutClock<CountLine>(line), updatedAt: Date.now(), deleted: false };
-  await writeShared('line', next.id, next);
-  return next;
+  return writeShared('line', next.id, next, base && { ...withoutClock<CountLine>(base), deleted: false });
 }
 
 /** Marque la ligne supprimée (partagé) et la renvoie telle qu'elle était, pour l'annulation. */
@@ -168,9 +178,7 @@ export async function addCountLines(lines: CountLine[]): Promise<void> {
 
 /** Remet une ligne supprimée telle quelle (garde sa date de modification). */
 export async function restoreCountLine(line: CountLine): Promise<CountLine> {
-  const next = { ...withoutClock<CountLine>(line), deleted: false };
-  await writeShared('line', next.id, next);
-  return next;
+  return writeShared('line', line.id, { ...withoutClock<CountLine>(line), deleted: false });
 }
 
 export async function requestPersistence(): Promise<boolean> {

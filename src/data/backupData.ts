@@ -1,14 +1,9 @@
 import { parseBackup, serializeBackup } from '../domain/backup';
 import type { CountLine, Product } from '../domain/types';
-import type { Clocked } from '../sync/merge';
+import { withoutClock, type Clocked } from '../sync/merge';
 import { syncRegistryName } from '../tabacs/registry';
 import { db, dbTabacId, DEFAULT_SETTINGS, getSettings } from './db';
 import { writeShared } from './sharedRepo';
-
-const withoutClock = <T extends object>(r: Clocked<T>): T => {
-  const { _clock: _c, ...rest } = r;
-  return rest as T;
-};
 
 /** Sauvegarde : les lignes visibles et les produits, sans les horodatages internes de la synchronisation. */
 export async function exportBackupText(now: number): Promise<string> {

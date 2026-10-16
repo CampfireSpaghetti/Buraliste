@@ -53,15 +53,18 @@ async function shareAfter(id: string, write: () => Promise<Product>): Promise<Pr
 }
 
 export const actions = {
-  putProduct: withNotify((p: Product) => shareAfter(p.id, () => repo.putProduct(p))),
+  // `base` (facultatif) : l'état dont l'écran est parti ; seuls les champs changés depuis sont écrits (R21).
+  putProduct: withNotify((p: Product, base?: Product) => shareAfter(p.id, () => repo.putProduct(p, base))),
   patchUserFields: withNotify((id: string, patch: Partial<ProductFields>) => shareAfter(id, () => repo.patchUserFields(id, patch))),
   clearUserField: withNotify((id: string, key: keyof ProductFields) => repo.clearUserField(id, key)),
   setOutOfStock: withNotify((id: string, v: boolean) => repo.setOutOfStock(id, v)),
   setPinned: withNotify((id: string, ids: string[]) => repo.setPinned(id, ids)),
-  upsertCountLine: withNotify((l: CountLine) => repo.upsertCountLine(l)),
+  upsertCountLine: withNotify((l: CountLine, base?: CountLine) => repo.upsertCountLine(l, base)),
   deleteCountLine: withNotify((id: string) => repo.deleteCountLine(id)),
   restoreCountLine: withNotify((l: CountLine) => repo.restoreCountLine(l)),
   saveSettings: withNotify((s: Partial<Settings>) => repo.saveSettings(s)),
+  hideGame: withNotify((gameId: string) => repo.hideGame(gameId)),
+  unhideGame: withNotify((gameId: string) => repo.unhideGame(gameId)),
 };
 
 /** Nouveau produit saisi par le buraliste (couche user uniquement). */

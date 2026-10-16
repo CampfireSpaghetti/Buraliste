@@ -12,6 +12,12 @@ export type Op = { e: 'line' | 'product' | 'settings'; id: string; f: Record<str
 
 export type Clocked<T> = T & { _clock?: Record<string, string> };
 
+/** Copie sans les horodatages internes (pour l'écran, les sauvegardes, ou une écriture à partir d'une lecture). */
+export function withoutClock<T extends object>(r: Clocked<T>): T {
+  const { _clock: _c, ...rest } = r;
+  return rest as T;
+}
+
 const USER_PREFIX = 'user.';
 const FORBIDDEN = new Set(['__proto__', 'constructor', 'prototype']);
 
