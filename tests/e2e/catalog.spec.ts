@@ -27,14 +27,14 @@ test('produit manquant : remplaçants en 1 tap, sans produit en rupture, épingl
   await page.getByRole('button', { name: 'En stock' }).click(); // 1 tap : passe en rupture
   const subs = page.getByRole('region', { name: 'À proposer au client' });
   await expect(subs).toBeVisible();
-  await expect(subs.getByText('même force').first()).toBeVisible();
+  await expect(subs.getByText(/Autre marque, même goût \(Classique|Rouge\)/).first()).toBeVisible();
   await expect(subs.getByText(/Marlboro Red/)).toHaveCount(0);
   await expect(subs.getByText(/Cohiba/)).toHaveCount(0);
   const last = subs.locator('.sub').last();
   const lastName = (await last.locator('b').innerText()).trim();
   await last.getByRole('button', { name: 'Épingler' }).click();
   await expect(subs.locator('.sub').first().locator('b')).toHaveText(lastName);
-  await expect(subs.locator('.sub').first().getByText('épinglé')).toBeVisible();
+  await expect(subs.locator('.sub').first().getByText(/^Épinglé/)).toBeVisible();
 });
 
 test('bouton « Proposer un remplaçant » sur une fiche en stock', async ({ page }) => {

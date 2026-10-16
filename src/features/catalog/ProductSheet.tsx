@@ -7,6 +7,7 @@ import { useNav } from '../../nav';
 import { actions, useProducts } from '../../store';
 import { Panel } from '../../ui/Panel';
 import { SubstitutesList } from './SubstitutesList';
+import { rangeProfile } from '../../domain/rangeProfile';
 import './catalog.css';
 
 export function ProductSheet({ id }: { id: string }) {
@@ -66,6 +67,12 @@ export function ProductSheet({ id }: { id: string }) {
                 </dd>
               </>
             )}
+            {(f.kind === 'cigarette' || f.kind === 'tabac-rouler') && (() => {
+              const r = rangeProfile(f);
+              const goût = r.color ? `${r.color}${r.rank ? ` (${['', 'très léger', 'léger', 'équilibré', 'corsé'][r.rank]})` : ''}` : 'non précisé';
+              const format = [r.count && `${r.count} cigarettes`, r.weight && `${r.weight} g`, r.length === 'long' && 'longues (100s)', r.length === 'slim' && 'slim', r.pack && `paquet ${r.pack}`].filter(Boolean).join(', ');
+              return (<><dt>Gamme</dt><dd>{r.brand} · {goût}{r.type === 'brun' ? ' · tabac brun' : ''}{format ? ` · ${format}` : ''}</dd></>);
+            })()}
             {f.strength && (<><dt>Force</dt><dd>{'●'.repeat(f.strength)}{'○'.repeat(5 - f.strength)} {f.strength}/5</dd></>)}
             {f.nicotineMg !== undefined && (<><dt>Nicotine</dt><dd>{f.nicotineMg} mg</dd></>)}
             {f.tasteTags?.length ? (<><dt>Goût</dt><dd>{f.tasteTags.join(' · ')}</dd></>) : null}
