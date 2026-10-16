@@ -2,7 +2,7 @@ import { parseBackup, serializeBackup } from '../domain/backup';
 import { db, getSettings } from './db';
 
 export async function exportBackupText(now: number): Promise<string> {
-  const [products, countLines, settings] = await Promise.all([db.products.toArray(), db.countLines.toArray(), getSettings()]);
+  const [products, countLines, { shareToken: _secret, ...settings }] = await Promise.all([db.products.toArray(), db.countLines.toArray(), getSettings()]);
   return serializeBackup({ products, countLines, settings }, now);
 }
 
@@ -11,12 +11,13 @@ export async function restoreFromText(text: string): Promise<{ ok: true } | { ok
   const parsed = parseBackup(text);
   if (!parsed.ok) return parsed;
   const { products, countLines, settings } = parsed.data;
+  const { shareToken } = await getSettings();
   await db.transaction('rw', db.products, db.countLines, db.settings, async () => {
     await Promise.all([db.products.clear(), db.countLines.clear(), db.settings.clear()]);
     await db.products.bulkPut(products);
     await db.countLines.bulkPut(countLines);
     // La version de la liste officielle est oubliée : la prochaine ouverture refusionne la liste à jour.
-    await db.settings.put({ ...settings, referencesVersion: undefined, key: 'main' });
+    await db.settings.put({ ...settings, shareToken, referencesVersion: undefined, sharedCodesVersion: undefined, key: 'main' });
   });
   return { ok: true };
 }

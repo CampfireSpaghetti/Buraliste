@@ -4,13 +4,16 @@ on:
   push:
     branches: [main]
   schedule:
-    - cron: '17 4 * * 1' # chaque lundi 04:17 UTC : mise à jour de la liste Douane
+    - cron: '17 4 * * 1' # chaque lundi 04:17 UTC : listes Douane et FDJ, codes en retard
   workflow_dispatch:
+  issues:
+    types: [opened] # codes-barres envoyés par les téléphones jumelés
 
 permissions:
   contents: write
   pages: write
   id-token: write
+  issues: write
 
 concurrency:
   group: pages
@@ -19,11 +22,16 @@ concurrency:
 jobs:
   build-deploy:
     runs-on: ubuntu-latest
+    # Pour un message (issue), seulement ceux des téléphones jumelés : titre « [codes-barres] » et compte du propriétaire.
+    if: github.event_name != 'issues' || (startsWith(github.event.issue.title, '[codes-barres]') && github.event.issue.user.login == github.repository_owner)
     environment:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Version la plus récente de main (plusieurs envois peuvent se suivre).
+          ref: ${{ github.event_name == 'push' && github.sha || 'main' }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -31,14 +39,23 @@ jobs:
       - run: npm ci
       - name: Mise à jour de la liste officielle Douane
         id: refs
-        if: github.event_name != 'push'
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         continue-on-error: true
         run: npm run refs:update
       - name: Mise à jour de la liste des jeux FDJ
         id: fdj
-        if: github.event_name != 'push'
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         continue-on-error: true
         run: npm run fdj:update
+      - name: Codes-barres reçus des téléphones jumelés
+        id: codes
+        if: github.event_name != 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue list --repo ${{ github.repository }} --state open --author ${{ github.repository_owner }} \
+            --search "[codes-barres] in:title" --json number,title,body,author --limit 100 > "${{ runner.temp }}/issues.json"
+          node scripts/codes/collect.ts "${{ runner.temp }}/issues.json" "${{ runner.temp }}/replies.json" ${{ github.repository_owner }}
       - run: npm test
       - name: Publication des listes mises à jour (après les tests)
         if: github.event_name != 'push'
@@ -47,7 +64,8 @@ jobs:
             git config user.name "la-carotte-bot"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git add public/data
-            git commit -m "chore: listes Douane et FDJ du $(date +%Y-%m-%d)"
+            git commit -m "chore: listes partagées du $(date +%Y-%m-%d) (Douane, FDJ, codes-barres)"
+            git pull --rebase origin main
             git push
           fi
       - run: npm run build
@@ -57,6 +75,15 @@ jobs:
           path: dist
       - id: deploy
         uses: actions/deploy-pages@v4
+      - name: Répondre aux messages de codes et les fermer (après publication)
+        if: steps.codes.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node -e 'for (const [n, s] of Object.entries(require(process.argv[1]))) console.log(n + "\t" + Buffer.from(s).toString("base64"))' "${{ runner.temp }}/replies.json" |
+          while IFS=$'\t' read -r num summary; do
+            gh issue close "$num" --repo ${{ github.repository }} --comment "$(echo "$summary" | base64 -d)"
+          done
       - name: Signaler une source qui n'a pas pu être lue
         if: steps.refs.outcome == 'failure' || steps.fdj.outcome == 'failure'
         run: |

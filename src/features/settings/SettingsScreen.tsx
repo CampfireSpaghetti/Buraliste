@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { restoreFromText } from '../../data/backupData';
+import { parseBackup } from '../../domain/backup';
 import { formatDateLong, formatIsoDateFr } from '../../domain/format';
 import { actions, notifyDataChanged, useProducts, useSettings } from '../../store';
 import { Sheet } from '../../ui/Panel';
 import { Toast } from '../../ui/Toast';
 import { BackupPanel } from './BackupPanel';
 import { InstallGuide } from './InstallGuide';
+import { SharingSection } from './SharingSection';
 import './settings.css';
 
 export function SettingsScreen() {
@@ -30,7 +32,6 @@ export function SettingsScreen() {
     if (!f) return;
     const text = await f.text();
     // Vérification avant de demander confirmation : un fichier refusé ne propose même pas de remplacer.
-    const { parseBackup } = await import('../../domain/backup');
     const r = parseBackup(text);
     if (!r.ok) setError(r.error);
     else setPending(text);
@@ -77,8 +78,13 @@ export function SettingsScreen() {
         Gamme en point de vente (fdj.fr){settings.fdjFetchedAt ? ` · liste du ${formatIsoDateFr(settings.fdjFetchedAt)}` : ''} · {fdjGames} jeux · mise à jour automatique chaque semaine
       </p>
 
+      <SharingSection settings={settings} />
+
       <button type="button" className="btn" onClick={() => setInstall(true)}>Installer sur mon téléphone</button>
-      <p className="muted hint">Toutes les données restent sur ce téléphone. Rien n'est envoyé ailleurs, sauf les fichiers que vous partagez vous-même.</p>
+      <p className="muted hint">
+        Vos données restent sur ce téléphone. Seuls partent : les fichiers que vous partagez vous-même et, si le partage
+        est activé, les codes-barres rattachés aux produits officiels.
+      </p>
 
       {backup && <BackupPanel onClose={() => setBackup(false)} />}
       {install && <InstallGuide onClose={() => setInstall(false)} />}

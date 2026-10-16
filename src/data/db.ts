@@ -1,5 +1,8 @@
 import Dexie, { type Table } from 'dexie';
 import type { CountLine, Product, ProductFields, Settings } from '../domain/types';
+import type { Contribution } from '../domain/sharing';
+
+export type OutboxItem = Contribution & { id?: number; createdAt: number };
 
 type SettingsRow = Settings & { key: 'main' };
 
@@ -9,6 +12,7 @@ export class CarotteDB extends Dexie {
   products!: Table<Product, string>;
   countLines!: Table<CountLine, string>;
   settings!: Table<SettingsRow, string>;
+  outbox!: Table<OutboxItem, number>;
   constructor() {
     super('la-carotte');
     this.version(1).stores({
@@ -26,6 +30,8 @@ export class CarotteDB extends Dexie {
         }
       }),
     );
+    // v3 : file d'attente des codes à partager.
+    this.version(3).stores({ outbox: '++id, createdAt' });
   }
 }
 

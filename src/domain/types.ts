@@ -40,6 +40,8 @@ export interface Product {
   user: Partial<ProductFields>;
   outOfStock: boolean;
   pinnedSubstitutes: string[];
+  sharedBarcodes?: string[]; // codes partagés par les téléphones jumelés (liste publique)
+  sharedFdjPrefix?: string; // code de jeu partagé
   updatedAt: number;
 }
 
@@ -61,6 +63,11 @@ export interface Settings {
   sortCount: 'name' | 'updatedAt';
   fdjVersion?: string;
   fdjFetchedAt?: string;
+  sharedCodesVersion?: string;
+  // Partage des codes-barres (téléphone jumelé). La clé ne quitte jamais le téléphone : exclue des sauvegardes.
+  shareToken?: string;
+  shareStatus?: 'ok' | 'cle-refusee' | 'hors-ligne' | 'erreur';
+  lastShareAt?: number;
 }
 
 export const TASTES = ['doux', 'léger', 'équilibré', 'corsé', 'intense', 'boisé', 'épicé', 'terreux', 'vanillé', 'fruité', 'crémeux', 'torréfié', 'herbacé'] as const;

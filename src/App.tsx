@@ -13,6 +13,7 @@ import { CountScreen } from './features/count/CountScreen';
 import { SettingsScreen } from './features/settings/SettingsScreen';
 import { UpdateBanner } from './ui/UpdateBanner';
 import { StorageBanner } from './ui/StorageBanner';
+import { PairingPrompt } from './ui/PairingPrompt';
 import { useSettings } from './store';
 import './ui/panel.css';
 
@@ -98,6 +99,7 @@ function Shell() {
       </main>
       <TabBar current={tab} onChange={go} />
       {nav.stack.map((v, i) => <ViewLayer key={i} view={v} />)}
+      <PairingPrompt />
     </div>
   );
 }
