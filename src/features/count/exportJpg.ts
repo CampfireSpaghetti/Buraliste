@@ -65,7 +65,8 @@ export async function renderExportJpg(layout: ExportLayout): Promise<Blob> {
   ctx.fillText('CODE-BARRES', M.cols.code, headMid);
   ctx.fillText('NOM DU JEU', M.cols.name, headMid);
   ctx.textAlign = 'right';
-  ctx.fillText('QTÉ', M.cols.qtyRight, headMid);
+  ctx.fillText('LINÉAIRE', M.cols.linearRight, headMid);
+  ctx.fillText('STOCK', M.cols.stockRight, headMid);
   ctx.textAlign = 'left';
   ctx.fillText('MODIFIÉ LE', M.cols.date, headMid);
   ctx.fillStyle = C.encre;
@@ -81,14 +82,15 @@ export async function renderExportJpg(layout: ExportLayout): Promise<Blob> {
     ctx.fillText(fit(ctx, r.cells[0], M.cols.name - M.cols.code - 16), M.cols.code, mid);
     ctx.fillStyle = C.encre;
     ctx.font = `600 30px ${BODY}`;
-    ctx.fillText(fit(ctx, r.cells[1], M.cols.qtyRight - M.cols.name - 110), M.cols.name, mid);
+    ctx.fillText(fit(ctx, r.cells[1], M.cols.linearRight - M.cols.name - 120), M.cols.name, mid);
     ctx.font = `700 34px ${BODY}`;
     ctx.textAlign = 'right';
-    ctx.fillText(r.cells[2], M.cols.qtyRight, mid);
+    ctx.fillText(r.cells[2], M.cols.linearRight, mid);
+    ctx.fillText(r.cells[3], M.cols.stockRight, mid);
     ctx.textAlign = 'left';
     ctx.fillStyle = C.muted;
     ctx.font = `400 26px ${BODY}`;
-    ctx.fillText(r.cells[3], M.cols.date, mid);
+    ctx.fillText(r.cells[4], M.cols.date, mid);
   }
 
   // Total
@@ -99,7 +101,8 @@ export async function renderExportJpg(layout: ExportLayout): Promise<Blob> {
   ctx.fillText(layout.totalLabel, M.cols.name, totMid);
   ctx.font = `700 38px ${BODY}`;
   ctx.textAlign = 'right';
-  ctx.fillText(String(layout.total), M.cols.qtyRight, totMid);
+  ctx.fillText(String(layout.totals.linear), M.cols.linearRight, totMid);
+  ctx.fillText(String(layout.totals.stock), M.cols.stockRight, totMid);
 
   // Pied
   ctx.fillStyle = C.muted;

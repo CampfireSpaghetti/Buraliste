@@ -1,12 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { countTotal, sortLines } from '../../src/domain/count';
+import { countTotals, sortLines, migrateLegacyLine } from '../../src/domain/count';
 import type { CountLine } from '../../src/domain/types';
 
-const l = (name: string, quantity: number, updatedAt: number): CountLine => ({ id: name, code: '', name, quantity, updatedAt });
-const lines = [l('Millionnaire', 12, 3), l('astro', 45, 1), l('Écureuil', 5, 2), l('Cash', 38, 4)];
+const l = (name: string, linearQty: number, updatedAt: number, stockQty = 0): CountLine => ({ id: name, code: '', name, linearQty, stockQty, updatedAt });
+const lines = [l('Millionnaire', 12, 3, 100), l('astro', 45, 1, 50), l('Écureuil', 5, 2), l('Cash', 38, 4, 150)];
 
 describe('comptage', () => {
-  it('total des quantités', () => expect(countTotal(lines)).toBe(100));
+  it('totaux linéaire et stock', () => expect(countTotals(lines)).toEqual({ linear: 100, stock: 300 }));
   it('tri par nom à la française (accents, casse)', () => {
     expect(sortLines(lines, 'name').map((x) => x.name)).toEqual(['astro', 'Cash', 'Écureuil', 'Millionnaire']);
   });
@@ -17,5 +17,10 @@ describe('comptage', () => {
     const copy = [...lines];
     sortLines(lines, 'name');
     expect(lines).toEqual(copy);
+  });
+  it('ancienne ligne « quantity » : devient la quantité linéaire, stock à 0', () => {
+    expect(migrateLegacyLine({ id: 'a', code: '1', name: 'Cash', quantity: 7, updatedAt: 5 })).toEqual({ id: 'a', code: '1', name: 'Cash', linearQty: 7, stockQty: 0, updatedAt: 5 });
+    const modern = l('X', 1, 1, 2);
+    expect(migrateLegacyLine(modern)).toEqual(modern);
   });
 });

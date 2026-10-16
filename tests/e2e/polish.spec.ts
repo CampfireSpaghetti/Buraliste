@@ -35,7 +35,7 @@ test('fonctionne hors connexion après le premier chargement', async ({ page, co
   await page.goto('./#grattage');
   await page.evaluate(async () => { await navigator.serviceWorker.ready; });
   await page.reload(); // la page est maintenant contrôlée par le service worker
-  await seed(page, { countLines: [{ id: '1', code: '', name: 'Cash', quantity: 38, updatedAt: Date.now() }] });
+  await seed(page, { countLines: [{ id: '1', code: '', name: 'Cash', linearQty: 38, stockQty: 120, updatedAt: Date.now() }] });
   await context.setOffline(true);
   await page.reload();
   await expect(page.getByRole('button', { name: 'Cash', exact: true })).toBeVisible();

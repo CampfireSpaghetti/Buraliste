@@ -10,14 +10,19 @@ import { actions, newUserProduct, useCountLines, useProducts, useSettings } from
 import { Sheet } from '../../ui/Panel';
 import { Toast } from '../../ui/Toast';
 import { ScannerView } from '../scanner/ScannerView';
-import { CountTable } from './CountTable';
+import { CountTable, type QtyField } from './CountTable';
 import { NumericKeypad } from './NumericKeypad';
 import { WhichGameDialog } from './WhichGameDialog';
 import { ExportPanel } from './ExportPanel';
 import { BackupReminder } from './BackupReminder';
 import './count.css';
 
-type KeypadTarget = { lineId?: string; gameId?: string; code: string; name: string; subtitle?: string; initial: number };
+/** Saisie au pavé d'une quantité. `chain` : après le linéaire, le pavé enchaîne sur le stock (mode scan). */
+type KeypadTarget = {
+  field: QtyField; chain: boolean; snapshot?: CountLine;
+  lineId?: string; gameId?: string; code: string; name: string; price?: number; initial: number;
+};
+const FIELD_LABEL: Record<QtyField, string> = { linearQty: 'Linéaire', stockQty: 'Stock' };
 type LineForm = { mode: 'new' } | { mode: 'edit'; line: CountLine };
 type ToastState = { message: string; undo?: CountLine };
 
@@ -31,7 +36,7 @@ export function CountScreen() {
   const [ask, setAsk] = useState<{ code: string; candidates: Product[] } | null>(null);
   const [newGame, setNewGame] = useState<{ code: string } | null>(null);
   const [hitId, setHitId] = useState<string>();
-  const [last, setLast] = useState<{ name: string; qty: number } | null>(null);
+  const [last, setLast] = useState<{ name: string; linear: number; stock: number } | null>(null);
   const [counted, setCounted] = useState<Set<string>>(new Set());
   const [toast, setToast] = useState<ToastState | null>(null);
   const [exporting, setExporting] = useState(false);
@@ -45,13 +50,11 @@ export function CountScreen() {
     const f = effectiveFields(game);
     const code = f.fdjPrefix ?? f.barcodes?.[0] ?? scanned;
     const existing = (rawLines ?? []).find((l) => l.gameId === game.id);
-    const subtitle = f.ticketPrice !== undefined ? formatEuro(f.ticketPrice) : undefined;
-    if (existing) {
-      setHitId(existing.id);
-      setKeypad({ lineId: existing.id, gameId: game.id, code: existing.code, name: existing.name, subtitle: `${subtitle ? subtitle + ' · ' : ''}avant : ${existing.quantity}`, initial: existing.quantity });
-    } else {
-      setKeypad({ gameId: game.id, code, name: f.name, subtitle, initial: 0 });
-    }
+    if (existing) setHitId(existing.id);
+    setKeypad({
+      field: 'linearQty', chain: true, snapshot: existing, lineId: existing?.id, gameId: game.id,
+      code: existing?.code ?? code, name: existing?.name ?? f.name, price: f.ticketPrice, initial: existing?.linearQty ?? 0,
+    });
   };
 
   const onScan = (r: ScanResult) => {
@@ -63,17 +66,23 @@ export function CountScreen() {
     else setNewGame({ code: r.code });
   };
 
+  // Chaque validation est enregistrée tout de suite : rien n'est perdu si un client interrompt le comptage.
   const validate = async (n: number) => {
     const k = keypad!;
-    setKeypad(null);
-    const existing = k.lineId ? (rawLines ?? []).find((l) => l.id === k.lineId) : undefined;
-    const line: CountLine = existing ? { ...existing, quantity: n } : { id: newId(), gameId: k.gameId, code: k.code, name: k.name, quantity: n, updatedAt: 0 };
-    await actions.upsertCountLine(line);
+    const existing = k.snapshot ?? (k.lineId ? (rawLines ?? []).find((l) => l.id === k.lineId) : undefined);
+    const line: CountLine = {
+      ...(existing ?? { id: newId(), gameId: k.gameId, code: k.code, name: k.name, linearQty: 0, stockQty: 0, updatedAt: 0 }),
+      [k.field]: n,
+    };
+    const next = k.chain && k.field === 'linearQty';
+    // Le pavé du stock remplace directement celui du linéaire : la caméra reste en pause entre les deux.
+    setKeypad(next ? { ...k, field: 'stockQty', chain: false, snapshot: line, lineId: line.id, initial: line.stockQty } : null);
+    const saved = await actions.upsertCountLine(line);
     setHitId(line.id);
     setTimeout(() => setHitId((h) => (h === line.id ? undefined : h)), 1500);
     if (scanning) {
-      setLast({ name: line.name, qty: n });
-      setCounted((c) => new Set(c).add(line.id));
+      setLast({ name: saved.name, linear: saved.linearQty, stock: saved.stockQty });
+      setCounted((c) => new Set(c).add(saved.id));
     }
   };
 
@@ -90,7 +99,7 @@ export function CountScreen() {
     <CountTable
       lines={lines}
       hitId={hitId}
-      onQuantity={(l) => setKeypad({ lineId: l.id, gameId: l.gameId, code: l.code, name: l.name, subtitle: `avant : ${l.quantity}`, initial: l.quantity })}
+      onQuantity={(l, field) => setKeypad({ field, chain: false, snapshot: l, lineId: l.id, gameId: l.gameId, code: l.code, name: l.name, initial: l[field] })}
       onEdit={(l) => setLineForm({ mode: 'edit', line: l })}
       onDelete={remove}
     />
@@ -106,7 +115,7 @@ export function CountScreen() {
             paused={paused}
             footer={
               <div className="last-card">
-                <span>{last ? <><b>Dernier : {last.name} → {last.qty}</b> · {counted.size} {counted.size > 1 ? 'jeux comptés' : 'jeu compté'}</> : 'Scannez un ticket du premier jeu.'}</span>
+                <span>{last ? <><b>Dernier : {last.name} → {last.linear} · {last.stock}</b> · {counted.size} {counted.size > 1 ? 'jeux comptés' : 'jeu compté'}</> : 'Scannez un ticket du premier jeu.'}</span>
                 <button type="button" className="btn primary" onClick={() => { setScanning(false); setLast(null); setCounted(new Set()); }}>Terminer</button>
               </div>
             }
@@ -131,14 +140,15 @@ export function CountScreen() {
       )}
 
       {keypad && (
-        <Sheet label={`Quantité — ${keypad.name}`} onClose={() => setKeypad(null)}>
+        <Sheet label={`Quantité ${keypad.field === 'linearQty' ? 'linéaire' : 'stock'} — ${keypad.name}`} onClose={() => setKeypad(null)}>
           <NumericKeypad
-            title={keypad.name}
-            subtitle={keypad.subtitle}
+            key={keypad.field}
+            title={`${keypad.name} · ${FIELD_LABEL[keypad.field]}`}
+            subtitle={`${keypad.price !== undefined ? formatEuro(keypad.price) + ' · ' : ''}avant : ${keypad.initial}`}
             initial={keypad.initial}
             onCancel={() => setKeypad(null)}
             onValidate={validate}
-            hint={scanning ? 'Valider relance la caméra' : undefined}
+            hint={keypad.chain ? 'Valider, puis la quantité en stock' : scanning ? 'Valider relance la caméra' : undefined}
           />
         </Sheet>
       )}
@@ -192,15 +202,17 @@ function LineFormSheet({ form, games, lines, products, onClose, onDelete, onMerg
   const editing = form.mode === 'edit' ? form.line : undefined;
   const [name, setName] = useState(editing?.name ?? '');
   const [code, setCode] = useState(editing?.code ?? '');
-  const [qty, setQty] = useState(editing ? String(editing.quantity) : '');
-  const quantity = Number(qty);
-  const valid = name.trim() !== '' && qty !== '' && Number.isInteger(quantity) && quantity >= 0 && quantity <= 99999;
+  const [linear, setLinear] = useState(editing ? String(editing.linearQty) : '');
+  const [stock, setStock] = useState(editing ? String(editing.stockQty) : '');
+  const linearQty = Number(linear || 0);
+  const stockQty = Number(stock || 0);
+  const valid = name.trim() !== '' && (linear !== '' || stock !== '');
 
   const submit = async () => {
     if (!valid) return;
     const c = normalizeCode(code);
     if (editing) {
-      await actions.upsertCountLine({ ...editing, name: name.trim(), code: c, quantity });
+      await actions.upsertCountLine({ ...editing, name: name.trim(), code: c, linearQty, stockQty });
     } else {
       // Rattache la ligne à un jeu connu (même nom, ou code reconnu) pour que les scans la retrouvent.
       const byName = games.find((g) => fold(effectiveFields(g).name) === fold(name.trim()));
@@ -209,10 +221,10 @@ function LineFormSheet({ form, games, lines, products, onClose, onDelete, onMerg
       // Un jeu déjà dans la liste n'a qu'une ligne : on la met à jour au lieu d'en créer une seconde (total juste).
       const same = lines.find((l) => (gameId && l.gameId === gameId) || fold(l.name) === fold(name.trim()));
       if (same) {
-        const updated = await actions.upsertCountLine({ ...same, quantity, code: same.code || c });
+        const updated = await actions.upsertCountLine({ ...same, linearQty, stockQty, code: same.code || c });
         onMerged(updated);
       } else {
-        await actions.upsertCountLine({ id: newId(), gameId, code: c, name: name.trim(), quantity, updatedAt: 0 });
+        await actions.upsertCountLine({ id: newId(), gameId, code: c, name: name.trim(), linearQty, stockQty, updatedAt: 0 });
       }
     }
     onClose();
@@ -224,7 +236,10 @@ function LineFormSheet({ form, games, lines, products, onClose, onDelete, onMerg
         <h3 style={{ fontSize: 19 }}>{editing ? 'Modifier la ligne' : 'Nouvelle ligne'}</h3>
         <label className="field-label">Nom du jeu<input className="input" id="line-name" value={name} onChange={(e) => setName(e.target.value)} autoFocus={!editing} /></label>
         <label className="field-label">{editing ? 'Code-barres' : 'Code-barres (facultatif)'}<input className="input" id="line-code" inputMode="numeric" value={code} onChange={(e) => setCode(e.target.value)} /></label>
-        <label className="field-label">Quantité<input className="input num" id="line-qty" inputMode="numeric" pattern="[0-9]*" maxLength={5} value={qty} onChange={(e) => setQty(e.target.value.replace(/\D/g, '').slice(0, 5))} /></label>
+        <div className="row">
+          <label className="field-label">Quantité linéaire<input className="input num" id="line-linear" inputMode="numeric" pattern="[0-9]*" maxLength={5} value={linear} onChange={(e) => setLinear(e.target.value.replace(/\D/g, '').slice(0, 5))} /></label>
+          <label className="field-label">Quantité stock<input className="input num" id="line-stock" inputMode="numeric" pattern="[0-9]*" maxLength={5} value={stock} onChange={(e) => setStock(e.target.value.replace(/\D/g, '').slice(0, 5))} /></label>
+        </div>
         <div className="row">
           {editing && <button type="button" className="btn danger" onClick={() => onDelete(editing)}>Supprimer</button>}
           <button type="button" className="btn" onClick={onClose}>Annuler</button>

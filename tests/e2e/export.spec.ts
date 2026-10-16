@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { seed, testMode } from './helpers';
 
-const line = (id: string, name: string, quantity: number) => ({ id, code: '0417001234567' + id, name, quantity, updatedAt: Date.now() });
+const line = (id: string, name: string, linearQty: number) => ({ id, code: '0417001234567' + id, name, linearQty, stockQty: linearQty * 3, updatedAt: Date.now() });
 
 test('export .jpg : image de toute la page, aperçu et lien de téléchargement', async ({ page }) => {
   await testMode(page);

@@ -1,4 +1,4 @@
-import { countTotal, sortLines } from './count';
+import { countTotals, sortLines, type CountTotals } from './count';
 import { formatDateLong, formatDateShort } from './format';
 import type { CountLine, Settings } from './types';
 
@@ -14,19 +14,19 @@ export const EXPORT_METRICS = {
   rowH: 64,
   totalH: 76,
   footerH: 64,
-  cols: { code: 48, name: 370, qtyRight: 840, date: 868 },
+  cols: { code: 48, name: 330, linearRight: 710, stockRight: 850, date: 878 },
 };
 
 export type ExportLayout = {
   width: number;
   height: number;
   scale: number;
-  rows: { y: number; cells: [string, string, string, string] }[];
+  rows: { y: number; cells: [string, string, string, string, string] }[];
   header: { shop: string; title: 'Comptage grattage'; stamp: string };
   headRowY: number;
   totalY: number;
   footerY: number;
-  total: number;
+  totals: CountTotals;
   totalLabel: string;
 };
 
@@ -37,7 +37,7 @@ export function layoutExport(lines: CountLine[], s: Settings, now: number, maxPi
   const firstRowY = headRowY + m.headRowH;
   const rows = sorted.map((l, i) => ({
     y: firstRowY + i * m.rowH,
-    cells: [l.code || '—', l.name, String(l.quantity), formatDateShort(l.updatedAt)] as [string, string, string, string],
+    cells: [l.code || '—', l.name, String(l.linearQty), String(l.stockQty), formatDateShort(l.updatedAt)] as [string, string, string, string, string],
   }));
   const totalY = firstRowY + rows.length * m.rowH;
   const footerY = totalY + m.totalH;
@@ -54,7 +54,7 @@ export function layoutExport(lines: CountLine[], s: Settings, now: number, maxPi
     headRowY,
     totalY,
     footerY,
-    total: countTotal(sorted),
+    totals: countTotals(sorted),
     totalLabel: `Total · ${sorted.length} ${sorted.length > 1 ? 'jeux' : 'jeu'}`,
   };
 }

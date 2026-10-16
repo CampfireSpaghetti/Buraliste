@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { seed, testMode } from './helpers';
 
-const line = (id: string, name: string, quantity: number) => ({ id, code: '', name, quantity, updatedAt: Date.now() });
+const line = (id: string, name: string, linearQty: number) => ({ id, code: '', name, linearQty, stockQty: 0, updatedAt: Date.now() });
 
 test('nom du tabac, sauvegarde complète puis restauration', async ({ page }, info) => {
   await testMode(page);

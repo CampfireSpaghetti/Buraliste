@@ -1,4 +1,5 @@
 import 'fake-indexeddb/auto';
+import Dexie from 'dexie';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { db, listProducts, patchUserFields, upsertCountLine, deleteCountLine, restoreCountLine, listCountLines, getSettings, saveSettings } from '../../src/data/db';
@@ -41,13 +42,26 @@ describe('syncReferences', () => {
 
 describe('lignes de comptage', () => {
   it('supprimer puis restaurer rend la ligne avec sa date d’origine', async () => {
-    await upsertCountLine({ id: 'l1', code: '0417', name: 'Cash', quantity: 3, updatedAt: 0 });
+    await upsertCountLine({ id: 'l1', code: '0417', name: 'Cash', linearQty: 3, stockQty: 12, updatedAt: 0 });
     const [saved] = await listCountLines();
     expect(saved.updatedAt).toBeGreaterThan(0);
     const removed = await deleteCountLine('l1');
     expect(await listCountLines()).toHaveLength(0);
     await restoreCountLine(removed);
     expect(await listCountLines()).toEqual([saved]);
+  });
+});
+
+describe('migration de la base', () => {
+  it('les lignes de la version 1 (« quantity ») deviennent linéaire + stock 0', async () => {
+    db.close();
+    await Dexie.delete('la-carotte');
+    const v1 = new Dexie('la-carotte');
+    v1.version(1).stores({ products: 'id, douaneRef, source, updatedAt', countLines: 'id, gameId, updatedAt', settings: 'key' });
+    await v1.table('countLines').put({ id: 'old', code: '0417', name: 'Cash', quantity: 38, updatedAt: 5 });
+    v1.close();
+    await db.open();
+    expect(await listCountLines()).toEqual([{ id: 'old', code: '0417', name: 'Cash', linearQty: 38, stockQty: 0, updatedAt: 5 }]);
   });
 });
 

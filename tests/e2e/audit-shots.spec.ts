@@ -19,7 +19,7 @@ const products = [
   ...fdj.map((g: any, n: number) => ({ id: 'g' + n, source: 'depart', outOfStock: false, pinnedSubstitutes: [], updatedAt: 0, base: { kind: 'jeu-fdj', ...g, ...(n === 24 ? { fdjPrefix: '0417' } : {}) }, user: {} })),
 ];
 const now = Date.now();
-const countLines = fdj.slice(0, 30).map((g: any, n: number) => ({ id: 'l' + n, gameId: 'g' + n, code: '0417' + String(1000000000 + n * 7919).slice(0, 10), name: g.name, quantity: (n * 13) % 70, updatedAt: now - n * 97_000 }));
+const countLines = fdj.slice(0, 30).map((g: any, n: number) => ({ id: 'l' + n, gameId: 'g' + n, code: '0417' + String(1000000000 + n * 7919).slice(0, 10), name: g.name, linearQty: (n * 13) % 70, stockQty: ((n * 37) % 9) * 30, updatedAt: now - n * 97_000 }));
 
 async function shot(page: Page, name: string) {
   await page.waitForTimeout(250);
@@ -36,7 +36,7 @@ for (const scheme of ['light', 'dark'] as const) {
     await seed(page, { products, countLines, settings: { shopName: 'Tabac du Centre', lastBackupAt: now - 9 * 86_400_000, referencesEffectiveDate: refs.effectiveDate, referencesVersion: refs.version } });
     const s = (n: string) => shot(page, `${scheme}-${n}`);
     await s('01-grattage');
-    await page.getByRole('button', { name: /^Quantité Cash/ }).click();
+    await page.getByRole('button', { name: /^Linéaire Cash/ }).click();
     await s('02-pave');
     await page.getByRole('button', { name: 'Annuler' }).click();
     await page.getByRole('button', { name: 'Cash', exact: true }).click();

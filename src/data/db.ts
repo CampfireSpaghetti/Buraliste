@@ -16,6 +16,16 @@ export class CarotteDB extends Dexie {
       countLines: 'id, gameId, updatedAt',
       settings: 'key',
     });
+    // v2 : « quantity » devient linéaire + stock.
+    this.version(2).stores({}).upgrade((tx) =>
+      tx.table('countLines').toCollection().modify((l: Record<string, unknown>) => {
+        if ('quantity' in l) {
+          l.linearQty = l.quantity;
+          l.stockQty = 0;
+          delete l.quantity;
+        }
+      }),
+    );
   }
 }
 

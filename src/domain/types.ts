@@ -46,7 +46,8 @@ export interface CountLine {
   gameId?: string;
   code: string;
   name: string;
-  quantity: number;
+  linearQty: number; // quantité linéaire (au présentoir), en tickets
+  stockQty: number; // quantité en stock (réserve), en tickets
   updatedAt: number;
 }
 

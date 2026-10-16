@@ -35,7 +35,11 @@ test('comptage : un ticket resté devant la caméra ne rouvre pas le pavé aprè
   await page.waitForTimeout(2000); // le temps de compter les tickets
   await keypad.getByRole('button', { name: '3', exact: true }).click();
   await keypad.getByRole('button', { name: 'Valider' }).click();
+  await expect(page.getByRole('dialog', { name: /Quantité stock/ })).toBeVisible();
+  await page.waitForTimeout(1000);
+  await keypad.getByRole('button', { name: '9', exact: true }).click();
+  await keypad.getByRole('button', { name: 'Valider' }).click();
   await page.waitForTimeout(2500);
   await expect(keypad).toHaveCount(0);
-  await expect(page.getByText('Dernier : Test → 3')).toBeVisible();
+  await expect(page.getByText('Dernier : Test → 3 · 9')).toBeVisible();
 });
