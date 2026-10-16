@@ -13,7 +13,7 @@ import { relayUrl } from '../sync/relayConfig';
 import { syncRegistryName } from '../tabacs/registry';
 // Import circulaire voulu : db.ts appelle writeShared, et ce module utilise `db` ; des deux côtés, seulement
 // dans des fonctions (jamais à l'évaluation du module), donc l'ordre de chargement est sans effet.
-import { db, dbTabacId, DEFAULT_SETTINGS } from './db';
+import { db, dbTabacId, DEFAULT_SETTINGS, type CarotteDB } from './db';
 
 export type Entity = Op['e'];
 
@@ -38,8 +38,8 @@ export const OPS_QUEUED_EVENT = 'carotte:ops-queued';
 
 type Row = Clocked<Record<string, unknown>>;
 
-const tableFor = (e: Entity): Table<Row, string> =>
-  (e === 'line' ? db.countLines : e === 'product' ? db.products : db.settings) as unknown as Table<Row, string>;
+const tableFor = (e: Entity, d: CarotteDB = db): Table<Row, string> =>
+  (e === 'line' ? d.countLines : e === 'product' ? d.products : d.settings) as unknown as Table<Row, string>;
 
 /** Valeurs implicites d'un enregistrement sans horodatage (les réglages par défaut ne sont jamais stockés seuls). */
 const implicit = (e: Entity): Record<string, unknown> => (e === 'settings' ? { ...DEFAULT_SETTINGS } : {});
@@ -185,27 +185,69 @@ function wellFormed(op: unknown): op is Op {
     && !!o.f && typeof o.f === 'object' && !Array.isArray(o.f);
 }
 
+/** Id d'un jeu de l'ancienne liste de départ et id du même jeu repris par la liste FDJ (et inversement). */
+function counterpart(id: string): string | undefined {
+  if (id.startsWith('depart:')) return 'f:' + id.slice('depart:'.length);
+  if (id.startsWith('f:')) return 'depart:' + id.slice('f:'.length);
+  return undefined;
+}
+
+/**
+ * Un jeu de départ (`depart:<clé>`) passe à `f:<clé>` quand la liste FDJ le reprend, pas forcément au même moment sur
+ * tous les téléphones. Une opération qui vise l'un des deux ids, absent ici alors que l'autre existe, est réécrite vers
+ * la fiche présente : id du produit, ligne `game:<id>` et son `gameId`, remplaçants, jeux enlevés.
+ */
+function idResolver(d: CarotteDB) {
+  const known = new Map<string, boolean>();
+  const exists = async (id: string) => {
+    if (!known.has(id)) known.set(id, (await d.products.get(id)) !== undefined);
+    return known.get(id)!;
+  };
+  const product = async (id: unknown): Promise<unknown> => {
+    if (typeof id !== 'string') return id;
+    const alt = counterpart(id);
+    return alt && !(await exists(id)) && (await exists(alt)) ? alt : id;
+  };
+  const list = async (v: unknown): Promise<unknown> =>
+    Array.isArray(v) ? [...new Set(await Promise.all(v.map(product)))] : v;
+  return async (op: Op): Promise<Op> => {
+    if (op.e === 'settings') return Array.isArray(op.f.hiddenGames) ? { ...op, f: { ...op.f, hiddenGames: await list(op.f.hiddenGames) } } : op;
+    if (op.e === 'product') {
+      const f = Array.isArray(op.f.pinnedSubstitutes) ? { ...op.f, pinnedSubstitutes: await list(op.f.pinnedSubstitutes) } : op.f;
+      return { ...op, id: (await product(op.id)) as string, f };
+    }
+    let id = op.id;
+    if (id.startsWith('game:') && (await d.countLines.get(id)) === undefined) {
+      id = 'game:' + ((await product(id.slice('game:'.length))) as string);
+    }
+    return 'gameId' in op.f ? { ...op, id, f: { ...op.f, gameId: await product(op.f.gameId) } } : { ...op, id };
+  };
+}
+
 /**
  * Applique des opérations reçues (dans l'ordre) et renvoie le nombre d'opérations qui ont changé quelque chose.
  * Ignorées : opérations mal formées ou d'entité inconnue, réglages autres que `main`, horodatage à plus de 24 h
  * dans le futur (R15, non observé), produit inconnu ici sans fiche créée à la main. Les clés non partagées sont
  * retirées (R16). Rien n'est mis en file : ces opérations viennent déjà du canal.
+ * `target` : base du tabac visé (par défaut celle de la page ; le moteur de synchronisation peut en donner une autre).
  */
-export async function applyRemoteOps(ops: Op[]): Promise<number> {
+export async function applyRemoteOps(ops: Op[], target: CarotteDB = db): Promise<number> {
   const limit = Date.now() + MAX_AHEAD_MS;
   let future = 0;
   let orphans = 0;
   let renamed: string | undefined;
-  const changes = await db.transaction('rw', db.countLines, db.products, db.settings, async () => {
+  const changes = await target.transaction('rw', target.countLines, target.products, target.settings, async () => {
+    const resolve = idResolver(target);
     let n = 0;
-    for (const op of ops) {
-      if (!wellFormed(op)) continue;
-      if (Number(STAMP.exec(op.t)![1]) > limit) {
+    for (const received of ops) {
+      if (!wellFormed(received)) continue;
+      if (Number(STAMP.exec(received.t)![1]) > limit) {
         future++;
         continue;
       }
-      observe(op.t);
-      const table = tableFor(op.e);
+      observe(received.t);
+      const op = await resolve(received);
+      const table = tableFor(op.e, target);
       const local = await table.get(op.id);
       const f = allowedFields(op, local);
       const { record, changed } = applyFields(local ?? blank(op.e, op.id), f, op.t);
@@ -223,6 +265,6 @@ export async function applyRemoteOps(ops: Op[]): Promise<number> {
   });
   if (future) console.warn(`Synchronisation : ${future} opération(s) ignorée(s), horodatée(s) à plus de 24 h dans le futur.`);
   if (orphans) console.warn(`Synchronisation : ${orphans} opération(s) ignorée(s) pour des produits inconnus sur ce téléphone.`);
-  if (renamed !== undefined) syncRegistryName(dbTabacId, renamed);
+  if (renamed !== undefined && target === db) syncRegistryName(dbTabacId, renamed);
   return changes;
 }

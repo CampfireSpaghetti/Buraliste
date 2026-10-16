@@ -442,3 +442,62 @@ describe('types des valeurs reçues', () => {
     expect((await db.products.get('p1'))!).toMatchObject({ outOfStock: false, pinnedSubstitutes: [] });
   });
 });
+
+describe('applyRemoteOps : jeu de départ repris par la liste FDJ (depart:<clé> ↔ f:<clé>)', () => {
+  const fdjGame = (id: string, over: Partial<Product> = {}) =>
+    product({ id, source: id.startsWith('f:') ? 'fdj' : 'depart', douaneRef: undefined, fdjRef: id.startsWith('f:') ? id.slice(2) : undefined, base: { kind: 'jeu-fdj', name: 'Cash' }, ...over });
+  const t = () => hlcAt(Date.now() + 1000);
+
+  it('une opération produit visant depart:<clé> absent ici s’applique à f:<clé>, et inversement', async () => {
+    await db.products.put(fdjGame('f:cash'));
+    await db.products.put(fdjGame('depart:goal'));
+    expect(await applyRemoteOps([
+      { e: 'product', id: 'depart:cash', f: { outOfStock: true, pinnedSubstitutes: ['f:goal'] }, t: t() },
+      { e: 'product', id: 'f:goal', f: { 'user.notes': 'vu' }, t: t() },
+    ])).toBe(2);
+    expect((await db.products.get('f:cash'))!).toMatchObject({ outOfStock: true, pinnedSubstitutes: ['depart:goal'] });
+    expect((await db.products.get('depart:goal'))!.user).toEqual({ notes: 'vu' });
+    expect(await db.products.get('depart:cash')).toBeUndefined();
+    expect(await db.products.get('f:goal')).toBeUndefined();
+  });
+
+  it('ligne de jeu : id game:<produit> et gameId suivent la fiche présente ici ; jeux enlevés aussi', async () => {
+    await db.products.put(fdjGame('f:cash'));
+    await db.countLines.put({ id: 'game:f:cash', gameId: 'f:cash', code: '', name: 'Cash', linearQty: 0, stockQty: 0, updatedAt: 0 });
+    await db.products.put(fdjGame('f:goal'));
+    await applyRemoteOps([
+      { e: 'line', id: 'game:depart:cash', f: { gameId: 'depart:cash', linearQty: 4 }, t: t() },
+      { e: 'line', id: 'game:depart:goal', f: { gameId: 'depart:goal', name: 'Goal', linearQty: 2 }, t: t() },
+      { e: 'settings', id: 'main', f: { hiddenGames: ['depart:cash', 'autre'] }, t: t() },
+    ]);
+    expect((await db.countLines.get('game:f:cash'))!).toMatchObject({ gameId: 'f:cash', linearQty: 4 });
+    // ligne inconnue ici, mais la fiche f:goal existe : la ligne est créée sous son id local
+    expect((await db.countLines.get('game:f:goal'))!).toMatchObject({ gameId: 'f:goal', name: 'Goal', linearQty: 2 });
+    expect(await db.countLines.get('game:depart:cash')).toBeUndefined();
+    expect(await db.countLines.get('game:depart:goal')).toBeUndefined();
+    expect((await getSettings()).hiddenGames).toEqual(['f:cash', 'autre']);
+  });
+
+  it('sans contrepartie ici (ou si l’id visé existe), rien n’est réécrit', async () => {
+    await db.products.put(fdjGame('depart:cash'));
+    await db.products.put(fdjGame('f:cash'));
+    await applyRemoteOps([
+      { e: 'product', id: 'depart:cash', f: { outOfStock: true }, t: t() },
+      { e: 'line', id: 'game:depart:zut', f: { gameId: 'depart:zut', linearQty: 1 }, t: t() },
+    ]);
+    expect((await db.products.get('depart:cash'))!.outOfStock).toBe(true);
+    expect((await db.products.get('f:cash'))!.outOfStock).toBe(false);
+    expect((await db.countLines.get('game:depart:zut'))!).toMatchObject({ gameId: 'depart:zut', linearQty: 1 });
+  });
+});
+
+describe('applyRemoteOps : base cible', () => {
+  it('s’applique à la base donnée, sans toucher la base de la page', async () => {
+    const { CarotteDB } = await import('../../src/data/db');
+    const other = new CarotteDB('autre-' + Math.random());
+    await applyRemoteOps([{ e: 'line', id: 'x1', f: { name: 'Autre', linearQty: 2 }, t: hlcAt(Date.now()) }], other);
+    expect((await other.countLines.get('x1'))!).toMatchObject({ name: 'Autre', linearQty: 2 });
+    expect(await db.countLines.get('x1')).toBeUndefined();
+    await other.delete();
+  });
+});

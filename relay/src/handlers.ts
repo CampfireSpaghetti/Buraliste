@@ -166,6 +166,8 @@ async function putPhoto(req: Request, env: RelayEnv, canal: string): Promise<Rec
   }
   await authorize(env, canal, body.ecriture);
   const previous = await env.store.getPhoto(canal);
+  // Une photographie plus ancienne que celle en place (publiée entre-temps par un autre téléphone) est refusée.
+  if (previous && jusqua < previous.jusqua) throw new HttpError(409, 'photographie plus récente déjà publiée');
   const now = env.now();
   await env.store.putPhoto(canal, { jusqua, iv, data }, now);
   // Ménage : les messages couverts par la photographie précédente et vieux de plus de 30 jours.

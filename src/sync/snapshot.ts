@@ -1,0 +1,157 @@
+/**
+ * Photographie d'un tabac (spec §3.4, §4.3) : l'état partagé complet, `{ v: 1, etat }` une fois chiffré.
+ * `etat` contient chaque enregistrement qui porte des données partagées (lignes, y compris supprimées ; produits
+ * créés à la main ou avec des données du buraliste ; réglages `main`), avec ses seuls champs partagés et `_clock`.
+ *
+ * Une valeur jamais horodatée (donnée d'avant le partage) reçoit un horodatage « d'origine » : la date de la ligne
+ * (`updatedAt`), sinon 0, avec l'identifiant de ce téléphone. Toute modification réelle plus récente l'emporte.
+ * Appliquer une photographie fusionne champ par champ, chaque champ avec SON horodatage (jamais ré-horodaté).
+ */
+import type { CarotteDB } from '../data/db';
+import { applyRemoteOps, sharedKeysFor, type Entity } from '../data/sharedRepo';
+import { deviceId } from './clock';
+import type { Op } from './merge';
+
+type Rec = Record<string, unknown>;
+export type EtatRecord = Rec & { id: string; _clock: Record<string, string> };
+export type Etat = { line: EtatRecord[]; product: EtatRecord[]; settings: EtatRecord[] };
+
+const isObj = (v: unknown): v is Rec => typeof v === 'object' && v !== null && !Array.isArray(v);
+const FORBIDDEN = new Set(['__proto__', 'constructor', 'prototype']);
+const ENTITIES: Entity[] = ['settings', 'product', 'line'];
+
+const stamp = (ms: number) => `${String(ms).padStart(13, '0')}-0000-${deviceId()}`;
+
+/** Horodatage d'origine d'une valeur sans horodatage : date de la ligne (jamais dans le futur), sinon 0. */
+function legacyStamp(e: Entity, r: Rec): string {
+  const u = r.updatedAt;
+  const ms = e === 'line' && typeof u === 'number' && Number.isFinite(u) ? Math.min(Math.max(0, Math.floor(u)), Date.now()) : 0;
+  return stamp(ms);
+}
+
+/** Horodatage de chaque champ partagé : celui enregistré, sinon l'horodatage d'origine pour une valeur présente. */
+function fullClock(e: Entity, r: Rec): Record<string, string> {
+  const own = isObj(r._clock) ? r._clock : {};
+  const keys = sharedKeysFor(e, r);
+  const shared = (k: string) => (k.startsWith('user.') ? keys.includes('user') : k !== 'user' && keys.includes(k));
+  const out: Record<string, string> = {};
+  for (const [k, t] of Object.entries(own)) if (shared(k) && typeof t === 'string') out[k] = t;
+  const legacy = legacyStamp(e, r);
+  for (const k of keys) {
+    if (k === 'user') {
+      for (const [uk, uv] of Object.entries(isObj(r.user) ? r.user : {})) if (uv !== undefined) out['user.' + uk] ??= legacy;
+    } else if (r[k] !== undefined && r[k] !== null) {
+      out[k] ??= legacy;
+    }
+  }
+  return out;
+}
+
+/** Produit qui porte des données partagées (sinon chaque téléphone l'a déjà par les listes publiques). */
+function productHasData(p: Rec): boolean {
+  return p.source === 'utilisateur'
+    || (isObj(p._clock) && Object.keys(p._clock).length > 0)
+    || (isObj(p.user) && Object.keys(p.user).length > 0)
+    || p.outOfStock === true
+    || (Array.isArray(p.pinnedSubstitutes) && p.pinnedSubstitutes.length > 0);
+}
+
+/** Ligne saisie ici (pas seulement une ligne de jeu jamais comptée, que chaque téléphone déduit de son catalogue). */
+function lineHasData(l: Rec): boolean {
+  return !String(l.id).startsWith('game:')
+    || (isObj(l._clock) && Object.keys(l._clock).length > 0)
+    || (typeof l.linearQty === 'number' && l.linearQty !== 0)
+    || (typeof l.stockQty === 'number' && l.stockQty !== 0)
+    || l.deleted === true;
+}
+
+function etatRecord(e: Entity, r: Rec): EtatRecord {
+  const out: Rec = { id: e === 'settings' ? 'main' : String(r.id) };
+  const keys = sharedKeysFor(e, r);
+  for (const k of keys) {
+    if (k === 'user') {
+      if (isObj(r.user)) out.user = { ...r.user };
+    } else if (r[k] !== undefined && r[k] !== null) {
+      out[k] = r[k];
+    }
+  }
+  out._clock = fullClock(e, r);
+  return out as EtatRecord;
+}
+
+async function readAll(d: CarotteDB): Promise<{ line: Rec[]; product: Rec[]; settings: Rec[] }> {
+  return d.transaction('r', d.countLines, d.products, d.settings, async () => {
+    const [lines, products, settings] = await Promise.all([d.countLines.toArray(), d.products.toArray(), d.settings.get('main')]);
+    return {
+      line: lines as unknown as Rec[],
+      product: (products as unknown as Rec[]).filter(productHasData),
+      settings: settings ? [settings as unknown as Rec] : [],
+    };
+  });
+}
+
+/** État partagé complet de la base, pour une photographie. */
+export async function buildEtat(d: CarotteDB): Promise<Etat> {
+  const all = await readAll(d);
+  return {
+    line: all.line.map((r) => etatRecord('line', r)),
+    product: all.product.map((r) => etatRecord('product', r)),
+    settings: all.settings.map((r) => etatRecord('settings', r)),
+  };
+}
+
+/** La base a des données à partager (premier contact d'un tabac existant avec le relais). */
+export async function hasLocalData(d: CarotteDB): Promise<boolean> {
+  const all = await readAll(d);
+  return all.line.some(lineHasData) || all.product.length > 0
+    || all.settings.some((s) => isObj(s._clock) && Object.keys(s._clock).length > 0);
+}
+
+/**
+ * Avant d'appliquer une photographie à une base qui a déjà des données : chaque valeur partagée sans horodatage reçoit
+ * son horodatage d'origine (enregistré, valeurs inchangées). Sans cela, n'importe quelle valeur reçue la remplacerait,
+ * même une ligne jamais comptée face à un comptage local plus récent.
+ */
+export async function stampLegacy(d: CarotteDB): Promise<void> {
+  await d.transaction('rw', d.countLines, d.products, d.settings, async () => {
+    const all = await readAll(d);
+    for (const e of ENTITIES) {
+      const table = (e === 'line' ? d.countLines : e === 'product' ? d.products : d.settings) as unknown as { put(r: Rec): Promise<unknown> };
+      for (const r of all[e]) {
+        const own = isObj(r._clock) ? r._clock : {};
+        const clock = fullClock(e, r);
+        if (Object.keys(clock).some((k) => !Object.hasOwn(own, k))) await table.put({ ...r, _clock: { ...own, ...clock } });
+      }
+    }
+  });
+}
+
+/** Opérations équivalentes à un enregistrement de photographie : une par horodatage (`source` d'abord). */
+function recordOps(e: Entity, rec: unknown): Op[] {
+  if (!isObj(rec) || typeof rec.id !== 'string' || !isObj(rec._clock)) return [];
+  const user = isObj(rec.user) ? rec.user : {};
+  const groups = new Map<string, Rec>();
+  for (const [k, t] of Object.entries(rec._clock)) {
+    if (typeof t !== 'string' || FORBIDDEN.has(k)) continue;
+    const field = k.startsWith('user.') ? k.slice('user.'.length) : undefined;
+    if (field !== undefined && FORBIDDEN.has(field)) continue;
+    const v = field !== undefined ? (Object.hasOwn(user, field) ? user[field] : undefined) : Object.hasOwn(rec, k) ? rec[k] : undefined;
+    const g = groups.get(t) ?? {};
+    g[k] = v === undefined ? null : v;
+    groups.set(t, g);
+  }
+  const ops: Op[] = [...groups].map(([t, f]) => ({ e, id: rec.id as string, f, t }));
+  // Une fiche créée à la main n'existe ailleurs qu'à partir de l'opération qui porte `source`.
+  return ops.sort((a, b) => Number('source' in b.f) - Number('source' in a.f));
+}
+
+/** Applique une photographie (fusion champ par champ) ; renvoie le nombre d'opérations qui ont changé quelque chose. */
+export async function applyEtat(d: CarotteDB, etat: unknown): Promise<number> {
+  if (!isObj(etat)) return 0;
+  const ops: Op[] = [];
+  for (const e of ENTITIES) {
+    const list = etat[e];
+    if (Array.isArray(list)) for (const rec of list) for (const op of recordOps(e, rec)) ops.push(op);
+  }
+  return ops.length ? applyRemoteOps(ops, d) : 0;
+}

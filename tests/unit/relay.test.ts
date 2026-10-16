@@ -175,6 +175,16 @@ describe('relais : photographie', () => {
     expect(await g.json()).toEqual({ jusqua: 7, iv: 'i', data: 'd' });
   });
 
+  it('photographie plus ancienne que celle en place (jusqua inférieur) : 409, la plus récente reste', async () => {
+    const { env } = makeEnv();
+    expect((await call(env, 'PUT', '/v1/canaux/c1/photo', { ecriture: 'w1', jusqua: 9, iv: 'i9', data: 'd9' })).status).toBe(200);
+    expect((await call(env, 'PUT', '/v1/canaux/c1/photo', { ecriture: 'w1', jusqua: 5, iv: 'i5', data: 'd5' })).status).toBe(409);
+    expect(await (await call(env, 'GET', '/v1/canaux/c1/photo')).json()).toEqual({ jusqua: 9, iv: 'i9', data: 'd9' });
+    // même jusqua : remplacée (deux téléphones à jour publient le même état)
+    expect((await call(env, 'PUT', '/v1/canaux/c1/photo', { ecriture: 'w1', jusqua: 9, iv: 'j9', data: 'e9' })).status).toBe(200);
+    expect(await (await call(env, 'GET', '/v1/canaux/c1/photo')).json()).toEqual({ jusqua: 9, iv: 'j9', data: 'e9' });
+  });
+
   it('GET sans photographie : 404', async () => {
     const { env } = makeEnv();
     expect((await call(env, 'GET', '/v1/canaux/c1/photo')).status).toBe(404);

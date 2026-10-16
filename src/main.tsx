@@ -7,7 +7,8 @@ import { DEFAULT_TABAC_NAME, ensureRegistry } from './tabacs/registry';
 import { syncFdjGames, syncReferences } from './data/referencesSync';
 import { syncSharedCodes } from './data/sharingData';
 import { scheduleFlush } from './store';
-import { installTestHooks, testModeEnabled } from './testHooks';
+import { installSyncTestHooks, installTestHooks, testModeEnabled } from './testHooks';
+import { startSyncEngine } from './sync/engineInstance';
 import { setPersisted } from './storageStatus';
 
 ensureRegistry(DEFAULT_TABAC_NAME);
@@ -33,6 +34,10 @@ if (!skipStartup) {
     const changed = (r: PromiseSettledResult<{ updated: boolean }>) => r.status === 'fulfilled' && r.value.updated;
     const [refs, fdj] = await Promise.allSettled([syncReferences(), syncFdjGames()]);
     for (const r of [refs, fdj]) if (r.status === 'rejected') console.error('Liste non mise à jour', r.reason);
+    // Partage entre téléphones du tabac (seulement si le relais est configuré), une fois les listes publiques en place :
+    // les données reçues sur un produit officiel ne s'appliquent qu'à une fiche présente sur ce téléphone.
+    const engine = startSyncEngine();
+    if (test && engine) installSyncTestHooks(engine);
     const codes = await syncSharedCodes(fetch, changed(refs) || changed(fdj)).catch((e) => (console.error('Codes partagés non reçus', e), undefined));
     if (changed(refs) || changed(fdj) || codes?.updated) window.dispatchEvent(new CustomEvent('carotte:catalog-changed'));
   })();
