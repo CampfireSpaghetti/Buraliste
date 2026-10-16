@@ -13,13 +13,14 @@ import { ScannerView } from '../scanner/ScannerView';
 import { CountTable } from './CountTable';
 import { NumericKeypad } from './NumericKeypad';
 import { WhichGameDialog } from './WhichGameDialog';
+import { ExportPanel } from './ExportPanel';
 import './count.css';
 
 type KeypadTarget = { lineId?: string; gameId?: string; code: string; name: string; subtitle?: string; initial: number };
 type LineForm = { mode: 'new' } | { mode: 'edit'; line: CountLine };
 type ToastState = { message: string; undo?: CountLine };
 
-export function CountScreen({ exportSlot, bannerSlot }: { exportSlot?: (lines: CountLine[]) => React.ReactNode; bannerSlot?: React.ReactNode }) {
+export function CountScreen({ bannerSlot }: { bannerSlot?: React.ReactNode }) {
   const products = useProducts();
   const rawLines = useCountLines();
   const settings = useSettings();
@@ -32,6 +33,7 @@ export function CountScreen({ exportSlot, bannerSlot }: { exportSlot?: (lines: C
   const [last, setLast] = useState<{ name: string; qty: number } | null>(null);
   const [counted, setCounted] = useState<Set<string>>(new Set());
   const [toast, setToast] = useState<ToastState | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   const sortBy = settings?.sortCount ?? 'name';
   const lines = useMemo(() => sortLines(rawLines ?? [], sortBy), [rawLines, sortBy]);
@@ -116,7 +118,7 @@ export function CountScreen({ exportSlot, bannerSlot }: { exportSlot?: (lines: C
           <div className="count-actions">
             <button type="button" className="btn accent" onClick={() => setScanning(true)}>Scanner</button>
             <button type="button" className="btn" onClick={() => setLineForm({ mode: 'new' })}>+ Ligne</button>
-            {exportSlot?.(lines)}
+            <button type="button" className="btn primary" disabled={lines.length === 0} onClick={() => setExporting(true)}>Export .jpg</button>
           </div>
           <div className="sortbar chips" role="group" aria-label="Trier">
             <span className="label">Trier :</span>
@@ -170,6 +172,7 @@ export function CountScreen({ exportSlot, bannerSlot }: { exportSlot?: (lines: C
           onCreated={(g) => { setNewGame(null); openForGame(g, newGame.code); }}
         />
       )}
+      {exporting && settings && <ExportPanel lines={lines} settings={settings} onClose={() => setExporting(false)} />}
       {toast && (
         <Toast
           message={toast.message}

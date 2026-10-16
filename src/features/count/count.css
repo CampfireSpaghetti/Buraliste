@@ -2,10 +2,10 @@
 .count-actions { display: flex; gap: 8px; }
 .count-actions .btn { flex: 1; padding: 0 8px; }
 .sortbar { display: flex; align-items: center; gap: 6px; }
-.count-table-wrap { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.count-table-wrap { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
 .count-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 .count-table thead th {
-  position: sticky; top: 0; background: var(--surface); z-index: 1;
+  position: sticky; top: -16px; background: var(--surface); z-index: 1;
   font-size: 12px; letter-spacing: .07em; text-transform: uppercase; color: var(--accent); text-align: left; padding: 8px 6px; border-bottom: 2px solid var(--fg);
 }
 .count-table td { border-bottom: 1px solid var(--line); padding: 0; height: 52px; }
@@ -32,3 +32,11 @@
 .last-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 8px 12px; display: flex; justify-content: space-between; gap: 8px; align-items: center; }
 .line-form { display: flex; flex-direction: column; gap: 12px; }
 .btn.danger { border-color: var(--danger); color: var(--danger); }
+.export-img { width: 100%; height: auto; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+.stamp {
+  position: fixed; right: 24px; top: 30%; z-index: 25; transform: rotate(-8deg);
+  border: 3px solid var(--ok); color: var(--ok); background: var(--surface); font-weight: 700; font-size: 20px;
+  padding: 6px 14px; border-radius: 8px; animation: stamp-in .35s cubic-bezier(.3, 1.6, .5, 1);
+}
+@keyframes stamp-in { from { transform: rotate(-8deg) scale(1.8); opacity: 0; } to { transform: rotate(-8deg) scale(1); opacity: 1; } }
+a.btn { text-decoration: none; color: inherit; }
