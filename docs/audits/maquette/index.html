@@ -1,0 +1,404 @@
+<title>Maquette La Carotte</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Barlow+Semi+Condensed:wght@400;600;700&display=swap">
+<style>
+/* Layout : page de revue — grille de téléphones (écrans de l'app), puis le rapport d'audit en tableaux */
+:root{
+  --bg:#efede7; --fg:#1d2433; --muted:#5b6273; --line:#d8d2c3; --card:#fff; --accent:#8e1b1f;
+  --sev-b:#b3261e; --sev-m:#a35a00; --sev-n:#4b5563;
+  --display:'Alfa Slab One',Georgia,serif; --body:'Barlow Semi Condensed',system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#12161f;--fg:#f6f4ee;--muted:#aab0bd;--line:#2c3342;--card:#1b2130;--accent:#f07478;--sev-b:#ff8a80;--sev-m:#f0b45b;--sev-n:#aab0bd;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#12161f;--fg:#f6f4ee;--muted:#aab0bd;--line:#2c3342;--card:#1b2130;--accent:#f07478;--sev-b:#ff8a80;--sev-m:#f0b45b;--sev-n:#aab0bd;color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:16px;line-height:1.45}
+.wrap{max-width:1240px;margin:0 auto;padding-block:28px 64px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1,h2{font-family:var(--display);font-weight:400;color:var(--accent);margin:0;text-wrap:balance}
+h1{font-size:clamp(28px,5vw,40px)} h2{font-size:26px;margin-top:44px}
+.lede{max-width:70ch;color:var(--muted);margin:8px 0 0}
+.screens{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:28px 22px;margin-top:22px}
+figure{margin:0;display:grid;gap:8px;justify-items:center}
+figcaption{font-weight:700;text-align:center} figcaption span{display:block;font-weight:400;color:var(--muted);font-size:14px;max-width:34ch}
+.tablewrap{overflow-x:auto;margin-top:14px;border:1px solid var(--line);border-radius:10px;background:var(--card)}
+table.r{border-collapse:collapse;width:100%;min-width:760px;font-size:15px}
+table.r th,table.r td{padding:10px 12px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}
+table.r th{font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.sev{font-weight:700;white-space:nowrap} .sev.b{color:var(--sev-b)} .sev.m{color:var(--sev-m)} .sev.n{color:var(--sev-n)}
+.num{font-variant-numeric:tabular-nums}
+
+/* ======= téléphone (style A) ======= */
+.ph{--p-bg:#f6f4ee;--p-surface:#fff;--p-fg:#1d2433;--p-muted:#5b6273;--p-line:#ddd6c6;--p-accent:#8e1b1f;--p-accent-fg:#f6f4ee;--p-hi:#fbe7b5;--p-laiton:#b8892e;--p-laiton-t:#8a6420;
+  width:300px;height:620px;border-radius:34px;padding:9px;background:#0d0d10;box-shadow:0 14px 34px rgba(0,0,0,.22)}
+.ph.dark{--p-bg:#161b26;--p-surface:#1f2533;--p-fg:#f6f4ee;--p-muted:#aab0bd;--p-line:#343b4b;--p-accent:#f07478;--p-accent-fg:#161b26;--p-hi:#4a3a12;--p-laiton-t:#d9b26a}
+.sc{height:100%;border-radius:26px;overflow:hidden;display:flex;flex-direction:column;background:var(--p-bg);color:var(--p-fg);font-family:var(--body);font-size:14px;position:relative}
+.hd{display:flex;align-items:center;gap:9px;padding:14px 13px 9px;background:#8e1b1f;color:#f6f4ee;border-bottom:4px double var(--p-laiton)}
+.hd b{font-family:var(--display);font-weight:400;font-size:17px;letter-spacing:.02em;line-height:1}
+.hd small{display:block;font-size:11px;opacity:.85}
+.car{width:16px;height:32px;background:#d22a2f;clip-path:polygon(50% 0,100% 30%,100% 70%,50% 100%,0 70%,0 30%);display:grid;place-items:center;flex:none}
+.car::after{content:"";width:60%;height:2px;background:#f6f4ee;box-shadow:0 -6px 0 #f6f4ee,0 6px 0 #f6f4ee}
+.bd{flex:1;overflow:hidden;padding:10px 11px;display:flex;flex-direction:column;gap:9px}
+.tb{display:grid;grid-template-columns:repeat(4,1fr);background:var(--p-surface);border-top:2px solid var(--p-fg);padding:4px 2px 10px}
+.tb div{display:grid;justify-items:center;gap:2px;font-size:10.5px;font-weight:600;color:var(--p-muted);padding-top:4px}
+.tb i{width:20px;height:20px;border:2px solid currentColor;border-radius:5px}
+.tb .on{color:var(--p-accent)}
+.btn{min-height:40px;border-radius:9px;border:2px solid var(--p-fg);background:var(--p-surface);font-weight:700;display:flex;align-items:center;justify-content:center;gap:6px;font-size:13.5px;padding:0 10px}
+.btn.pri{background:var(--p-fg);color:var(--p-bg)} .btn.acc{background:var(--p-accent);border-color:var(--p-accent);color:var(--p-accent-fg)}
+.row{display:flex;gap:7px} .row>*{flex:1}
+.t{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+.t th{font-size:9.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--p-accent);text-align:left;padding:5px 4px;border-bottom:2px solid var(--p-fg)}
+.t td{padding:8px 4px;border-bottom:1px solid var(--p-line);font-size:13px}
+.t td.q,.t th.q{text-align:right} .t td.q{font-size:17px;font-weight:700}
+.t td.c{font-size:11px;color:var(--p-muted)} .t td.d{font-size:10.5px;color:var(--p-muted);white-space:nowrap}
+.t tr.hi td{background:var(--p-hi)} .t tr.tot td{border-top:2px solid var(--p-fg);border-bottom:0;font-weight:700}
+.chip{display:inline-flex;align-items:center;min-height:28px;padding:0 10px;border-radius:999px;border:1.5px solid var(--p-line);font-size:12px;font-weight:600;white-space:nowrap;background:var(--p-surface)}
+.chip.on{background:var(--p-fg);color:var(--p-bg);border-color:var(--p-fg)}
+.chip.r{border-color:var(--p-accent);color:var(--p-accent)}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.field{min-height:40px;border-radius:9px;border:2px solid var(--p-line);background:var(--p-surface);display:flex;align-items:center;padding:0 10px;color:var(--p-muted);font-size:13.5px}
+.card{background:var(--p-surface);border:1px solid var(--p-line);border-radius:10px;padding:9px 10px;display:grid;gap:4px}
+.card b{font-size:14px} .muted{color:var(--p-muted);font-size:12px}
+.lab{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--p-muted);font-weight:700}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:3px 10px;font-size:13px} .kv span:nth-child(odd){color:var(--p-muted)}
+.banner{background:var(--p-hi);border-radius:9px;padding:8px 10px;font-size:12.5px;display:flex;gap:8px;align-items:center;justify-content:space-between}
+.banner a{font-weight:700;color:inherit}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:var(--p-surface);border-radius:18px 18px 0 0;box-shadow:0 -10px 30px rgba(0,0,0,.25);padding:12px 12px 16px;display:grid;gap:9px}
+.scrim{position:absolute;inset:0;background:rgba(10,12,18,.45)}
+.grab{width:40px;height:4px;border-radius:2px;background:var(--p-line);justify-self:center}
+.keys{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.keys div{min-height:46px;border-radius:9px;background:var(--p-bg);display:grid;place-items:center;font-size:20px;font-weight:700}
+.display{font-size:34px;font-weight:700;text-align:right;padding:2px 6px;border-bottom:2px solid var(--p-fg);font-variant-numeric:tabular-nums}
+.cam{flex:1;background:repeating-linear-gradient(45deg,#2a2f3a 0 12px,#252a34 12px 24px);position:relative;display:grid;place-items:center}
+.vise{width:78%;height:90px;border:3px solid #f6f4ee;border-radius:12px;box-shadow:0 0 0 999px rgba(0,0,0,.35)}
+.vise::after{content:"";display:block;height:2px;background:#d22a2f;margin-top:43px;box-shadow:0 0 8px #d22a2f}
+.stamp{position:absolute;right:16px;top:120px;transform:rotate(-8deg);border:3px solid #2e6b3f;color:#2e6b3f;font-weight:700;padding:4px 10px;border-radius:6px;background:rgba(255,255,255,.85);font-size:13px}
+.exp{background:#fff;color:#1d2433;border:1px solid #ccc;border-radius:6px;overflow:hidden;font-size:9px}
+.exp .eh{background:#8e1b1f;color:#f6f4ee;padding:8px;display:flex;gap:7px;align-items:center;border-bottom:3px double #b8892e}
+.exp .eh b{font-family:var(--display);font-weight:400;font-size:12px}
+.exp table{width:100%;border-collapse:collapse} .exp td,.exp th{padding:3px 5px;border-bottom:1px solid #e3ddcf;text-align:left} .exp th{color:#8e1b1f;font-size:7.5px;text-transform:uppercase}
+.exp .ft{padding:5px;color:#5b6273;font-size:8px;text-align:right}
+.sel{outline:2px solid var(--p-accent);outline-offset:-2px}
+.diff{background:var(--p-hi);font-weight:700}
+.ct{width:100%;border-collapse:collapse;font-size:12px} .ct td,.ct th{padding:6px 5px;border-bottom:1px solid var(--p-line);text-align:left;vertical-align:top} .ct th{font-size:11px}
+.swipe{display:flex} .swipe .del{background:#b3261e;color:#fff;font-weight:700;display:grid;place-items:center;width:84px;font-size:12.5px}
+</style>
+
+<div class="wrap">
+  <h1>Maquette complète et audit UX/UI n° 1</h1>
+  <p class="lede">Tous les écrans de La Carotte en style « Plaque émaillée », avant le code des écrans. Les corrections de l'audit (plus bas) sont déjà dessinées dans la maquette. Les données sont des exemples réels : libellés et prix de la liste officielle de la Douane en vigueur au 1er novembre 2026, et jeux de la gamme FDJ.</p>
+
+  <h2>Écrans</h2>
+  <div class="screens">
+
+    <!-- 1 Grattage -->
+    <figure>
+      <div class="ph"><div class="sc">
+        <div class="hd"><span class="car"></span><div><b>LA CAROTTE</b><small>Tabac du Centre · Comptage grattage</small></div></div>
+        <div class="bd">
+          <div class="banner"><span>Dernière sauvegarde il y a 9 jours</span><a>Sauvegarder</a></div>
+          <div class="row"><div class="btn acc">▣ Scanner</div><div class="btn">+ Ligne</div><div class="btn pri">Export .jpg</div></div>
+          <div class="chips"><span class="lab" style="align-self:center">Trier :</span><span class="chip on">Nom</span><span class="chip">Date</span></div>
+          <table class="t">
+            <thead><tr><th>Code</th><th>Jeu</th><th class="q">Qté</th><th>Modifié</th></tr></thead>
+            <tbody>
+              <tr><td class="c">…345678</td><td>Astro</td><td class="q">45</td><td class="d">16/10 18:37</td></tr>
+              <tr><td class="c">…120044</td><td>Banco</td><td class="q">52</td><td class="d">16/10 18:36</td></tr>
+              <tr class="hi"><td class="c">…170012</td><td>Cash</td><td class="q">38</td><td class="d">16/10 18:42</td></tr>
+              <tr><td class="c">…881203</td><td>Millionnaire</td><td class="q">12</td><td class="d">16/10 18:40</td></tr>
+              <tr><td class="c">…093311</td><td>Morpion</td><td class="q">60</td><td class="d">15/10 19:05</td></tr>
+              <tr><td class="c">…550190</td><td>Mots Croisés</td><td class="q">24</td><td class="d">15/10 19:02</td></tr>
+              <tr class="tot"><td></td><td>Total · 6 jeux</td><td class="q">231</td><td></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="tb"><div><i></i>Scanner</div><div><i></i>Catalogue</div><div class="on"><i></i>Grattage</div><div><i></i>Réglages</div></div>
+      </div></div>
+      <figcaption>Comptage grattage<span>Actions principales en haut, codes raccourcis aux 6 derniers chiffres, total collé en bas.</span></figcaption>
+    </figure>
+
+    <!-- 2 Pavé -->
+    <figure>
+      <div class="ph"><div class="sc">
+        <div class="hd"><span class="car"></span><div><b>LA CAROTTE</b><small>Tabac du Centre · Comptage grattage</small></div></div>
+        <div class="bd">
+          <table class="t"><tbody>
+            <tr class="hi"><td class="c">…170012</td><td>Cash</td><td class="q">38</td><td class="d">16/10 18:42</td></tr>
+          </tbody></table>
+        </div>
+        <div class="scrim"></div>
+        <div class="sheet">
+          <div class="grab"></div>
+          <div style="display:flex;justify-content:space-between;align-items:baseline"><b style="font-size:16px">Cash · 5 €</b><span class="muted">avant : 38</span></div>
+          <div class="display">42</div>
+          <div class="keys"><div>1</div><div>2</div><div>3</div><div>4</div><div>5</div><div>6</div><div>7</div><div>8</div><div>9</div><div style="font-size:14px">Effacer</div><div>0</div><div style="font-size:18px">⌫</div></div>
+          <div class="row"><div class="btn">Annuler</div><div class="btn acc">Valider</div></div>
+          <div class="muted" style="text-align:center">En mode scan, Valider relance la caméra</div>
+        </div>
+      </div></div>
+      <figcaption>Pavé numérique<span>Le nom du jeu et l'ancienne quantité restent visibles ; la première frappe remplace la valeur.</span></figcaption>
+    </figure>
+
+    <!-- 3 Scan continu -->
+    <figure>
+      <div class="ph"><div class="sc">
+        <div class="hd"><span class="car"></span><div><b>LA CAROTTE</b><small>Comptage · scan continu</small></div></div>
+        <div class="cam"><div class="vise"></div>
+          <div style="position:absolute;bottom:12px;left:12px;right:12px;display:grid;gap:7px">
+            <div class="card" style="background:rgba(255,255,255,.92);color:#1d2433"><b>Dernier : Cash → 42</b><span class="muted">7 jeux comptés · 4 min</span></div>
+            <div class="row"><div class="btn">⌨ Saisir le code</div><div class="btn">Lampe</div><div class="btn pri">Terminer</div></div>
+          </div>
+        </div>
+      </div></div>
+      <figcaption>Scan continu<span>Rappel du dernier jeu compté, code saisissable à la main, bouton Terminer bien visible.</span></figcaption>
+    </figure>
+
+    <!-- 4 Quel jeu -->
+    <figure>
+      <div class="ph"><div class="sc">
+        <div class="hd"><span class="car"></span><div><b>LA CAROTTE</b><small>Comptage · scan continu</small></div></div>
+        <div class="cam"><div class="vise"></div></div>
+        <div class="scrim"></div>
+        <div class="sheet">
+          <div class="grab"></div>
+          <b style="font-size:16px">C'est quel jeu ?</b>
+          <span class="muted">Code 0417 0099 9999 99 — l'app retiendra votre réponse.</span>
+          <div class="field">Rechercher un jeu…</div>
+          <div class="card"><b>Cash</b><span class="muted">5 € · code proche (0417…)</span></div>
+          <div class="card"><b>Astro</b><span class="muted">2 €</span></div>
+          <div class="card"><b>Millionnaire</b><span class="muted">10 €</span></div>
+          <div class="btn">+ Nouveau jeu</div>
+        </div>
+      </div></div>
+      <figcaption>« C'est quel jeu ? »<span>Le jeu le plus probable en premier, avec une recherche, et la réponse est retenue.</span></figcaption>
+    </figure>
+
+    <!-- 5 Supprimer -->
+    <figure>
+      <div class="ph"><div class="sc">
+        <div class="hd"><span class="car"></span><div><b>LA CAROTTE</b><small>Tabac du Centre · Comptage grattage</small></div></div>
+        <div class="bd">
+          <table class="t"><tbody>
+            <tr><td class="c">…345678</td><td>Astro</td><td class="q">45</td><td class="d">16/10 18:37</td></tr>
+          </tbody></table>
+          <div class="swipe"><table class="t" style="flex:1;margin-left:-60px"><tbody><tr><td>Banco</td><td class="q">52</td><td class="d">16/10 18:36</td></tr></tbody></table><div class="del">Supprimer</div></div>
+          <div class="card"><span class="lab">Ou appui sur la ligne</span><div class="row"><div class="btn">Modifier</div><div class="btn" style="color:#b3261e;border-color:#b3261e">Supprimer</div></div></div>
+        </div>
+        <div style="position:absolute;left:12px;right:12px;bottom:70px;background:#1d2433;color:#f6f4ee;border-radius:10px;padding:10px 12px;display:flex;justify-content:space-between;font-weight:600"><span>Ligne supprimée</span><span style="color:#fbe7b5">Annuler</span></div>
+        <div class="tb"><div><i></i>Scanner</div><div><i></i>Catalogue</div><div class="on"><i></i>Grattage</div><div><i></i>Réglages</div></div>
+      </div></div>
+      <figcaption>Supprimer une ligne<span>Par glissement, ou en touchant la ligne puis Supprimer. Annulation possible pendant 5 s.</span></figcaption>
+    </figure>
+
+    <!-- 6 Export -->
+    <figure>
+      <div class="ph"><div class="sc">
+        <div class="hd"><span class="car"></span><div><b>LA CAROTTE</b><small>Export du comptage</small></div></div>
+        <div class="bd">
+          <div class="exp">
+            <div class="eh"><span class="car" style="width:10px;height:20px"></span><div><b>Tabac du Centre</b><div>Comptage grattage · 16/10/2026 18:45</div></div></div>
+            <table><tr><th>Code-barres</th><th>Jeu</th><th>Qté</th><th>Modifié le</th></tr>
+              <tr><td>04170012345678</td><td>Astro</td><td>45</td><td>16/10 18:37</td></tr>
+              <tr><td>05120044120044</td><td>Banco</td><td>52</td><td>16/10 18:36</td></tr>
+              <tr><td>04170099170012</td><td>Cash</td><td>42</td><td>16/10 18:44</td></tr>
+              <tr><td>06881203881203</td><td>Millionnaire</td><td>12</td><td>16/10 18:40</td></tr>
+              <tr><td>03093311093311</td><td>Morpion</td><td>60</td><td>15/10 19:05</td></tr>
+              <tr><td><b>Total</b></td><td></td><td><b>235</b></td><td></td></tr></table>
+            <div class="ft">Exporté avec La Carotte</div>
+          </div>
+          <span class="muted">comptage-grattage-2026-10-16-1845.jpg · toutes les lignes, codes complets</span>
+          <div class="btn acc">Partager (Drive, WhatsApp…)</div>
+          <div class="muted">Si le partage n'est pas proposé : appui long sur l'image pour l'enregistrer.</div>
+        </div>
+        <div class="stamp">Comptage exporté ✓</div>
+      </div></div>
+      <figcaption>Aperçu de l'export .jpg<span>L'image contient les codes complets. Le tampon confirme l'envoi.</span></figcaption>
+    </figure>
+
+    <!-- 7 Scanner refusé -->
+    <figure>
+      <div class="ph"><div class="sc">
+        <div class="hd"><span class="car"></span><div><b>LA CAROTTE</b><small>Scanner</small></div></div>
+        <div class="bd" style="justify-content:center;text-align:center;gap:12px">
+          <b style="font-size:18px">Autorisez l'appareil photo</b>
+          <span class="muted" style="font-size:13.5px">iPhone : Réglages › Safari › Appareil photo › Autoriser.<br>Android : touchez le cadenas à côté de l'adresse › Autorisations › Appareil photo.</span>
+          <div class="btn acc">Réessayer</div>
+          <div class="btn">⌨ Saisir le code à la main</div>
+        </div>
+        <div class="tb"><div class="on"><i></i>Scanner</div><div><i></i>Catalogue</div><div><i></i>Grattage</div><div><i></i>Réglages</div></div>
+      </div></div>
+      <figcaption>Scanner : caméra refusée<span>Explication pas à pas et saisie manuelle toujours possible.</span></figcaption>
+    </figure>
+
+    <!-- 8 Nouveau produit -->
+    <figure>
+      <div class="ph"><div class="sc">
+        <div class="hd"><span class="car"></span><div><b>LA CAROTTE</b><small>Scanner</small></div></div>
+        <div class="bd">
+          <span class="lab">Code inconnu</span>
+          <b style="font-size:20px" class="num">3 017620 422003</b>
+          <div class="card"><b>Rattacher à une référence officielle</b><span class="muted">Recommandé : nom et prix officiels, mis à jour chaque semaine.</span></div>
+          <div class="field">Rechercher : « marlboro gold »</div>
+          <div class="card sel"><b>Marlboro Gold Collection, en 20 unités</b><span class="muted">PMI · 13,00 €</span></div>
+          <div class="card"><b>Marlboro Gold Collection, en 25 unités</b><span class="muted">PMI · 16,25 €</span></div>
+          <div class="btn">Créer une fiche à la main</div>
+        </div>
+        <div class="tb"><div class="on"><i></i>Scanner</div><div><i></i>Catalogue</div><div><i></i>Grattage</div><div><i></i>Réglages</div></div>
+      </div></div>
+      <figcaption>Code-barres inconnu<span>Rattacher le code est l'option mise en avant ; créer une fiche reste possible.</span></figcaption>
+    </figure>
+
+    <!-- 9 Catalogue -->
+    <figure>
+      <div class="ph"><div class="sc">
+        <div class="hd"><span class="car"></span><div><b>LA CAROTTE</b><small>Catalogue · 4 965 références</small></div></div>
+        <div class="bd">
+          <div class="field">🔍 Nom, marque ou code</div>
+          <div class="chips"><span class="chip on">Tout</span><span class="chip">Cigarettes</span><span class="chip">Rouler</span><span class="chip">Cigares</span><span class="chip">Cigarillos</span><span class="chip">Jeux FDJ</span><span class="chip r">En rupture · 2</span></div>
+          <span class="lab">Récemment consultés</span>
+          <div class="card"><b>Marlboro Gold Collection, en 20 unités</b><span class="muted">Cigarettes · 13,00 € · force 3/5</span></div>
+          <div class="card"><b>Camel Filters (paquet rigide), en 20 unités</b><span class="muted">Cigarettes · 13,00 € · <span style="color:var(--p-accent);font-weight:700">En rupture</span></span></div>
+          <div class="card"><b>Cohiba Club, en 20 cigares</b><span class="muted">Cigares · 36,40 €</span></div>
+          <div class="card"><b>Pall Mall Red, en 20 unités</b><span class="muted">Cigarettes · <b>En vente au 1er nov.</b> · 11,20 €</span></div>
+        </div>
+        <div class="tb"><div><i></i>Scanner</div><div class="on"><i></i>Catalogue</div><div><i></i>Grattage</div><div><i></i>Réglages</div></div>
+      </div></div>
+      <figcaption>Catalogue<span>Sans recherche : les produits récents d'abord, plutôt que 4 965 lignes.</span></figcaption>
+    </figure>
+
+    <!-- 10 Fiche en rupture -->
+    <figure>
+      <div class="ph"><div class="sc">
+        <div class="hd"><span class="car"></span><div><b>LA CAROTTE</b><small>Fiche produit</small></div></div>
+        <div class="bd">
+          <b style="font-size:17px">Camel Filters (paquet rigide), en 20 unités</b>
+          <div class="row"><div class="btn" style="border-color:var(--p-accent);color:var(--p-accent)">● En rupture</div><div class="btn acc">Remplaçants ↓</div></div>
+          <span class="lab">À proposer au client</span>
+          <div class="card"><b>Winston Classic (paquet rigide)</b><div class="chips"><span class="chip">même force</span><span class="chip">même format</span><span class="chip">prix ±0,50 €</span></div></div>
+          <div class="card"><b>Lucky Strike Red, en 20 unités</b><div class="chips"><span class="chip">même force</span><span class="chip">goût proche</span><span class="chip">même origine</span></div></div>
+          <div class="card"><b>Marlboro Red (paquet rigide)</b><div class="chips"><span class="chip">même force</span><span class="chip">même format</span></div></div>
+          <span class="muted">Force et goût : estimations de départ, modifiables.</span>
+        </div>
+        <div class="tb"><div><i></i>Scanner</div><div class="on"><i></i>Catalogue</div><div><i></i>Grattage</div><div><i></i>Réglages</div></div>
+      </div></div>
+      <figcaption>Fiche en rupture → remplaçants<span>Dès que la fiche est marquée « En rupture », les remplaçants s'affichent en tête. Le parcours tient en 1 tap.</span></figcaption>
+    </figure>
+
+    <!-- 11 Fiche détails -->
+    <figure>
+      <div class="ph"><div class="sc">
+        <div class="hd"><span class="car"></span><div><b>LA CAROTTE</b><small>Fiche produit</small></div></div>
+        <div class="bd">
+          <b style="font-size:17px">Lucky Strike Red, en 20 unités</b>
+          <div class="row"><div class="btn">○ En stock</div><div class="btn acc">Proposer un remplaçant</div></div>
+          <div class="kv">
+            <span>Prix</span><span><b>13,00 €</b> <span class="muted">(officiel, au 1er nov.)</span></span>
+            <span>Force</span><span>●●●●○ 4/5</span>
+            <span>Goût</span><span>corsé · torréfié</span>
+            <span>Origine</span><span>États-Unis</span>
+            <span>Format</span><span>20 unités</span>
+            <span>Fabricant</span><span>British American Tobacco</span>
+            <span>Codes</span><span class="num">4 006381 333931</span>
+          </div>
+          <div class="row"><div class="btn">Modifier</div><div class="btn">Comparer</div></div>
+        </div>
+        <div class="tb"><div><i></i>Scanner</div><div class="on"><i></i>Catalogue</div><div><i></i>Grattage</div><div><i></i>Réglages</div></div>
+      </div></div>
+      <figcaption>Fiche produit<span>Le bouton remplaçant d'abord, puis les détails. Le prix officiel affiche sa date d'effet.</span></figcaption>
+    </figure>
+
+    <!-- 12 Comparer -->
+    <figure>
+      <div class="ph"><div class="sc">
+        <div class="hd"><span class="car"></span><div><b>LA CAROTTE</b><small>Comparer · 3 produits</small></div></div>
+        <div class="bd">
+          <table class="ct">
+            <tr><th></th><th>Camel Filters</th><th>Winston Classic</th><th>Lucky Red</th></tr>
+            <tr><td class="muted">Force</td><td>4</td><td>4</td><td>4</td></tr>
+            <tr><td class="muted">Goût</td><td>corsé, torréfié</td><td class="diff">corsé</td><td>corsé, torréfié</td></tr>
+            <tr><td class="muted">Origine</td><td>États-Unis</td><td>États-Unis</td><td>États-Unis</td></tr>
+            <tr><td class="muted">Format</td><td>20 unités</td><td>20 unités</td><td>20 unités</td></tr>
+            <tr><td class="muted">Prix</td><td>13,00 €</td><td>13,00 €</td><td>13,00 €</td></tr>
+            <tr><td class="muted">Fabricant</td><td>JTI</td><td>JTI</td><td class="diff">BAT</td></tr>
+          </table>
+          <span class="muted">Les différences sont surlignées.</span>
+        </div>
+        <div class="tb"><div><i></i>Scanner</div><div class="on"><i></i>Catalogue</div><div><i></i>Grattage</div><div><i></i>Réglages</div></div>
+      </div></div>
+      <figcaption>Comparer<span>2 ou 3 produits côte à côte.</span></figcaption>
+    </figure>
+
+    <!-- 13 Réglages -->
+    <figure>
+      <div class="ph"><div class="sc">
+        <div class="hd"><span class="car"></span><div><b>LA CAROTTE</b><small>Réglages</small></div></div>
+        <div class="bd">
+          <span class="lab">Nom du tabac (sur les exports)</span>
+          <div class="field" style="color:var(--p-fg)">Tabac du Centre</div>
+          <span class="lab">Sauvegarde</span>
+          <div class="row"><div class="btn acc">Sauvegarde complète</div><div class="btn">Restaurer…</div></div>
+          <span class="muted">Dernière : 07/10/2026 — envoyez le fichier sur Drive.</span>
+          <span class="lab">Liste officielle des tabacs</span>
+          <span class="muted">Douane · en vigueur au 1er novembre 2026 · 4 965 références · mise à jour chaque lundi</span>
+          <div class="btn">Installer sur mon téléphone</div>
+          <div class="banner"><span>Nouvelle version prête</span><a>Recharger</a></div>
+        </div>
+        <div class="tb"><div><i></i>Scanner</div><div><i></i>Catalogue</div><div><i></i>Grattage</div><div class="on"><i></i>Réglages</div></div>
+      </div></div>
+      <figcaption>Réglages<span>Sauvegarde, version de la liste officielle et aide à l'installation.</span></figcaption>
+    </figure>
+
+    <!-- 14 Grattage sombre -->
+    <figure>
+      <div class="ph dark"><div class="sc">
+        <div class="hd"><span class="car"></span><div><b>LA CAROTTE</b><small>Tabac du Centre · Comptage grattage</small></div></div>
+        <div class="bd">
+          <div class="row"><div class="btn acc">▣ Scanner</div><div class="btn">+ Ligne</div><div class="btn pri">Export .jpg</div></div>
+          <table class="t">
+            <thead><tr><th>Code</th><th>Jeu</th><th class="q">Qté</th><th>Modifié</th></tr></thead>
+            <tbody>
+              <tr><td class="c">…345678</td><td>Astro</td><td class="q">45</td><td class="d">16/10 18:37</td></tr>
+              <tr class="hi"><td class="c">…170012</td><td>Cash</td><td class="q">42</td><td class="d">16/10 18:44</td></tr>
+              <tr><td class="c">…881203</td><td>Millionnaire</td><td class="q">12</td><td class="d">16/10 18:40</td></tr>
+              <tr class="tot"><td></td><td>Total · 3 jeux</td><td class="q">99</td><td></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="tb"><div><i></i>Scanner</div><div><i></i>Catalogue</div><div class="on"><i></i>Grattage</div><div><i></i>Réglages</div></div>
+      </div></div>
+      <figcaption>Mode sombre<span>Activé automatiquement avec le réglage du téléphone ; accents éclaircis pour rester lisibles.</span></figcaption>
+    </figure>
+  </div>
+
+  <h2>Audit UX/UI n° 1</h2>
+  <p class="lede">Grille utilisée : les heuristiques de Nielsen, plus le contexte du comptoir (une seule main, reflets de la vitrine, interruptions par les clients, rapidité, erreurs de saisie). Gravités : <b>bloquant</b> = empêche un parcours clé ; <b>majeur</b> = ralentit ou provoque des erreurs ; <b>mineur</b> = confort.</p>
+  <div class="tablewrap"><table class="r">
+    <thead><tr><th>#</th><th>Gravité</th><th>Constat sur la conception initiale</th><th>Correction (dessinée ci-dessus)</th><th>Tâche</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td class="sev b">Bloquant</td><td>En scan continu, le pavé numérique cache le tableau : on ne sait plus quel jeu on est en train de compter.</td><td>L'en-tête du pavé affiche le nom du jeu, son prix et l'ancienne quantité. Valider relance la caméra.</td><td>10</td></tr>
+      <tr><td>2</td><td class="sev b">Bloquant</td><td>Le texte couleur laiton a un contraste de 2,87:1 sur fond émail. Illisible au soleil.</td><td>Le laiton ne sert plus qu'au décor (filets). Un texte « laiton » utilise <code>#8a6420</code> (4,87:1).</td><td>13</td></tr>
+      <tr><td>3</td><td class="sev m">Majeur</td><td>Supprimer par glissement seulement : geste caché, que personne ne découvre.</td><td>Toucher une ligne ouvre une feuille avec « Modifier » et « Supprimer ». Le glissement reste un raccourci, et l'annulation dure 5 s.</td><td>10</td></tr>
+      <tr><td>4</td><td class="sev m">Majeur</td><td>Les codes de 14 chiffres écrasent la colonne Nom à 390 px de large.</td><td>À l'écran, on n'affiche que « … » suivi des 6 derniers chiffres. Le code complet apparaît dans la feuille de la ligne et sur l'export.</td><td>10, 11</td></tr>
+      <tr><td>5</td><td class="sev m">Majeur</td><td>Le remplaçant demandait 2 taps et un défilement : le bouton était sous les détails.</td><td>Le bouton « Proposer un remplaçant » passe en tête de fiche. Une fiche « En rupture » affiche directement les remplaçants.</td><td>9</td></tr>
+      <tr><td>6</td><td class="sev m">Majeur</td><td>Sans recherche, le catalogue affiche 4 965 lignes, dont 3 663 cigares : inutilisable.</td><td>Sans recherche, on voit « Récemment consultés » (scannés ou ouverts). Un compteur de références est affiché, avec les filtres en pastilles et le filtre « En rupture ».</td><td>9</td></tr>
+      <tr><td>7</td><td class="sev m">Majeur</td><td>Code inconnu : « Créer » et « Rattacher » avaient le même poids. Créer une fiche fait perdre le prix officiel et les mises à jour.</td><td>« Rattacher à une référence officielle » est mis en avant, avec la recherche intégrée. Créer devient un bouton secondaire.</td><td>8</td></tr>
+      <tr><td>8</td><td class="sev m">Majeur</td><td>Avec le contraste de l'accent sombre sur la surface (4,15:1), les boutons et pastilles sont limites en mode sombre.</td><td>Accent sombre <code>#f07478</code> : 5,45:1 sur la surface, 6,13:1 sur le fond.</td><td>13</td></tr>
+      <tr><td>9</td><td class="sev m">Majeur</td><td>Scan continu : on ne voit pas sa progression, et l'interruption par un client fait perdre le fil.</td><td>Une carte « Dernier : Cash → 42 · 7 jeux comptés ». Chaque validation est enregistrée tout de suite : rien n'est perdu si on quitte l'écran.</td><td>10</td></tr>
+      <tr><td>10</td><td class="sev m">Majeur</td><td>Le bandeau de sauvegarde peut agacer chaque jour.</td><td>Bandeau discret avec « Sauvegarder » et « Plus tard » (masqué 24 h).</td><td>12</td></tr>
+      <tr><td>11</td><td class="sev m">Majeur</td><td>« C'est quel jeu ? » listait tous les jeux à plat.</td><td>Le jeu le plus probable en premier (code proche), avec une recherche et « + Nouveau jeu ».</td><td>10</td></tr>
+      <tr><td>12</td><td class="sev n">Mineur</td><td>Les quantités en 15 px sont difficiles à lire avec les reflets.</td><td>Quantités en 17-20 px gras, lignes de 48 px minimum.</td><td>10</td></tr>
+      <tr><td>13</td><td class="sev n">Mineur</td><td>Rien ne distingue les valeurs estimées des valeurs officielles.</td><td>La mention « Force et goût : estimations de départ, modifiables » et le prix « (officiel, au 1er nov.) ».</td><td>9</td></tr>
+      <tr><td>14</td><td class="sev n">Mineur</td><td>Le total ne dit pas combien de jeux sont comptés.</td><td>« Total · 6 jeux ».</td><td>10</td></tr>
+      <tr><td>15</td><td class="sev n">Mineur</td><td>L'app rouvre toujours sur le même onglet.</td><td>Elle rouvre sur le dernier onglet utilisé (mémorisé sur l'appareil).</td><td>13</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2>Parcours clés (nombre de taps)</h2>
+  <div class="tablewrap"><table class="r">
+    <thead><tr><th>Parcours</th><th>Taps estimés</th><th>Objectif de la spec</th></tr></thead>
+    <tbody>
+      <tr><td>Compter 30 jeux en scan continu (scan, 2 chiffres, Valider)</td><td class="num">≈ 3 par jeu, soit 90 + 2 · environ 10 s par jeu ≈ 5 min</td><td>&lt; 5 min</td></tr>
+      <tr><td>Produit manquant → remplaçant (depuis la fiche scannée)</td><td class="num">1 (« En rupture » ou « Proposer un remplaçant »)</td><td>≤ 2 taps</td></tr>
+      <tr><td>Export du comptage vers Drive</td><td class="num">Export .jpg → Partager → Drive → Enregistrer = 4</td><td>&lt; 15 s</td></tr>
+      <tr><td>Sauvegarde complète vers Drive</td><td class="num">Réglages → Sauvegarde → Drive → Enregistrer = 4</td><td>—</td></tr>
+    </tbody>
+  </table></div>
+</div>
