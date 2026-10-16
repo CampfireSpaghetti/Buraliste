@@ -12,6 +12,7 @@ import { CompareView } from './features/catalog/CompareView';
 import { CountScreen } from './features/count/CountScreen';
 import { SettingsScreen } from './features/settings/SettingsScreen';
 import { UpdateBanner } from './ui/UpdateBanner';
+import { StorageBanner } from './ui/StorageBanner';
 import { useSettings } from './store';
 import './ui/panel.css';
 
@@ -87,6 +88,7 @@ function Shell() {
         </div>
       </header>
       <UpdateBanner />
+      <StorageBanner />
       <main className={'app-main tab-' + tab}>
         <h2 className="screen-title">{TITLES[tab]}</h2>
         {tab === 'scanner' && <ScannerScreen />}

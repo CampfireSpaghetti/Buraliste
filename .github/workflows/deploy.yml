@@ -31,8 +31,11 @@ jobs:
       - run: npm ci
       - name: Mise à jour de la liste officielle Douane
         if: github.event_name != 'push'
+        run: npm run refs:update
+      - run: npm test
+      - name: Publication de la nouvelle liste (après les tests)
+        if: github.event_name != 'push'
         run: |
-          npm run refs:update
           if ! git diff --quiet -- public/data/references.json; then
             DATE=$(node -e "console.log(require('./public/data/references.json').effectiveDate)")
             git config user.name "la-carotte-bot"
@@ -41,7 +44,6 @@ jobs:
             git commit -m "chore: liste Douane $DATE"
             git push
           fi
-      - run: npm test
       - run: npm run build
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

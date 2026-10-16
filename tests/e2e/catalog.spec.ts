@@ -84,3 +84,21 @@ test('sans recherche : récemment consultés', async ({ page }) => {
   await expect(page.getByText('Récemment consultés')).toBeVisible();
   await expect(page.getByRole('button', { name: /Cohiba Club/ })).toBeVisible();
 });
+
+test('modifier un jeu garde le préfixe appris (couche user préservée)', async ({ page }) => {
+  await seed(page, { products: [
+    { id: 'cash', source: 'depart', outOfStock: false, pinnedSubstitutes: [], updatedAt: 0, base: { kind: 'jeu-fdj', name: 'Cash', ticketPrice: 5 }, user: { fdjPrefix: '0417', nicotineMg: 1 } },
+  ] });
+  await page.getByPlaceholder('Nom, marque ou code').fill('cash');
+  await page.getByRole('button', { name: /^Cash/ }).click();
+  await page.getByRole('button', { name: 'Modifier' }).click();
+  await page.getByLabel('Gain maximum (€)').fill('500000');
+  await page.getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(page.getByText('500 000,00 €')).toBeVisible();
+  const user = await page.evaluate(async () => {
+    const req = indexedDB.open('la-carotte');
+    const dbh: IDBDatabase = await new Promise((r) => { req.onsuccess = () => r(req.result); });
+    return new Promise((r) => { const g = dbh.transaction('products').objectStore('products').get('cash'); g.onsuccess = () => r(g.result.user); });
+  });
+  expect(user).toMatchObject({ fdjPrefix: '0417', nicotineMg: 1, maxPrize: 500000 });
+});

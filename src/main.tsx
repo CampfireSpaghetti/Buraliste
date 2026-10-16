@@ -5,6 +5,7 @@ import App from './App';
 import { requestPersistence } from './data/db';
 import { seedFdj, syncReferences } from './data/referencesSync';
 import { installTestHooks, testModeEnabled } from './testHooks';
+import { setPersisted } from './storageStatus';
 
 const test = testModeEnabled();
 if (test) installTestHooks();
@@ -16,9 +17,10 @@ createRoot(document.getElementById('root')!).render(
 );
 
 // Démarrage en arrière-plan : l'affichage n'attend pas. En cas d'échec, l'app garde les données en place.
+void requestPersistence().then(setPersisted);
+
 const skipStartup = test && localStorage.getItem('carotte:nosync') === '1';
 if (!skipStartup) {
-  void requestPersistence();
   void seedFdj()
     .then(() => window.dispatchEvent(new CustomEvent('carotte:catalog-changed')))
     .catch((e) => console.error('Jeux FDJ de départ non chargés', e));

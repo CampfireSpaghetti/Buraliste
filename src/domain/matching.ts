@@ -6,6 +6,8 @@ export function effectiveFields(p: Product): ProductFields {
   const f = { ...p.base, ...p.user } as ProductFields;
   const codes = [...(p.base.barcodes ?? []), ...(p.user.barcodes ?? [])];
   f.barcodes = [...new Set(codes)];
+  // Prix saisi par le buraliste : il s'applique tout de suite, sans calendrier officiel.
+  if (p.user.price !== undefined) delete f.previousPrice;
   return f;
 }
 

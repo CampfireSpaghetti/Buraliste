@@ -21,3 +21,21 @@ test('lit un vrai code-barres depuis la caméra', async ({ page }) => {
   await expect(page.getByText('3017620422003')).toBeVisible();
   expect(external).toEqual([]);
 });
+
+test('comptage : un ticket resté devant la caméra ne rouvre pas le pavé après Valider', async ({ page }) => {
+  await testMode(page);
+  await page.goto('./#grattage');
+  await page.waitForFunction(() => typeof (window as any).__carotteSeed === 'function');
+  await page.evaluate(() => (window as any).__carotteSeed({ products: [
+    { id: 'g', source: 'depart', outOfStock: false, pinnedSubstitutes: [], updatedAt: 0, base: { kind: 'jeu-fdj', name: 'Test', barcodes: ['3017620422003'] }, user: {} },
+  ] }));
+  await page.getByRole('button', { name: 'Scanner', exact: true }).first().click();
+  const keypad = page.getByRole('dialog', { name: /Quantité/ });
+  await expect(keypad).toBeVisible({ timeout: 15_000 });
+  await page.waitForTimeout(2000); // le temps de compter les tickets
+  await keypad.getByRole('button', { name: '3', exact: true }).click();
+  await keypad.getByRole('button', { name: 'Valider' }).click();
+  await page.waitForTimeout(2500);
+  await expect(keypad).toHaveCount(0);
+  await expect(page.getByText('Dernier : Test → 3')).toBeVisible();
+});

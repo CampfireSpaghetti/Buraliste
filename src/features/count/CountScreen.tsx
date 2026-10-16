@@ -146,6 +146,8 @@ export function CountScreen() {
         <LineFormSheet
           form={lineForm}
           games={games}
+          lines={rawLines ?? []}
+          onMerged={(l) => setToast({ message: `Ligne existante mise à jour : ${l.name}` })}
           products={products ?? []}
           onClose={() => setLineForm(null)}
           onDelete={remove}
@@ -186,7 +188,7 @@ export function CountScreen() {
   );
 }
 
-function LineFormSheet({ form, games, products, onClose, onDelete }: { form: LineForm; games: Product[]; products: Product[]; onClose: () => void; onDelete: (l: CountLine) => void }) {
+function LineFormSheet({ form, games, lines, products, onClose, onDelete, onMerged }: { form: LineForm; games: Product[]; lines: CountLine[]; products: Product[]; onClose: () => void; onDelete: (l: CountLine) => void; onMerged: (l: CountLine) => void }) {
   const editing = form.mode === 'edit' ? form.line : undefined;
   const [name, setName] = useState(editing?.name ?? '');
   const [code, setCode] = useState(editing?.code ?? '');
@@ -204,7 +206,14 @@ function LineFormSheet({ form, games, products, onClose, onDelete }: { form: Lin
       const byName = games.find((g) => fold(effectiveFields(g).name) === fold(name.trim()));
       const byCode = c ? resolveScan(c, products) : undefined;
       const gameId = byName?.id ?? (byCode?.type === 'product' && effectiveFields(byCode.product).kind === 'jeu-fdj' ? byCode.product.id : undefined);
-      await actions.upsertCountLine({ id: newId(), gameId, code: c, name: name.trim(), quantity, updatedAt: 0 });
+      // Un jeu déjà dans la liste n'a qu'une ligne : on la met à jour au lieu d'en créer une seconde (total juste).
+      const same = lines.find((l) => (gameId && l.gameId === gameId) || fold(l.name) === fold(name.trim()));
+      if (same) {
+        const updated = await actions.upsertCountLine({ ...same, quantity, code: same.code || c });
+        onMerged(updated);
+      } else {
+        await actions.upsertCountLine({ id: newId(), gameId, code: c, name: name.trim(), quantity, updatedAt: 0 });
+      }
     }
     onClose();
   };

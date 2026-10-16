@@ -90,7 +90,8 @@ export function mergeReferences(
 
   for (const item of file.items) {
     const target = byRef.get(item.ref) ?? (item.previousRef ? byRef.get(item.previousRef) : undefined);
-    const base = baseFor(item, file.effectiveDate, departByRef.get(item.ref));
+    const depart = departByRef.get(item.ref) ?? (item.previousRef ? departByRef.get(item.previousRef) : undefined);
+    const base = baseFor(item, file.effectiveDate, depart);
     if (!target) {
       put.push({ id: newId(), source: 'douane', douaneRef: item.ref, base, user: {}, outOfStock: false, pinnedSubstitutes: [], updatedAt: now });
       continue;

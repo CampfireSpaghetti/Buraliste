@@ -70,17 +70,19 @@ export function ProductForm({ id, initialCode, initialKind }: { id?: string; ini
       nav.replace({ type: 'product', id: p.id });
       return;
     }
-    // Seules les valeurs qui diffèrent de la référence officielle vont dans la couche user.
-    const user: Partial<ProductFields> = {};
+    // On part de la couche user existante (préfixe FDJ appris, nicotine… restent intacts) et on ne
+    // réécrit que les champs du formulaire : une valeur égale à l'officielle n'est pas dupliquée.
+    const user: Record<string, unknown> = { ...existing.user };
     for (const [k, v] of Object.entries(fields) as [keyof ProductFields, unknown][]) {
       if (k === 'barcodes') {
         const baseCodes = base.barcodes ?? [];
         const extra = (v as string[]).filter((c) => !baseCodes.includes(c));
         if (extra.length) user.barcodes = extra;
+        else delete user.barcodes;
         continue;
       }
-      if (v === undefined) continue;
-      if (!same(base[k], v)) (user as Record<string, unknown>)[k] = v;
+      if (v === undefined || same(base[k], v)) delete user[k];
+      else user[k] = v;
     }
     // On ferme d'abord : l'écriture locale est immédiate et la fiche se met à jour d'elle-même.
     nav.close();

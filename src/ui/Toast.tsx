@@ -5,7 +5,7 @@ export function Toast({ message, action, onAction, onDone, ms = 5000 }: { messag
   useEffect(() => {
     const t = setTimeout(onDone, ms);
     return () => clearTimeout(t);
-  }, [onDone, ms]);
+  }, [onDone, ms, message]);
   return (
     <div className="toast" role="status">
       <span>{message}</span>

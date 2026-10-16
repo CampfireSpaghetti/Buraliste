@@ -35,7 +35,9 @@ export function ScannerView({ mode, onResult, paused = false, footer }: Props) {
   const handleRef = useRef(handle);
   handleRef.current = handle;
 
-  const { videoRef, state, torch, retry } = useBarcodeScanner({ active: !paused && !manual, onCode: (c) => handleRef.current(c) });
+  // La caméra reste allumée pendant les pauses (pavé, fiche) : un ticket resté devant l'objectif est vu en continu
+  // et l'anti-doublon l'ignore à la reprise. Cela évite aussi de redemander l'autorisation caméra à chaque ticket.
+  const { videoRef, state, torch, retry } = useBarcodeScanner({ active: !manual, onCode: (c) => handleRef.current(c) });
 
   useEffect(() => {
     const onTest = (e: Event) => handleRef.current((e as CustomEvent<string>).detail);

@@ -121,3 +121,15 @@ test('jeu inconnu : mini-fiche puis pavé', async ({ page }) => {
   await page.getByRole('button', { name: 'Terminer' }).click();
   await expect(row(page, 'Volcano Rex')).toContainText('15');
 });
+
+test('« + Ligne » pour un jeu déjà compté met à jour sa ligne au lieu d’en créer une seconde', async ({ page }) => {
+  for (const qty of ['10', '25']) {
+    await page.getByRole('button', { name: '+ Ligne' }).click();
+    await page.getByLabel('Nom du jeu').fill('cash');
+    await page.getByLabel('Quantité', { exact: true }).fill(qty);
+    await page.getByRole('button', { name: 'Ajouter' }).click();
+  }
+  await expect(page.locator('tbody tr')).toHaveCount(1);
+  await expect(page.locator('tbody tr').first()).toContainText('25');
+  await expect(page.getByRole('row', { name: /Total · 1 jeu/ })).toContainText('25');
+});

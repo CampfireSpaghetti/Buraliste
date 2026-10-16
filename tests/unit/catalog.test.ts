@@ -70,6 +70,14 @@ describe('mergeReferences', () => {
     expect(second.put).toHaveLength(0);
     expect(second.unchanged).toBe(2);
   });
+  it('un produit renommé garde ses estimations de départ (previousRef)', () => {
+    const ops = mergeReferences([], file([item('fab|neuf', { previousRef: 'fab|ancien' })]), [{ ref: 'fab|ancien', strength: 4, tasteTags: ['corsé'] }], 1, newId);
+    expect(ops.put[0].base).toMatchObject({ strength: 4, tasteTags: ['corsé'] });
+  });
+  it('un prix saisi par le buraliste s’affiche tout de suite, même avant la date d’effet', () => {
+    const p: Product = { ...existing, base: { kind: 'cigarette', name: 'a', price: 13, previousPrice: 12.5, effectiveDate: '2026-11-01' }, user: { price: 14 } };
+    expect(currentPrice(effectiveFields(p), new Date('2026-10-20T12:00:00'))).toBe(14);
+  });
   it('effectiveFields est réexporté', () => {
     expect(effectiveFields(existing).tasteTags).toEqual(['doux']);
   });
