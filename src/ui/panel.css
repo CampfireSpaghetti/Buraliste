@@ -54,6 +54,8 @@ button.chip { min-height: 40px; }
 }
 .tabac-item.on { border-color: var(--fg); }
 .tabac-check { width: 18px; flex: none; color: var(--ok); font-weight: 700; }
+.tabac-text { min-width: 0; display: flex; flex-direction: column; line-height: 1.2; padding: 4px 0; }
 .tabac-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tabac-added { font-size: 13px; font-weight: 400; color: var(--muted); }
 .tabac-remove { flex: none; padding: 0 10px; color: var(--danger); font-size: 15px; }
 .tabac-form, .tabac-join { display: flex; flex-direction: column; gap: 10px; }

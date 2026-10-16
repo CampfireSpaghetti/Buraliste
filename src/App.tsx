@@ -14,7 +14,8 @@ import { SettingsScreen } from './features/settings/SettingsScreen';
 import { UpdateBanner } from './ui/UpdateBanner';
 import { StorageBanner } from './ui/StorageBanner';
 import { PairingPrompt } from './ui/PairingPrompt';
-import { tabacDisplayName, TabacSwitcher } from './ui/TabacSwitcher';
+import { TabacSwitcher } from './ui/TabacSwitcher';
+import { tabacDisplayName } from './tabacs/pageTabac';
 import { useSettings } from './store';
 import './ui/panel.css';
 

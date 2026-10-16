@@ -157,16 +157,37 @@ export function syncRegistryName(id: string, shopName: string): void {
   if (entry && entry.name !== name) renameTabac(id, name);
 }
 
+/** La base d'un tabac est gardée ouverte ailleurs (autre onglet de La Carotte) : elle ne peut pas être supprimée. */
+export class TabacBusyError extends Error {
+  constructor() {
+    super('base du tabac ouverte dans un autre onglet');
+    this.name = 'TabacBusyError';
+  }
+}
+
 /**
  * Retire un tabac et supprime sa base. Refusé (`false`) s'il est le seul ou s'il n'existe pas.
+ * La base est supprimée d'abord : si un autre onglet la garde ouverte au-delà de `timeoutMs`, `TabacBusyError` et le
+ * tabac reste dans le registre (la suppression demandée aboutit dès que l'onglet se ferme ; réessayer la termine).
  * Si c'est le tabac courant, un autre devient courant (la page doit ensuite être rechargée).
  */
-export async function removeTabac(id: string): Promise<boolean> {
+export async function removeTabac(id: string, timeoutMs = 5_000): Promise<boolean> {
   const r = load(DEFAULT_TABAC_NAME);
   if (r.tabacs.length <= 1 || !r.tabacs.some((t) => t.id === id)) return false;
-  const tabacs = r.tabacs.filter((t) => t.id !== id);
-  save({ current: r.current === id ? tabacs[0].id : r.current, tabacs });
-  await Dexie.delete(dbNameFor(id));
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      Dexie.delete(dbNameFor(id)),
+      new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new TabacBusyError()), timeoutMs); }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+  // Relu après l'attente : le registre a pu changer entre-temps.
+  const now = load(DEFAULT_TABAC_NAME);
+  const tabacs = now.tabacs.filter((t) => t.id !== id);
+  if (tabacs.length === 0) return false;
+  save({ current: now.current === id ? tabacs[0].id : now.current, tabacs });
   return true;
 }
 

@@ -9,7 +9,7 @@ import { Toast } from '../../ui/Toast';
 import { BackupPanel } from './BackupPanel';
 import { InstallGuide } from './InstallGuide';
 import { TabacSection } from './TabacSection';
-import { tabacDisplayName } from '../../ui/TabacSwitcher';
+import { tabacDisplayName } from '../../tabacs/pageTabac';
 import './settings.css';
 
 export function SettingsScreen() {
@@ -23,6 +23,12 @@ export function SettingsScreen() {
   const [toast, setToast] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   useEffect(() => { if (settings && name === null) setName(settings.shopName); }, [settings, name]);
+  // Nom changé ailleurs (autre téléphone du tabac, invitation) : le champ suit, sauf pendant la saisie. Sinon, quitter
+  // le champ réécrirait l'ancien nom par-dessus le nouveau.
+  const sharedName = settings?.shopName;
+  useEffect(() => {
+    if (sharedName !== undefined && document.activeElement?.id !== 'shop-name') setName(sharedName);
+  }, [sharedName]);
   if (!settings) return null;
   const official = (products ?? []).filter((p) => p.source === 'douane').length;
   const fdjGames = (products ?? []).filter((p) => p.source === 'fdj' && p.base.status !== 'retrait').length;

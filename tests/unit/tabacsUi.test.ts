@@ -1,4 +1,5 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+import { switchAfterSync } from '../../src/tabacs/pageTabac';
 import { inviteAction, scannedInvite } from '../../src/tabacs/invite';
 import { encodeTabacInvite, type TabacEntry } from '../../src/tabacs/registry';
 import { SYNC_LABELS, syncLabel, syncSentence } from '../../src/sync/statusLabels';
@@ -40,11 +41,40 @@ describe('libellés de synchronisation', () => {
     expect(syncLabel('hors-ligne')).toBe('Synchronisation : hors ligne');
     expect(syncLabel('erreur')).toBe('Synchronisation : erreur');
     expect(syncLabel('refuse')).toBe('Synchronisation : accès refusé');
-    expect(Object.keys(SYNC_LABELS)).toHaveLength(5);
+    expect(syncLabel('connexion')).toBe('Synchronisation : connexion…');
+    expect(Object.keys(SYNC_LABELS)).toHaveLength(6);
   });
   it('phrase de Réglages : accès refusé, données gardées', () => {
     expect(syncSentence('refuse')).toBe('Ce téléphone n’a plus accès à ce tabac.');
     expect(syncSentence('erreur')).toMatch(/nouvelle tentative/i);
     expect(syncSentence('hors-ligne')).toMatch(/retour du réseau/);
+  });
+});
+
+describe('switchAfterSync', () => {
+  it('laisse partir les modifications en file avant de changer de tabac', async () => {
+    const order: string[] = [];
+    const engine = { syncNow: vi.fn(async () => { order.push('sync'); }) };
+    await switchAfterSync('x1', { engine, go: (id) => order.push('go ' + id) });
+    expect(order).toEqual(['sync', 'go x1']);
+  });
+  it('n’attend jamais plus que le plafond (3 s par défaut)', async () => {
+    vi.useFakeTimers();
+    try {
+      const go = vi.fn();
+      const p = switchAfterSync('x1', { engine: { syncNow: () => new Promise<void>(() => undefined) }, go });
+      await vi.advanceTimersByTimeAsync(2_900);
+      expect(go).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(200);
+      await p;
+      expect(go).toHaveBeenCalledWith('x1');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  it('sans moteur : change tout de suite', async () => {
+    const go = vi.fn();
+    await switchAfterSync('x1', { engine: undefined, go });
+    expect(go).toHaveBeenCalledWith('x1');
   });
 });

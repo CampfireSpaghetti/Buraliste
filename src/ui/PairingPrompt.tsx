@@ -20,6 +20,7 @@ export const announcePairing = (detail: PairingScan) => window.dispatchEvent(new
 export function PairingPrompt() {
   const [toast, setToast] = useState<string | null>(null);
   const [ask, setAsk] = useState<TabacInvite | null>(null);
+  const [joining, setJoining] = useState(false);
   useEffect(() => {
     const on = (e: Event) => {
       const d = (e as CustomEvent<PairingScan | undefined>).detail;
@@ -35,14 +36,14 @@ export function PairingPrompt() {
   return (
     <>
       {ask && (
-        <Sheet label={`Rejoindre le ${ask.name} ?`} onClose={() => setAsk(null)}>
-          <h3>Rejoindre le {ask.name} ?</h3>
+        <Sheet label={`Rejoindre « ${ask.name} » ?`} onClose={() => setAsk(null)}>
+          <h3>Rejoindre «{'\u00a0'}{ask.name}{'\u00a0'}»{'\u00a0'}?</h3>
           <p className="muted" style={{ margin: 0 }}>
             Ce téléphone recevra le comptage, les ruptures et les fiches de ce tabac. Vos autres tabacs restent sur ce téléphone.
           </p>
           <div className="row">
             <button type="button" className="btn" onClick={() => setAsk(null)}>Annuler</button>
-            <button type="button" className="btn accent" onClick={() => joinTabac(ask, dbTabacId)}>Rejoindre</button>
+            <button type="button" className="btn accent" disabled={joining} onClick={() => { setJoining(true); void joinTabac(ask, dbTabacId); }}>Rejoindre</button>
           </div>
         </Sheet>
       )}

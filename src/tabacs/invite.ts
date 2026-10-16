@@ -2,7 +2,8 @@
  * Invitation à un tabac scannée (QR code « Inviter un employé », LACAROTTE2) : la reconnaître, puis décider quoi faire.
  * Rejoindre deux fois la même invitation ne crée pas de doublon : on revient simplement au tabac déjà présent.
  */
-import { addTabac, decodeTabacInvite, INVITE_PREFIX, listTabacs, switchTabac, type TabacEntry, type TabacInvite } from './registry';
+import { switchAfterSync } from './pageTabac';
+import { addTabac, decodeTabacInvite, INVITE_PREFIX, listTabacs, type TabacEntry, type TabacInvite } from './registry';
 
 /** `undefined` : ce n'est pas une invitation ; `{ ok: false }` : une invitation abîmée (QR code mal lu, autre version). */
 export function scannedInvite(raw: string): { ok: true; invite: TabacInvite } | { ok: false } | undefined {
@@ -24,8 +25,8 @@ export function inviteAction(invite: TabacInvite, tabacs: TabacEntry[], currentI
  * Rejoint le tabac de l'invitation (ou y revient) : la page est rechargée sur sa base, le moteur récupère son état.
  * `pageTabacId` : le tabac dont la page a ouvert la base.
  */
-export function joinTabac(invite: TabacInvite, pageTabacId: string): void {
+export async function joinTabac(invite: TabacInvite, pageTabacId: string): Promise<void> {
   const action = inviteAction(invite, listTabacs(), pageTabacId);
   if (action.type === 'deja') return;
-  switchTabac(action.type === 'changer' ? action.id : addTabac(invite.name.trim(), invite.key).id);
+  await switchAfterSync(action.type === 'changer' ? action.id : addTabac(invite.name.trim(), invite.key).id);
 }

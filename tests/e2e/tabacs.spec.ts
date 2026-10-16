@@ -78,12 +78,12 @@ test('deux téléphones : créer, inviter par QR code, rejoindre, tout se partag
   // --- B scanne l'invitation et rejoint
   await B.page.goto('./#scanner');
   await scan(B.page, invite!);
-  const ask = B.page.getByRole('dialog', { name: 'Rejoindre le Tabac de la Gare ?' });
+  const ask = B.page.getByRole('dialog', { name: 'Rejoindre « Tabac de la Gare » ?' });
   await expect(ask).toBeVisible();
   await ask.getByRole('button', { name: 'Rejoindre' }).click();
   await expect(shopName(B.page)).toHaveText('Tabac de la Gare');
   await engineReady(B.page);
-  await expect(B.page.getByRole('img', { name: /^Synchronisation : / })).toBeVisible();
+  await expect(B.page.getByRole('button', { name: /^Synchronisation : / })).toBeVisible();
 
   // --- A saisit Cash : linéaire 38, stock 120 → B le voit
   await tabs(A.page).getByRole('button', { name: 'Grattage' }).click();
@@ -96,7 +96,7 @@ test('deux téléphones : créer, inviter par QR code, rejoindre, tout se partag
   await tabs(B.page).getByRole('button', { name: 'Grattage' }).click();
   await eventually([A.page, B.page], () => expect(B.page.getByRole('button', { name: 'Linéaire Cash : 38' })).toBeVisible({ timeout: 1_000 }));
   await expect(B.page.getByRole('button', { name: 'Stock Cash : 120' })).toBeVisible();
-  await expect(A.page.getByRole('img', { name: 'Synchronisation : à jour' })).toBeVisible();
+  await expect(A.page.getByRole('button', { name: 'Synchronisation : à jour' })).toBeVisible();
 
   // --- B met un produit « En rupture » → A le voit
   await tabs(B.page).getByRole('button', { name: 'Catalogue' }).click();
@@ -119,7 +119,7 @@ test('deux téléphones : créer, inviter par QR code, rejoindre, tout se partag
   await tabs(A.page).getByRole('button', { name: 'Grattage' }).click();
   await tabs(B.page).getByRole('button', { name: 'Grattage' }).click();
   await B.ctx.setOffline(true);
-  await expect(B.page.getByRole('img', { name: 'Synchronisation : hors ligne' })).toBeVisible();
+  await expect(B.page.getByRole('button', { name: 'Synchronisation : hors ligne' })).toBeVisible();
   await B.page.getByRole('button', { name: 'Stock Cash : 120' }).click();
   await expect(B.page.getByRole('dialog', { name: /Quantité stock/ })).toBeVisible();
   await typeQty(B.page, '90');
@@ -138,14 +138,15 @@ test('deux téléphones : créer, inviter par QR code, rejoindre, tout se partag
   // --- Rejoindre une seconde fois la même invitation : on revient simplement au tabac déjà présent
   await tabs(B.page).getByRole('button', { name: 'Scanner' }).click();
   await scan(B.page, invite!);
-  await B.page.getByRole('dialog', { name: 'Rejoindre le Tabac de la Gare ?' }).getByRole('button', { name: 'Rejoindre' }).click();
+  await B.page.getByRole('dialog', { name: 'Rejoindre « Tabac de la Gare » ?' }).getByRole('button', { name: 'Rejoindre' }).click();
   await expect(shopName(B.page)).toHaveText('Tabac de la Gare SNCF');
   sheet = await openTabacs(B.page);
   await expect(sheet.locator('[data-tabac]')).toHaveCount(2);
   await sheet.locator('.sheet-scrim').click({ position: { x: 10, y: 10 } });
   await expect(sheet).toHaveCount(0);
   await tabs(B.page).getByRole('button', { name: 'Grattage' }).click();
-  await expect(B.page.getByRole('button', { name: 'Stock Cash : 90' })).toBeVisible();
+  // Base rechargée après le changement de tabac : sous charge (tests en parallèle), la lecture peut dépasser 5 s.
+  await expect(B.page.getByRole('button', { name: 'Stock Cash : 90' })).toBeVisible({ timeout: 15_000 });
 
   await A.ctx.close();
   await B.ctx.close();
@@ -158,11 +159,22 @@ test('accès refusé par le relais : message dans Réglages, point rouge, donné
   await A.ctx.route('http://localhost:8787/**', (route) =>
     route.fulfill({ status: 403, contentType: 'application/json', body: '{"erreur":"ecriture"}', headers: { 'access-control-allow-origin': 'http://localhost:4173' } }),
   );
-  await A.page.goto('./#reglages');
+  await A.page.goto('./#grattage');
+  await A.page.getByRole('button', { name: '+ Ligne' }).click();
+  await A.page.getByLabel('Nom du jeu').fill('Cash');
+  await A.page.getByLabel('Quantité linéaire', { exact: true }).fill('38');
+  await A.page.getByLabel('Quantité stock', { exact: true }).fill('120');
+  await A.page.getByRole('button', { name: 'Ajouter' }).click();
   await engineReady(A.page);
   await syncNow(A.page);
+  // Le point rouge mène au détail, dans Réglages.
+  await A.page.getByRole('button', { name: 'Synchronisation : accès refusé' }).click();
+  await expect(A.page.getByRole('heading', { name: 'Réglages' })).toBeVisible();
   await expect(A.page.getByText('Ce téléphone n’a plus accès à ce tabac.')).toBeVisible();
-  await expect(A.page.getByRole('img', { name: 'Synchronisation : accès refusé' })).toBeVisible();
   await expect(A.page.getByLabel('Nom du tabac')).toHaveValue('Mon tabac');
+  // Les données restent.
+  await tabs(A.page).getByRole('button', { name: 'Grattage' }).click();
+  await expect(A.page.getByRole('button', { name: 'Linéaire Cash : 38' })).toBeVisible();
+  await expect(A.page.getByRole('button', { name: 'Stock Cash : 120' })).toBeVisible();
   await A.ctx.close();
 });

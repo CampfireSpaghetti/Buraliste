@@ -9,5 +9,6 @@
 .card h3 { font-size: 18px; }
 .settings .row { flex-direction: column; }
 .invite-qr { width: min(280px, 80vw); height: auto; align-self: center; image-rendering: pixelated; background: #fff; padding: 8px; border-radius: 8px; }
-.sync-state .sync-dot { width: 10px; height: 10px; border-color: var(--line); vertical-align: baseline; }
+.sync-state .sync-dot { width: 12px; height: 12px; border-color: var(--line); vertical-align: middle; font-size: 9px; }
+.sync-state .sync-dot.sync-connexion { border-color: var(--muted); }
 .sync-state .error { margin: 0; }

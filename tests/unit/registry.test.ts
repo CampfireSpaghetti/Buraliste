@@ -3,7 +3,7 @@ import Dexie from 'dexie';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   addTabac, currentTabac, dbNameFor, ensureRegistry, listTabacs, removeTabac, renameTabac,
-  resetRegistryMemoryForTests, setCurrentTabac, syncRegistryName,
+  resetRegistryMemoryForTests, setCurrentTabac, syncRegistryName, TabacBusyError,
 } from '../../src/tabacs/registry';
 import { CarotteDB, DEFAULT_SETTINGS, db, dbTabacId, openTabacDb, saveSettings, syncSettingsNameAtStartup } from '../../src/data/db';
 
@@ -141,6 +141,16 @@ describe('tabacs', () => {
     expect(listTabacs().map((t) => t.id)).toEqual(['principal']);
     expect(await Dexie.exists(dbNameFor(a.id))).toBe(false);
     expect(await Dexie.exists('la-carotte')).toBe(true);
+  });
+  it('base gardée ouverte par un autre onglet : TabacBusyError, le tabac reste dans le registre', async () => {
+    const a = addTabac('Rue haute');
+    const raw = await new Promise<IDBDatabase>((resolve) => {
+      const o = indexedDB.open(dbNameFor(a.id));
+      o.onsuccess = () => resolve(o.result);
+    });
+    await expect(removeTabac(a.id, 50)).rejects.toBeInstanceOf(TabacBusyError);
+    expect(listTabacs().map((t) => t.id)).toContain(a.id);
+    raw.close();
   });
   it('retirer le tabac courant désigne un autre tabac comme courant', async () => {
     const a = addTabac('Rue haute');
