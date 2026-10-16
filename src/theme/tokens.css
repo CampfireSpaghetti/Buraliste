@@ -1,0 +1,42 @@
+/* Style A · Plaque émaillée — tokens (spec §11) */
+:root {
+  --bordeaux: #8e1b1f;
+  --email: #f6f4ee;
+  --encre: #1d2433;
+  --laiton: #b8892e; /* décor uniquement (filets) : contraste insuffisant pour du texte */
+  --laiton-texte: #8a6420;
+  --carotte: #d22a2f;
+
+  --bg: var(--email);
+  --surface: #ffffff;
+  --fg: var(--encre);
+  --muted: #5b6273;
+  --line: #ddd6c6;
+  --accent: var(--bordeaux);
+  --accent-fg: var(--email);
+  --highlight: #fbe7b5;
+  --danger: #b3261e;
+  --ok: #2e6b3f;
+
+  --font-display: 'Alfa Slab One', Georgia, serif;
+  --font-body: 'Barlow Semi Condensed', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --tap: 48px;
+  --radius: 10px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #161b26;
+    --surface: #1f2533;
+    --fg: var(--email);
+    --muted: #aab0bd;
+    --line: #343b4b;
+    --accent: #f07478;
+    --accent-fg: #161b26;
+    --highlight: #4a3a12;
+    --laiton-texte: #d9b26a;
+    --danger: #ff8a80;
+    --ok: #7fd18f;
+    color-scheme: dark;
+  }
+}
