@@ -15,8 +15,17 @@ export type Clocked<T> = T & { _clock?: Record<string, string> };
 const USER_PREFIX = 'user.';
 const FORBIDDEN = new Set(['__proto__', 'constructor', 'prototype']);
 
-const isForbidden = (key: string): boolean =>
-  key.startsWith(USER_PREFIX) ? FORBIDDEN.has(key.slice(USER_PREFIX.length)) : FORBIDDEN.has(key);
+/**
+ * Clés refusées dans une opération reçue : noms dangereux, `user` seul (seuls `user.<champ>` sont
+ * valides), `_clock` (réservé), et `user.` sans nom de champ ou avec des points imbriqués.
+ * La liste blanche par entité est du ressort de la couche d'écriture (tâche 6).
+ */
+const isForbidden = (key: string): boolean => {
+  if (key === 'user' || key === '_clock') return true;
+  if (!key.startsWith(USER_PREFIX)) return FORBIDDEN.has(key);
+  const field = key.slice(USER_PREFIX.length);
+  return field === '' || field.includes('.') || FORBIDDEN.has(field);
+};
 
 /**
  * Applique `f` (champs modifiés, `null` = effacé) à l'horodatage `t`.
@@ -36,8 +45,7 @@ export function applyFields<T extends object>(
 
   for (const key of Object.keys(f)) {
     if (isForbidden(key)) continue;
-    const known = clock[key];
-    if (known !== undefined && !(t > known)) continue;
+    if (Object.hasOwn(clock, key) && !(t > clock[key])) continue;
 
     const value = f[key];
     if (key.startsWith(USER_PREFIX)) {

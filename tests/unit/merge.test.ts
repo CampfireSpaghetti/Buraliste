@@ -92,10 +92,44 @@ describe('applyFields', () => {
   });
 
   it('ignore les clés dangereuses', () => {
-    const r = applyFields<Record<string, unknown>>(undefined, JSON.parse('{"__proto__":{"x":1},"user.__proto__":{"y":1},"ok":1}'), t1);
-    expect(({} as Record<string, unknown>).x).toBeUndefined();
-    expect(({} as Record<string, unknown>).y).toBeUndefined();
+    const r = applyFields<Record<string, unknown>>(
+      undefined,
+      JSON.parse('{"__proto__":{"x":1},"user.__proto__":{"y":1},"ok":1}'),
+      t1,
+    );
+    expect(Object.getPrototypeOf(r.record)).toBe(Object.prototype);
+    expect('x' in r.record).toBe(false);
+    expect(r.record.user).toBeUndefined();
+    expect(Object.keys(r.record._clock ?? {})).toEqual(['ok']);
     expect(r.record.ok).toBe(1);
+    expect(({} as Record<string, unknown>).y).toBeUndefined();
+    const only = applyFields<Record<string, unknown>>(undefined, JSON.parse('{"user.__proto__":{"y":1}}'), t1);
+    expect(only.changed).toBe(false);
+    expect(only.record).toEqual({});
+  });
+
+  it('rejette user, _clock et user. sans nom de champ (ou avec des points)', () => {
+    const r = applyFields<Record<string, unknown>>(
+      undefined,
+      { user: { a: 1 }, _clock: { z: 'x' }, 'user.': 1, 'user.a.b': 2, ok: 1 },
+      t1,
+    );
+    expect(r.record).toEqual({ ok: 1, _clock: { ok: t1 } });
+    expect(applyFields(undefined, { user: 'abc' }, t1).changed).toBe(false);
+    // l'ordre d'arrivée ne change rien pour user / user.<champ>
+    const x = applyFields(applyFields(undefined, { user: { a: 1 } }, t3).record, { 'user.b': 2 }, t2).record;
+    const y = applyFields(applyFields(undefined, { 'user.b': 2 }, t2).record, { user: { a: 1 } }, t3).record;
+    expect(x).toEqual(y);
+  });
+
+  it('un nom hérité (toString) n\'est pas lu comme une horloge connue', () => {
+    const r = applyFields<Record<string, unknown>>(undefined, { toString: 'a' }, t1);
+    expect(r.changed).toBe(true);
+    expect(r.record.toString).toBe('a');
+    expect(Object.keys(r.record._clock ?? {})).toEqual(['toString']);
+    const r2 = applyFields<Record<string, unknown>>(r.record, { toString: 'c' }, t0);
+    expect(r2.changed).toBe(false);
+    expect(r2.record.toString).toBe('a');
   });
 });
 
