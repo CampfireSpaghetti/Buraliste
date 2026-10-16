@@ -120,6 +120,15 @@ interface Product {
 - On rapproche chaque ligne Douane d'un produit existant par `douaneRef`, puis on remplace seulement `base`.
 - Une référence qui disparaît de la liste Douane n'est **pas supprimée**. Elle reçoit l'indicateur « retiré de la liste officielle ».
 
+**Dates d'effet des prix** : chaque fichier de la Douane annonce une date d'entrée en vigueur (par exemple le 1er novembre 2026) et contient à la fois les anciens et les nouveaux prix. Le fichier `references.json` conserve donc pour chaque référence :
+
+- `effectiveDate` : la date d'effet du fichier ;
+- `price` : le nouveau prix ;
+- `previousPrice` : l'ancien prix, s'il change ;
+- `status` : `nouveau`, `retrait` ou `inchange`.
+
+L'app affiche l'ancien prix jusqu'à la date d'effet, puis le nouveau. Une référence « nouveau » est marquée « en vente au 1er nov. » avant cette date. Une référence « retrait » passe en « retirée de la liste officielle » à partir de cette date.
+
 ### 4.2 Comptage grattage (liste unique, mise à jour en continu)
 
 ```ts
