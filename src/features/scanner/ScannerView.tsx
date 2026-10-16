@@ -4,7 +4,7 @@ import { useProducts } from '../../store';
 import { Sheet } from '../../ui/Panel';
 import { signalScanOk, TEST_SCAN_EVENT } from './feedback';
 import { useBarcodeScanner } from './useBarcodeScanner';
-import { decodePairing } from '../../domain/sharing';
+import { isLegacyPairingCode } from '../../domain/sharing';
 import { PAIRING_EVENT } from '../../ui/PairingPrompt';
 import './scanner.css';
 
@@ -25,10 +25,9 @@ export function ScannerView({ mode, onResult, paused = false, footer }: Props) {
   pausedRef.current = paused || manual;
 
   const handle = (raw: string, bypassDebounce = false) => {
-    // QR code de jumelage (onglet Réglages d'un autre téléphone) : ce n'est pas un produit.
-    const pairing = decodePairing(raw.trim());
-    if (pairing) {
-      if (accept(raw, Date.now()) && !pausedRef.current) window.dispatchEvent(new CustomEvent(PAIRING_EVENT, { detail: pairing }));
+    // Ancien QR code de jumelage (clé GitHub, supprimé) : ce n'est pas un produit, on explique quoi faire.
+    if (isLegacyPairingCode(raw)) {
+      if (accept(raw, Date.now()) && !pausedRef.current) window.dispatchEvent(new Event(PAIRING_EVENT));
       return;
     }
     if (!bypassDebounce) {

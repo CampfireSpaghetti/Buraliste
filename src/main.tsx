@@ -5,7 +5,7 @@ import App from './App';
 import { requestPersistence, syncSettingsNameAtStartup } from './data/db';
 import { DEFAULT_TABAC_NAME, ensureRegistry } from './tabacs/registry';
 import { syncFdjGames, syncReferences } from './data/referencesSync';
-import { syncSharedCodes } from './data/sharingData';
+import { clearLegacyShareToken, syncSharedCodes } from './data/sharingData';
 import { scheduleFlush } from './store';
 import { installSyncTestHooks, installTestHooks, testModeEnabled } from './testHooks';
 import { startSyncEngine } from './sync/engineInstance';
@@ -23,6 +23,8 @@ createRoot(document.getElementById('root')!).render(
 
 // Le nom du tabac dans le registre et le nom de la boutique (réglages) restent alignés.
 void syncSettingsNameAtStartup().catch(() => undefined);
+// Les téléphones n'ont plus de clé GitHub (le relais la détient) : celle d'une ancienne version est effacée.
+void clearLegacyShareToken().catch(() => undefined);
 
 // Démarrage en arrière-plan : l'affichage n'attend pas. En cas d'échec, l'app garde les données en place.
 void requestPersistence().then(setPersisted);

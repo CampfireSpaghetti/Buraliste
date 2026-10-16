@@ -66,9 +66,10 @@ export interface Settings {
   fdjFetchedAt?: string;
   sharedCodesVersion?: string;
   hiddenGames?: string[]; // jeux enlevés de la liste de comptage par le buraliste
-  // Partage des codes-barres (téléphone jumelé). La clé ne quitte jamais le téléphone : exclue des sauvegardes.
+  // Envoi des codes-barres au relais. `shareToken` est l'ancienne clé GitHub des versions précédentes : plus utilisée,
+  // effacée au démarrage, jamais partagée ni sauvegardée (le champ reste déclaré pour lire les anciennes données).
   shareToken?: string;
-  shareStatus?: 'ok' | 'cle-refusee' | 'hors-ligne' | 'erreur';
+  shareStatus?: 'ok' | 'hors-ligne' | 'erreur';
   lastShareAt?: number;
 }
 

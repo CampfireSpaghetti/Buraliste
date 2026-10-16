@@ -317,7 +317,7 @@ describe('listes publiques et sauvegarde (R17)', () => {
     expect(await db.opsOut.count()).toBe(n);
   });
 
-  it('la restauration d’une sauvegarde passe par la couche partagée (opérations, jeton gardé, versions remises à zéro)', async () => {
+  it('la restauration d’une sauvegarde passe par la couche partagée (opérations, plus de clé GitHub, versions remises à zéro)', async () => {
     await saveSettings({ shareToken: 'secret', referencesVersion: 'v1' });
     await upsertCountLine(line({ id: 'mine', name: 'Astro' }));
     await db.opsOut.clear();
@@ -329,7 +329,8 @@ describe('listes publiques et sauvegarde (R17)', () => {
     expect((await restoreFromText(serializeBackup(data, 5))).ok).toBe(true);
     expect((await listCountLines()).map((l) => l.name)).toEqual(['Cash']);
     const s = await getSettings();
-    expect(s).toMatchObject({ shopName: 'Tabac du Centre', shareToken: 'secret' });
+    expect(s).toMatchObject({ shopName: 'Tabac du Centre' });
+    expect(s.shareToken).toBeUndefined(); // plus de clé GitHub sur les téléphones
     expect(s.referencesVersion).toBeUndefined();
     const ops = await queued();
     expect(ops).toEqual(expect.arrayContaining([

@@ -66,15 +66,16 @@ Ensuite :
 
 Les codes-barres rattachés à un produit officiel (et les codes de jeux FDJ appris) peuvent être partagés automatiquement entre vos téléphones, et avec tous les buralistes qui utilisent l'app :
 
-1. **Réglages › Partage des codes-barres › Activer le partage** : collez une clé GitHub « fine-grained » limitée au dépôt Buraliste avec le seul droit **Issues : lecture et écriture** (guide pas à pas dans l'app).
-2. **Autres téléphones** : Réglages › *Jumeler un autre téléphone* affiche un QR code. L'autre téléphone le scanne dans l'onglet Scanner.
-3. Ensuite tout est automatique :
-   - chaque code part tout seul dans un message (issue `[codes-barres]`) ;
-   - le robot vérifie que l'expéditeur est bien le propriétaire du dépôt, que le code est valide et que la référence existe ;
-   - il ajoute le code à `public/data/codes-barres.json` (public) et republie l'app ;
-   - tous les téléphones le reçoivent à la prochaine ouverture.
+Aucun compte et aucune clé sur les téléphones : l'app envoie les codes au relais, qui détient la clé GitHub (secret `RELAY_GITHUB_TOKEN`, voir plus haut). Tout est automatique :
 
-Ne partent **que** les liens « code-barres → produit officiel ». Les comptages, stocks, prix, ruptures et le nom du tabac ne partent jamais, et la clé n'est jamais incluse dans les sauvegardes.
+- chaque code part tout seul vers le relais, qui ouvre un message (issue `[codes-barres]`) ;
+- le robot vérifie que l'expéditeur est bien le propriétaire du dépôt, que le code est valide et que la référence existe ;
+- il ajoute le code à `public/data/codes-barres.json` (public) et republie l'app ;
+- tous les téléphones le reçoivent à la prochaine ouverture.
+
+Sans relais configuré, les codes restent en attente sur le téléphone et Réglages affiche « Partage entre téléphones : bientôt disponible ».
+
+Ne partent **que** les liens « code-barres → produit officiel ». Les comptages, stocks, prix, ruptures et le nom du tabac ne partent jamais, et aucune clé n'est enregistrée sur le téléphone.
 
 ## Liste de contrôle du premier test au comptoir
 

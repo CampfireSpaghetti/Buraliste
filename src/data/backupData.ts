@@ -21,7 +21,6 @@ export async function restoreFromText(text: string): Promise<{ ok: true } | { ok
   const parsed = parseBackup(text);
   if (!parsed.ok) return parsed;
   const { products, countLines, settings } = withStableIds(parsed.data);
-  const { shareToken } = await getSettings();
   await db.transaction('rw', db.products, db.countLines, db.settings, db.opsOut, async () => {
     // Produits : pas de suppression partagée ; ceux qui manquent à la sauvegarde ne sont retirés que d'ici.
     const keepProducts = new Set(products.map((p) => p.id));
@@ -35,8 +34,9 @@ export async function restoreFromText(text: string): Promise<{ ok: true } | { ok
     for (const l of countLines) await writeShared('line', l.id, { ...withoutClock<CountLine>(l), deleted: l.deleted === true });
 
     // La version de la liste officielle est oubliée : la prochaine ouverture refusionne la liste à jour.
-    const { _clock: _c, ...restored } = settings as Clocked<typeof settings>;
-    await writeShared('settings', 'main', { ...DEFAULT_SETTINGS, ...restored, shareToken, referencesVersion: undefined, sharedCodesVersion: undefined });
+    // Une clé GitHub qu'une très ancienne sauvegarde contiendrait est ignorée : les téléphones n'en ont plus.
+    const { _clock: _c, shareToken: _legacy, ...restored } = settings as Clocked<typeof settings>;
+    await writeShared('settings', 'main', { ...DEFAULT_SETTINGS, ...restored, referencesVersion: undefined, sharedCodesVersion: undefined });
   });
   syncRegistryName(dbTabacId, (await getSettings()).shopName);
   return { ok: true };

@@ -1,6 +1,5 @@
 import { normalizeCode } from './barcode.ts';
 import { effectiveFields } from './matching.ts';
-import { b64uToText, textToB64u } from '../sync/crypto.ts';
 import type { Product } from './types';
 
 /** Ce qu'un téléphone jumelé partage : uniquement « code → produit officiel ». */
@@ -11,10 +10,8 @@ export type Contribution =
 /** Liste publique des codes partagés (public/data/codes-barres.json). */
 export type SharedCodesFile = { version: string; updatedAt: string; barcodes: Record<string, string>; fdjPrefixes: Record<string, string> };
 
-export type Pairing = { token: string; repo: string; shop: string };
-
 export const ISSUE_PREFIX = '[codes-barres]';
-const PAIRING_PREFIX = 'LACAROTTE1:';
+const PAIRING_PREFIX = 'LACAROTTE1:'; // jumelage par clé GitHub, supprimé
 
 /** Référence officielle partageable (liste Douane ou liste FDJ), sinon undefined. */
 export function officialRef(p: Product): string | undefined {
@@ -60,20 +57,9 @@ export function parseIssueBody(body: string): Contribution[] {
   }
 }
 
-/** Contenu du QR code de jumelage (à ne montrer qu'à vos employés : il contient la clé d'envoi). */
-export function encodePairing(p: Pairing): string {
-  return PAIRING_PREFIX + textToB64u(JSON.stringify(p));
-}
-
-export function decodePairing(text: string): Pairing | undefined {
-  if (!text.startsWith(PAIRING_PREFIX)) return undefined;
-  try {
-    const p = JSON.parse(b64uToText(text.slice(PAIRING_PREFIX.length)));
-    if (typeof p?.token === 'string' && typeof p.repo === 'string' && typeof p.shop === 'string') return { token: p.token, repo: p.repo, shop: p.shop };
-  } catch {
-    /* QR code d'un autre usage */
-  }
-  return undefined;
+/** Ancien QR code de jumelage (clé GitHub, supprimé) : reconnu seulement pour répondre à qui le scanne ; son contenu n'est pas lu. */
+export function isLegacyPairingCode(text: string): boolean {
+  return text.trim().startsWith(PAIRING_PREFIX);
 }
 
 /** Empreinte courte (FNV-1a), utilisable dans l'app comme dans le robot. */

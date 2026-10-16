@@ -3,7 +3,6 @@ import { describe, it, expect } from 'vitest';
 import { generateTabacKey, deriveChannel, encryptJson, decryptJson } from '../../src/sync/crypto.ts';
 import { createHlc } from '../../src/sync/hlc.ts';
 import { encodeTabacInvite, decodeTabacInvite } from '../../src/tabacs/registry.ts';
-import { encodePairing } from '../../src/domain/sharing.ts';
 
 describe('clé de tabac', () => {
   it('fait 43 caractères base64url et change à chaque appel', () => {
@@ -147,7 +146,7 @@ describe('invitation de tabac', () => {
   it('refuse un autre texte, l\'ancien jumelage et les contenus invalides', () => {
     const b64 = (o: unknown) => 'LACAROTTE2:' + Buffer.from(JSON.stringify(o)).toString('base64url');
     expect(decodeTabacInvite('https://example.com')).toBeUndefined();
-    expect(decodeTabacInvite(encodePairing({ token: 't', repo: 'r', shop: 's' }))).toBeUndefined();
+    expect(decodeTabacInvite('LACAROTTE1:' + Buffer.from(JSON.stringify({ token: 't', repo: 'r', shop: 's' })).toString('base64url'))).toBeUndefined();
     expect(decodeTabacInvite('LACAROTTE2:pas-du-base64!')).toBeUndefined();
     expect(decodeTabacInvite('lacarotte2:' + 'abc')).toBeUndefined();
     expect(decodeTabacInvite(b64([1, 2]))).toBeUndefined();

@@ -3,11 +3,11 @@ import { restoreFromText } from '../../data/backupData';
 import { parseBackup } from '../../domain/backup';
 import { formatDateLong, formatIsoDateFr } from '../../domain/format';
 import { actions, notifyDataChanged, useProducts, useSettings } from '../../store';
+import { relayUrl } from '../../sync/relayConfig';
 import { Sheet } from '../../ui/Panel';
 import { Toast } from '../../ui/Toast';
 import { BackupPanel } from './BackupPanel';
 import { InstallGuide } from './InstallGuide';
-import { SharingSection } from './SharingSection';
 import './settings.css';
 
 export function SettingsScreen() {
@@ -78,12 +78,20 @@ export function SettingsScreen() {
         Gamme en point de vente (fdj.fr){settings.fdjFetchedAt ? ` · liste du ${formatIsoDateFr(settings.fdjFetchedAt)}` : ''} · {fdjGames} jeux · mise à jour automatique chaque semaine
       </p>
 
-      <SharingSection settings={settings} />
+      <span className="label">Partage</span>
+      {relayUrl() ? (
+        <p className="muted hint">
+          Les codes-barres scannés enrichissent automatiquement la liste commune.
+          {settings.lastShareAt ? ` Dernier envoi : ${formatDateLong(settings.lastShareAt)}.` : ''}
+        </p>
+      ) : (
+        <p className="muted hint">Partage entre téléphones : bientôt disponible</p>
+      )}
 
       <button type="button" className="btn" onClick={() => setInstall(true)}>Installer sur mon téléphone</button>
       <p className="muted hint">
         Vos données restent sur ce téléphone. Seuls partent : les fichiers que vous partagez vous-même et, si le partage
-        est activé, les codes-barres rattachés aux produits officiels.
+        est disponible, les codes-barres rattachés aux produits officiels (aucun compte, aucune clé sur le téléphone).
       </p>
 
       {backup && <BackupPanel onClose={() => setBackup(false)} />}

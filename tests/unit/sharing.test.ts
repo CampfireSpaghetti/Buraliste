@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  contributionsFor, buildIssue, parseIssueBody, encodePairing, decodePairing, applySharedCodes, mergeContributions,
+  contributionsFor, buildIssue, parseIssueBody, isLegacyPairingCode, applySharedCodes, mergeContributions,
   type SharedCodesFile, type Contribution,
 } from '../../src/domain/sharing';
 import { effectiveFields, resolveScan } from '../../src/domain/matching';
@@ -43,15 +43,15 @@ describe('message envoyé à GitHub', () => {
   });
 });
 
-describe('jumelage par QR code', () => {
-  it('aller-retour', () => {
-    const text = encodePairing({ token: 'github_pat_ABC', repo: 'wongmichel2048/Buraliste', shop: 'Tabac du Centre' });
-    expect(text.startsWith('LACAROTTE1:')).toBe(true);
-    expect(decodePairing(text)).toEqual({ token: 'github_pat_ABC', repo: 'wongmichel2048/Buraliste', shop: 'Tabac du Centre' });
+describe('ancien QR code de jumelage', () => {
+  it('reconnu (sans en lire le contenu), pour répondre « demandez une invitation »', () => {
+    expect(isLegacyPairingCode('LACAROTTE1:eyJ0b2tlbiI6IngifQ')).toBe(true);
+    expect(isLegacyPairingCode('  LACAROTTE1:abc\n')).toBe(true);
   });
-  it('autre QR code : ignoré', () => {
-    expect(decodePairing('https://example.com')).toBeUndefined();
-    expect(decodePairing('LACAROTTE1:pas-du-base64!')).toBeUndefined();
+  it('autre texte : ignoré', () => {
+    expect(isLegacyPairingCode('https://example.com')).toBe(false);
+    expect(isLegacyPairingCode('3017620422003')).toBe(false);
+    expect(isLegacyPairingCode('LACAROTTE2:abc')).toBe(false);
   });
 });
 
