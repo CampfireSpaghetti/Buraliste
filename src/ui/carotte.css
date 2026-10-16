@@ -1,0 +1,16 @@
+.carotte {
+  display: inline-grid; place-items: center; flex: none;
+  background: var(--carotte); color: var(--email);
+  clip-path: polygon(50% 0, 100% 30%, 100% 70%, 50% 100%, 0 70%, 0 30%);
+}
+.carotte::after {
+  content: ''; width: 60%; height: 2px; background: currentColor;
+  box-shadow: 0 -8px 0 currentColor, 0 8px 0 currentColor;
+}
+.carotte.bounce { animation: carotte-bounce .7s cubic-bezier(.3, 1.6, .5, 1); }
+@keyframes carotte-bounce {
+  0% { transform: translateY(0) rotate(0); }
+  40% { transform: translateY(-8px) rotate(-12deg); }
+  70% { transform: translateY(0) rotate(8deg); }
+  100% { transform: rotate(0); }
+}
