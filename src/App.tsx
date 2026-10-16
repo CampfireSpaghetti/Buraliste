@@ -22,9 +22,28 @@ const TITLES: Record<Tab, string> = {
   reglages: 'Réglages',
 };
 
+const TAB_KEY = 'carotte:tab';
+const isTab = (x: string | null): x is Tab => TABS.some((t) => t.id === x);
+
+/** Onglet demandé par l'adresse, sinon le dernier utilisé sur ce téléphone, sinon Grattage. */
 function readHash(): Tab {
   const h = location.hash.replace('#', '');
-  return (TABS.find((t) => t.id === h)?.id ?? 'grattage') as Tab;
+  if (isTab(h)) return h;
+  try {
+    const saved = localStorage.getItem(TAB_KEY);
+    if (isTab(saved)) return saved;
+  } catch {
+    /* stockage indisponible */
+  }
+  return 'grattage';
+}
+
+function rememberTab(t: Tab) {
+  try {
+    localStorage.setItem(TAB_KEY, t);
+  } catch {
+    /* stockage indisponible */
+  }
 }
 
 function ViewLayer({ view }: { view: View }) {
@@ -43,7 +62,7 @@ function Shell() {
   const nav = useNav();
   const settings = useSettings();
   useEffect(() => {
-    const onHash = () => setTab(readHash());
+    const onHash = () => { const t = readHash(); rememberTab(t); setTab(t); };
     const onScan = () => setBounce((n) => n + 1);
     window.addEventListener('hashchange', onHash);
     window.addEventListener(SCAN_OK_EVENT, onScan);
@@ -55,6 +74,7 @@ function Shell() {
   const go = (t: Tab) => {
     if (location.hash !== '#' + t) location.hash = t;
     nav.closeAll();
+    rememberTab(t);
     setTab(t);
   };
   return (
@@ -63,7 +83,7 @@ function Shell() {
         <Carotte bounce={bounce} />
         <div>
           <h1>LA CAROTTE</h1>
-          <small>{settings?.shopName ?? ''} · {TITLES[tab]}</small>
+          <small>{settings?.shopName ?? ''}</small>
         </div>
       </header>
       <UpdateBanner />

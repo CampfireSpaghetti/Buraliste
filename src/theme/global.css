@@ -1,7 +1,7 @@
-@import '@fontsource/alfa-slab-one/400.css';
-@import '@fontsource/barlow-semi-condensed/400.css';
-@import '@fontsource/barlow-semi-condensed/600.css';
-@import '@fontsource/barlow-semi-condensed/700.css';
+@import '@fontsource/alfa-slab-one/latin-400.css';
+@import '@fontsource/barlow-semi-condensed/latin-400.css';
+@import '@fontsource/barlow-semi-condensed/latin-600.css';
+@import '@fontsource/barlow-semi-condensed/latin-700.css';
 @import './tokens.css';
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -18,7 +18,7 @@ body {
 }
 button, input, select, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; }
-:focus-visible { outline: 3px solid var(--laiton); outline-offset: 2px; }
+:focus-visible { outline: 3px solid var(--laiton-texte); outline-offset: 2px; }
 .num { font-variant-numeric: tabular-nums; }
 h1, h2, h3 { margin: 0; text-wrap: balance; }
 
@@ -49,3 +49,4 @@ h1, h2, h3 { margin: 0; text-wrap: balance; }
 }
 .app-main.tab-scanner { display: flex; flex-direction: column; }
 .btn.stock-out { border-color: var(--accent); color: var(--accent); }
+.app-main.tab-grattage { padding-bottom: 0; }

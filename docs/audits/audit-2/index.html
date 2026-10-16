@@ -1,0 +1,86 @@
+<title>Audit La Carotte</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Barlow+Semi+Condensed:wght@400;600;700&display=swap">
+<style>
+/* Layout : rapport d'audit — synthèse chiffrée, constats en tableau, puis galerie clair/sombre de l'app réelle */
+:root{--bg:#efede7;--fg:#1d2433;--muted:#5b6273;--line:#d8d2c3;--card:#fff;--accent:#8e1b1f;--ok:#2e6b3f;--sev-b:#b3261e;--sev-m:#8a5300;--sev-n:#4b5563;
+  --display:'Alfa Slab One',Georgia,serif;--body:'Barlow Semi Condensed',system-ui,sans-serif}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#12161f;--fg:#f6f4ee;--muted:#aab0bd;--line:#2c3342;--card:#1b2130;--accent:#f07478;--ok:#7fd18f;--sev-b:#ff8a80;--sev-m:#f0b45b;--sev-n:#aab0bd;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#12161f;--fg:#f6f4ee;--muted:#aab0bd;--line:#2c3342;--card:#1b2130;--accent:#f07478;--ok:#7fd18f;--sev-b:#ff8a80;--sev-m:#f0b45b;--sev-n:#aab0bd;color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:16px;line-height:1.45}
+.wrap{max-width:1200px;margin:0 auto;padding-block:28px 64px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1,h2{font-family:var(--display);font-weight:400;color:var(--accent);margin:0;text-wrap:balance}
+h1{font-size:clamp(28px,5vw,40px)} h2{font-size:25px;margin-top:40px}
+.lede{max-width:72ch;color:var(--muted);margin:8px 0 0}
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-top:20px}
+.fact{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.fact b{display:block;font-size:26px;font-variant-numeric:tabular-nums}
+.fact span{color:var(--muted);font-size:14px}
+.tablewrap{overflow-x:auto;margin-top:14px;border:1px solid var(--line);border-radius:10px;background:var(--card)}
+table{border-collapse:collapse;width:100%;min-width:720px;font-size:15px}
+th,td{padding:10px 12px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}
+th{font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.sev{font-weight:700;white-space:nowrap}.sev.b{color:var(--sev-b)}.sev.m{color:var(--sev-m)}.sev.n{color:var(--sev-n)}
+.done{color:var(--ok);font-weight:700;white-space:nowrap}
+.gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:22px;margin-top:18px}
+figure{margin:0;display:grid;gap:6px}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.pair img{width:100%;height:auto;border-radius:12px;border:1px solid var(--line);display:block}
+figcaption{font-weight:700;text-align:center}
+code{font-size:14px}
+</style>
+<div class="wrap">
+  <h1>Audit UX/UI n° 2 : l'app terminée</h1>
+  <p class="lede">Audit de la version de production de La Carotte (16/10/2026). Même grille que l'audit n° 1 : heuristiques de Nielsen et contexte du comptoir. Les captures viennent de l'app réelle, à 390 × 844 px, en mode clair et en mode sombre. Les problèmes majeurs trouvés ont été corrigés avant la livraison.</p>
+  <div class="facts">
+    <div class="fact"><b>14 / 14</b><span>exigences de l'audit n° 1 appliquées</span></div>
+    <div class="fact"><b>4</b><span>problèmes trouvés et corrigés (2 majeurs, 2 mineurs)</span></div>
+    <div class="fact"><b>Hors ligne</b><span>vérifié : l'app se recharge et fonctionne sans réseau</span></div>
+    <div class="fact"><b>0</b><span>appel réseau à un site tiers (vérifié avec le scan réel)</span></div>
+    <div class="fact"><b>≥ 4,5:1</b><span>contraste de tous les textes (seuil AA), en clair et en sombre</span></div>
+  </div>
+
+  <h2>Constats et corrections</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>#</th><th>Gravité</th><th>Constat</th><th>Correction</th><th>État</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td class="sev m">Majeur</td><td>Bandeau de sauvegarde trop serré sur l'onglet Grattage : texte sur 2 lignes et « Plus tard » coupé en deux.</td><td>Texte au-dessus, puis deux boutons pleine largeur « Sauvegarder » / « Plus tard ».</td><td class="done">Corrigé</td></tr>
+      <tr><td>2</td><td class="sev m">Majeur</td><td>Cartes de remplaçants trop hautes : 4 suggestions remplissaient l'écran et repoussaient le prix et les détails de la fiche.</td><td>Pastilles de raisons plus compactes, bouton « Épingler » de taille fixe (48 px) aligné en haut. Les 5 suggestions et le prix tiennent sur un écran.</td><td class="done">Corrigé</td></tr>
+      <tr><td>3</td><td class="sev n">Mineur</td><td>Le titre d'écran apparaissait deux fois (sous-titre de l'en-tête et titre de la page).</td><td>L'en-tête n'affiche plus que le nom du tabac.</td><td class="done">Corrigé</td></tr>
+      <tr><td>4</td><td class="sev n">Mineur</td><td>« Sauvegarde complète » passait sur 2 lignes dans Réglages.</td><td>Boutons Sauvegarde / Restaurer l'un sous l'autre, pleine largeur.</td><td class="done">Corrigé</td></tr>
+      <tr><td>5</td><td class="sev n">Mineur</td><td>La ligne Total du comptage ne restait pas collée en bas pendant le défilement.</td><td>En-tête du tableau collé en haut et total collé en bas : le total reste toujours visible.</td><td class="done">Corrigé</td></tr>
+      <tr><td>6</td><td class="sev n">Mineur</td><td>Polices chargées avec des jeux de caractères inutiles (vietnamien, latin étendu) : 8 fichiers de trop dans le cache hors ligne.</td><td>Jeu « latin » seul : cache hors ligne de 30 à 22 fichiers.</td><td class="done">Corrigé</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2>Vérifications techniques</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Point</th><th>Résultat</th></tr></thead>
+    <tbody>
+      <tr><td>Manifeste PWA</td><td>Nom, <code>display: standalone</code>, <code>start_url</code> et <code>scope</code> <code>/buraliste/</code>, icônes 192 / 512 et maskable, couleur bordeaux.</td></tr>
+      <tr><td>Cache hors ligne</td><td>22 fichiers (2,7 Mo) : app, polices, moteur de lecture des codes-barres (wasm) et liste officielle Douane.</td></tr>
+      <tr><td>Lecture réelle d'un code-barres</td><td>Flux caméra simulé avec un EAN-13 → code lu par le moteur intégré, sans aucun appel réseau extérieur.</td></tr>
+      <tr><td>Animations</td><td>Carotte qui rebondit au scan, ligne qui s'illumine, tampon « Comptage exporté ✓ ». Toutes désactivées si le téléphone demande moins d'animations (testé).</td></tr>
+      <tr><td>Accessibilité</td><td>Zones à toucher de 48 px minimum. Contraste du texte ≥ 4,5:1 en clair et en sombre (laiton réservé au décor, accent sombre <code>#f07478</code>). Champs étiquetés, focus visible.</td></tr>
+      <tr><td>Tests automatiques</td><td>Tests unitaires et de bout en bout, tous au vert (comptage complet, remplaçants, export, sauvegarde et restauration, hors ligne).</td></tr>
+      <tr><td>Lighthouse</td><td>Non lancé : l'outil n'est pas disponible dans cet environnement. Les points qu'il contrôle (manifeste, service worker, hors ligne, contrastes) ont été vérifiés à la main ci-dessus.</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2>Écrans de l'app (clair / sombre)</h2>
+  <div class="gallery">
+      <figure><div class="pair"><img src="captures/light-01-grattage.png" alt="Comptage grattage, mode clair" loading="lazy" width="390" height="844"><img src="captures/dark-01-grattage.png" alt="Comptage grattage, mode sombre" loading="lazy" width="390" height="844"></div><figcaption>Comptage grattage</figcaption></figure>
+      <figure><div class="pair"><img src="captures/light-02-pave.png" alt="Pavé numérique, mode clair" loading="lazy" width="390" height="844"><img src="captures/dark-02-pave.png" alt="Pavé numérique, mode sombre" loading="lazy" width="390" height="844"></div><figcaption>Pavé numérique</figcaption></figure>
+      <figure><div class="pair"><img src="captures/light-03-ligne.png" alt="Modifier une ligne, mode clair" loading="lazy" width="390" height="844"><img src="captures/dark-03-ligne.png" alt="Modifier une ligne, mode sombre" loading="lazy" width="390" height="844"></div><figcaption>Modifier une ligne</figcaption></figure>
+      <figure><div class="pair"><img src="captures/light-04-scan-continu-pave.png" alt="Scan continu + pavé, mode clair" loading="lazy" width="390" height="844"><img src="captures/dark-04-scan-continu-pave.png" alt="Scan continu + pavé, mode sombre" loading="lazy" width="390" height="844"></div><figcaption>Scan continu + pavé</figcaption></figure>
+      <figure><div class="pair"><img src="captures/light-05-quel-jeu.png" alt="« C'est quel jeu ? », mode clair" loading="lazy" width="390" height="844"><img src="captures/dark-05-quel-jeu.png" alt="« C'est quel jeu ? », mode sombre" loading="lazy" width="390" height="844"></div><figcaption>« C'est quel jeu ? »</figcaption></figure>
+      <figure><div class="pair"><img src="captures/light-06-export.png" alt="Aperçu de l'export, mode clair" loading="lazy" width="390" height="844"><img src="captures/dark-06-export.png" alt="Aperçu de l'export, mode sombre" loading="lazy" width="390" height="844"></div><figcaption>Aperçu de l'export</figcaption></figure>
+      <figure><div class="pair"><img src="captures/light-07-scanner.png" alt="Scanner (sans caméra), mode clair" loading="lazy" width="390" height="844"><img src="captures/dark-07-scanner.png" alt="Scanner (sans caméra), mode sombre" loading="lazy" width="390" height="844"></div><figcaption>Scanner (sans caméra)</figcaption></figure>
+      <figure><div class="pair"><img src="captures/light-08-code-inconnu.png" alt="Code inconnu, mode clair" loading="lazy" width="390" height="844"><img src="captures/dark-08-code-inconnu.png" alt="Code inconnu, mode sombre" loading="lazy" width="390" height="844"></div><figcaption>Code inconnu</figcaption></figure>
+      <figure><div class="pair"><img src="captures/light-09-catalogue-vide.png" alt="Catalogue, mode clair" loading="lazy" width="390" height="844"><img src="captures/dark-09-catalogue-vide.png" alt="Catalogue, mode sombre" loading="lazy" width="390" height="844"></div><figcaption>Catalogue</figcaption></figure>
+      <figure><div class="pair"><img src="captures/light-10-recherche.png" alt="Recherche, mode clair" loading="lazy" width="390" height="844"><img src="captures/dark-10-recherche.png" alt="Recherche, mode sombre" loading="lazy" width="390" height="844"></div><figcaption>Recherche</figcaption></figure>
+      <figure><div class="pair"><img src="captures/light-11-fiche-rupture.png" alt="Fiche en rupture, mode clair" loading="lazy" width="390" height="844"><img src="captures/dark-11-fiche-rupture.png" alt="Fiche en rupture, mode sombre" loading="lazy" width="390" height="844"></div><figcaption>Fiche en rupture</figcaption></figure>
+      <figure><div class="pair"><img src="captures/light-12-comparer.png" alt="Comparer, mode clair" loading="lazy" width="390" height="844"><img src="captures/dark-12-comparer.png" alt="Comparer, mode sombre" loading="lazy" width="390" height="844"></div><figcaption>Comparer</figcaption></figure>
+      <figure><div class="pair"><img src="captures/light-13-reglages.png" alt="Réglages, mode clair" loading="lazy" width="390" height="844"><img src="captures/dark-13-reglages.png" alt="Réglages, mode sombre" loading="lazy" width="390" height="844"></div><figcaption>Réglages</figcaption></figure>
+  </div>
+</div>
