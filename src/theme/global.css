@@ -48,3 +48,4 @@ h1, h2, h3 { margin: 0; text-wrap: balance; }
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
 .app-main.tab-scanner { display: flex; flex-direction: column; }
+.btn.stock-out { border-color: var(--accent); color: var(--accent); }

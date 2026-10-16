@@ -7,6 +7,8 @@ import { ScannerScreen } from './features/scanner/ScannerScreen';
 import { ProductSheet } from './features/catalog/ProductSheet';
 import { ProductForm } from './features/catalog/ProductForm';
 import { AttachToReference } from './features/catalog/AttachToReference';
+import { CatalogScreen } from './features/catalog/CatalogScreen';
+import { CompareView } from './features/catalog/CompareView';
 import { useSettings } from './store';
 import './ui/panel.css';
 
@@ -28,7 +30,7 @@ function ViewLayer({ view }: { view: View }) {
     case 'create': return <ProductForm initialCode={view.code} initialKind={view.kind} />;
     case 'edit': return <ProductForm id={view.id} />;
     case 'attach': return <AttachToReference code={view.code} />;
-    case 'compare': return null;
+    case 'compare': return <CompareView ids={view.ids} />;
   }
 }
 
@@ -64,6 +66,7 @@ function Shell() {
       <main className={'app-main tab-' + tab}>
         <h2 className="screen-title">{TITLES[tab]}</h2>
         {tab === 'scanner' && <ScannerScreen />}
+        {tab === 'catalogue' && <CatalogScreen />}
       </main>
       <TabBar current={tab} onChange={go} />
       {nav.stack.map((v, i) => <ViewLayer key={i} view={v} />)}

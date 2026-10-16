@@ -55,11 +55,12 @@ export function ProductForm({ id, initialCode, initialKind }: { id?: string; ini
   const isOfficial = (k: keyof ProductFields) => existing !== undefined && base[k] !== undefined;
   const overridden = (k: keyof ProductFields) => isOfficial(k) && existing!.user[k] !== undefined;
 
-  const revert = async (k: keyof ProductFields) => {
-    await actions.clearUserField(existing!.id, k);
+  // Le brouillon est remis à jour tout de suite (pas d'attente) : un « Enregistrer » enchaîné voit la valeur officielle.
+  const revert = (k: keyof ProductFields) => {
     const p = { ...existing!, user: { ...existing!.user } };
     delete p.user[k];
     setDraft(toDraft(effectiveFields(p)));
+    void actions.clearUserField(existing!.id, k);
   };
 
   const save = async () => {
@@ -81,8 +82,9 @@ export function ProductForm({ id, initialCode, initialKind }: { id?: string; ini
       if (v === undefined) continue;
       if (!same(base[k], v)) (user as Record<string, unknown>)[k] = v;
     }
-    await actions.putProduct({ ...existing, user });
+    // On ferme d'abord : l'écriture locale est immédiate et la fiche se met à jour d'elle-même.
     nav.close();
+    await actions.putProduct({ ...existing, user });
   };
 
   const officialHint = (k: keyof ProductFields) =>
