@@ -2,13 +2,15 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import './theme/global.css';
 import App from './App';
-import { requestPersistence } from './data/db';
+import { getSettings, requestPersistence } from './data/db';
+import { ensureRegistry, syncRegistryName } from './tabacs/registry';
 import { syncFdjGames, syncReferences } from './data/referencesSync';
 import { syncSharedCodes } from './data/sharingData';
 import { scheduleFlush } from './store';
 import { installTestHooks, testModeEnabled } from './testHooks';
 import { setPersisted } from './storageStatus';
 
+ensureRegistry('Mon tabac');
 const test = testModeEnabled();
 if (test) installTestHooks();
 
@@ -17,6 +19,9 @@ createRoot(document.getElementById('root')!).render(
     <App />
   </StrictMode>,
 );
+
+// Le nom du tabac dans le registre reprend le nom de la boutique (réglages).
+void getSettings().then((s) => syncRegistryName(s.shopName)).catch(() => undefined);
 
 // Démarrage en arrière-plan : l'affichage n'attend pas. En cas d'échec, l'app garde les données en place.
 void requestPersistence().then(setPersisted);

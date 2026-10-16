@@ -1,8 +1,13 @@
 import Dexie, { type Table } from 'dexie';
 import type { CountLine, Product, ProductFields, Settings } from '../domain/types';
 import type { Contribution } from '../domain/sharing';
+import type { Op } from '../sync/merge';
+import { currentTabac, dbNameFor, ensureRegistry, syncRegistryName } from '../tabacs/registry';
 
 export type OutboxItem = Contribution & { id?: number; createdAt: number };
+
+export type OpOut = { seq?: number; op: Op };
+export type SyncStateRow = { key: string; value: unknown };
 
 type SettingsRow = Settings & { key: 'main' };
 
@@ -13,8 +18,10 @@ export class CarotteDB extends Dexie {
   countLines!: Table<CountLine, string>;
   settings!: Table<SettingsRow, string>;
   outbox!: Table<OutboxItem, number>;
-  constructor() {
-    super('la-carotte');
+  opsOut!: Table<OpOut, number>;
+  syncState!: Table<SyncStateRow, string>;
+  constructor(name = 'la-carotte') {
+    super(name);
     this.version(1).stores({
       products: 'id, douaneRef, source, updatedAt',
       countLines: 'id, gameId, updatedAt',
@@ -32,10 +39,18 @@ export class CarotteDB extends Dexie {
     );
     // v3 : file d'attente des codes à partager.
     this.version(3).stores({ outbox: '++id, createdAt' });
+    // v4 : opérations à envoyer et état de la synchronisation entre téléphones.
+    this.version(4).stores({ opsOut: '++seq', syncState: 'key' });
   }
 }
 
-export const db = new CarotteDB();
+/** Ouvre la base d'un tabac (« la-carotte » pour `principal`, sinon « la-carotte-<id> »). */
+export const openTabacDb = (id: string): CarotteDB => new CarotteDB(dbNameFor(id));
+
+// Ce module est évalué avant main.tsx : le registre doit exister avant d'ouvrir la base.
+// Changer de tabac recharge la page, donc `db` reste constant pour la durée de la page.
+ensureRegistry(DEFAULT_SETTINGS.shopName);
+export const db = openTabacDb(currentTabac().id);
 
 export function newId(): string {
   return globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
@@ -51,6 +66,7 @@ export async function getSettings(): Promise<Settings> {
 export async function saveSettings(patch: Partial<Settings>): Promise<Settings> {
   const next = { ...(await getSettings()), ...patch };
   await db.settings.put({ ...next, key: 'main' });
+  if (patch.shopName !== undefined) syncRegistryName(next.shopName);
   return next;
 }
 
