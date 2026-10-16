@@ -32,9 +32,10 @@ Le partage permet aux téléphones d'un même tabac de voir les mêmes comptages
 
 2. **Créer une clé API Cloudflare.**
    1. Dans Cloudflare : icône de profil en haut à droite → **Profil** → **Jetons d'API** (*API Tokens*) → **Créer un jeton**.
-   2. En face du modèle **Modifier Cloudflare Workers** (*Edit Cloudflare Workers*), cliquer sur **Utiliser le modèle**. Ce modèle donne aussi accès à la base de données D1 : rien à ajouter.
-   3. Laisser les réglages proposés. Si une liste « Ressources de zone » demande un choix, prendre **Toutes les zones**.
-   4. **Continuer vers le résumé** → **Créer le jeton**, puis **copier** le jeton affiché : il ne sera plus jamais montré.
+   2. En face du modèle **Modifier Cloudflare Workers** (*Edit Cloudflare Workers*), cliquer sur **Utiliser le modèle**.
+   3. **Ajouter la base de données D1**, que le modèle ne contient pas : dans la partie *Autorisations* (*Permissions*), cliquer sur **+ Ajouter** (*+ Add more*), puis choisir dans les trois listes **Compte** → **D1** → **Modifier** (*Account* → *D1* → *Edit*).
+   4. Laisser les autres réglages proposés. Si une liste « Ressources de zone » demande un choix, prendre **Toutes les zones**.
+   5. **Continuer vers le résumé** → **Créer le jeton**, puis **copier** le jeton affiché : il ne sera plus jamais montré.
 
 3. **Coller les secrets dans GitHub.**
    1. Retrouver l'**identifiant du compte Cloudflare** : c'est la longue suite de 32 lettres et chiffres qui apparaît dans l'adresse de la page juste après `dash.cloudflare.com/` (elle est aussi affichée sur la page **Workers et Pages**, à droite, sous « ID du compte »).

@@ -25,6 +25,8 @@ jobs:
     # seulement si les secrets Cloudflare sont présents. L'adresse obtenue est transmise à la construction de l'app.
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
       url: ${{ steps.deploy.outputs.url }}
     env:
@@ -47,6 +49,7 @@ jobs:
         if: steps.check.outputs.enabled == 'true'
         with:
           ref: ${{ github.event_name == 'push' && github.sha || 'main' }}
+          persist-credentials: false
       - uses: actions/setup-node@v4
         if: steps.check.outputs.enabled == 'true'
         with:
@@ -65,20 +68,33 @@ jobs:
           CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           OWNER: ${{ github.repository_owner }}
         run: |
-          # Un compte Cloudflare neuf n'a pas encore d'adresse workers.dev : on en réserve une (wrangler ne le fait pas en CI).
+          # Un compte Cloudflare neuf n'a pas encore d'adresse workers.dev (erreur 10007) : on en réserve une, comme wrangler
+          # le propose hors CI. Toute autre erreur arrête le job : on ne touche jamais à une adresse existante.
           api="https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT/workers/subdomain"
-          read_sub() { node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{process.stdout.write(JSON.parse(s).result?.subdomain||"")}catch{}})'; }
-          sub=$(curl -sS -H "Authorization: Bearer $CF_TOKEN" "$api" | read_sub)
-          if [ -z "$sub" ]; then
-            base="la-carotte-$(printf '%s' "$OWNER" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9-' '-')"
-            for name in "$base" "$base-$(openssl rand -hex 3)"; do
-              sub=$(curl -sS -X PUT -H "Authorization: Bearer $CF_TOKEN" -H "Content-Type: application/json" \
-                --data "{\"subdomain\":\"$name\"}" "$api" | read_sub)
-              if [ -n "$sub" ]; then break; fi
-            done
-          fi
-          if [ -z "$sub" ]; then
-            echo "::error::Impossible d'obtenir l'adresse workers.dev du compte Cloudflare (vérifier la clé CLOUDFLARE_API_TOKEN)."
+          # Réponse de l'API → « ok <adresse> » ou « err <code d'erreur> ».
+          read_cf() { node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const j=JSON.parse(s);console.log(j.success&&j.result?.subdomain?"ok "+j.result.subdomain:"err "+(j.errors?.[0]?.code??"inconnue"))}catch{console.log("err illisible")}})'; }
+          res=$(curl -sS --retry 3 -H "Authorization: Bearer $CF_TOKEN" "$api" | read_cf)
+          case "$res" in
+            "ok "*) sub="${res#ok }" ;;
+            "err 10007")
+              base="la-carotte-$(printf '%s' "$OWNER" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9-' '-')"
+              sub=""
+              for name in "$base" "$base-$(openssl rand -hex 3)"; do
+                put=$(curl -sS --retry 3 -X PUT -H "Authorization: Bearer $CF_TOKEN" -H "Content-Type: application/json" \
+                  --data "{\"subdomain\":\"$name\"}" "$api" | read_cf)
+                case "$put" in
+                  "ok "*) sub="${put#ok }"; break ;;
+                  *) echo "::warning::Adresse $name.workers.dev refusée ($put)." ;;
+                esac
+              done
+              ;;
+            *)
+              echo "::error::Lecture de l'adresse workers.dev impossible ($res) : vérifier la clé CLOUDFLARE_API_TOKEN et l'état de Cloudflare."
+              exit 1
+              ;;
+          esac
+          if ! [[ "$sub" =~ ^[a-z0-9-]+$ ]]; then
+            echo "::error::Impossible de réserver une adresse workers.dev pour le compte Cloudflare."
             exit 1
           fi
           echo "subdomain=$sub" >> "$GITHUB_OUTPUT"
@@ -142,7 +158,8 @@ jobs:
     runs-on: ubuntu-latest
     # Pour un message (issue), seulement ceux des téléphones jumelés : titre « [codes-barres] » et compte du propriétaire.
     # Le job relay est ignoré hors publication (issue, planification) : la construction a lieu quand même.
-    if: always() && (needs.relay.result == 'success' || needs.relay.result == 'skipped') && (github.event_name != 'issues' || (startsWith(github.event.issue.title, '[codes-barres]') && github.event.issue.user.login == github.repository_owner))
+    # Si le relais échoue (job relay en rouge), l'app est publiée quand même avec l'adresse de secours ci-dessous.
+    if: ${{ !cancelled() && (github.event_name != 'issues' || (startsWith(github.event.issue.title, '[codes-barres]') && github.event.issue.user.login == github.repository_owner)) }}
     environment:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
@@ -198,9 +215,15 @@ jobs:
           url="$FROM_JOB"
           if [ -z "$url" ]; then url="$FROM_VAR"; fi
           if [ -z "$url" ] && [ -n "$CF_TOKEN" ] && [ -n "$CF_ACCOUNT" ]; then
-            sub=$(curl -sS -H "Authorization: Bearer $CF_TOKEN" "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT/workers/subdomain" |
+            sub=$(curl -fsS --retry 3 --retry-all-errors -H "Authorization: Bearer $CF_TOKEN" "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT/workers/subdomain" |
               node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{process.stdout.write(JSON.parse(s).result?.subdomain||"")}catch{}})' || true)
-            if [ -n "$sub" ]; then url="https://la-carotte-relais.$sub.workers.dev"; fi
+            if [[ "$sub" =~ ^[a-z0-9-]+$ ]]; then
+              url="https://la-carotte-relais.$sub.workers.dev"
+            else
+              msg="Relais configuré mais adresse introuvable (Cloudflare injoignable ?) : cette version de l'app est publiée SANS partage entre téléphones. Relancer le workflow « Déploiement », ou renseigner la variable RELAY_URL."
+              echo "::warning::$msg"
+              echo "### Attention : $msg" >> "$GITHUB_STEP_SUMMARY"
+            fi
           fi
           url="${url%/}"
           if [ -n "$url" ] && ! [[ "$url" =~ ^https://[A-Za-z0-9.-]+(:[0-9]+)?(/[A-Za-z0-9._~/-]*)?$ ]]; then
@@ -208,7 +231,11 @@ jobs:
             url=""
           fi
           echo "VITE_RELAY_URL=$url" >> "$GITHUB_ENV"
-          if [ -n "$url" ]; then echo "Relais : $url"; else echo "Relais non configuré : le partage entre téléphones affichera « Bientôt disponible »."; fi
+          if [ -n "$url" ]; then
+            echo "Relais : $url"
+          elif [ -z "$CF_TOKEN" ] || [ -z "$CF_ACCOUNT" ]; then
+            echo "Relais non configuré : le partage entre téléphones affichera « Bientôt disponible »."
+          fi
       - run: npm run build
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

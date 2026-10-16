@@ -48,7 +48,10 @@ export function createD1Store(db: D1Database): Store {
           )
           .bind(canal, now, JSON.stringify(msgs.map(({ iv, data }) => ({ iv, data })))),
         db
-          .prepare('UPDATE canaux SET dernier = (SELECT MAX(n) FROM messages WHERE canal = ?1) WHERE canal = ?1 RETURNING dernier')
+          .prepare(
+            `UPDATE canaux SET dernier = MAX(dernier, COALESCE((SELECT MAX(n) FROM messages WHERE canal = ?1), dernier))
+             WHERE canal = ?1 RETURNING dernier`,
+          )
           .bind(canal),
       ]);
       const row = updated.results[0];

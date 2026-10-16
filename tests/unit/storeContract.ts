@@ -52,6 +52,10 @@ export function storeContract(name: string, makeStore: () => Store | Promise<Sto
       expect(await s.lastN('c1')).toBe(a2);
       expect(await s.lastN('c2')).toBe(b1);
       expect(a2).toBeGreaterThan(a1);
+      // Un seul compteur pour tous les canaux : aucun numéro n'est partagé entre deux canaux.
+      expect(new Set([a1, b1, a2]).size).toBe(3);
+      expect(b1).toBeGreaterThan(a1);
+      expect(a2).toBeGreaterThan(b1);
     });
 
     it('listMessages respecte « après » et « max »', async () => {

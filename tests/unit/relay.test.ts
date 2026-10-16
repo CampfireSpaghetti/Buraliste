@@ -99,6 +99,22 @@ describe('relais : messages', () => {
     expect(r.status).toBe(413);
   });
 
+  it('deux canaux entrelacés : numéros communs, donc des trous dans chaque canal (comme D1)', async () => {
+    const { env } = makeEnv();
+    expect(await (await post(env, 'c1', 'w1', [{ iv: 'a', data: '1' }, { iv: 'b', data: '2' }])).json()).toEqual({ dernier: 2 });
+    expect(await (await post(env, 'c2', 'w2', [{ iv: 'c', data: '3' }])).json()).toEqual({ dernier: 3 });
+    expect(await (await post(env, 'c1', 'w1', [{ iv: 'd', data: '4' }])).json()).toEqual({ dernier: 4 });
+    const j1 = (await (await call(env, 'GET', '/v1/canaux/c1/messages?apres=0')).json()) as { messages: { n: number }[]; dernier: number };
+    expect(j1.messages.map((m) => m.n)).toEqual([1, 2, 4]);
+    expect(j1.dernier).toBe(4);
+    // reprise après le numéro 2 : le trou (3, autre canal) est sauté sans rien perdre
+    const after = (await (await call(env, 'GET', '/v1/canaux/c1/messages?apres=2')).json()) as { messages: { n: number }[] };
+    expect(after.messages.map((m) => m.n)).toEqual([4]);
+    const j2 = (await (await call(env, 'GET', '/v1/canaux/c2/messages?apres=0')).json()) as { messages: { n: number }[]; dernier: number };
+    expect(j2.messages.map((m) => m.n)).toEqual([3]);
+    expect(j2.dernier).toBe(3);
+  });
+
   it('premier envoi simultané : celui qui perd la création est comparé à l’empreinte enregistrée', async () => {
     // getChannel répond « inconnu » (lu avant l'insertion concurrente), createChannel répond false.
     const base = createMemoryStore();

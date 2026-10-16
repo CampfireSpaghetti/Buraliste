@@ -8,9 +8,14 @@ type Canal = {
   photo: { jusqua: number; iv: string; data: string; recu: number } | null;
 };
 
-/** Store en mémoire : sert de faux relais dans les tests et de référence pour le Store D1. */
+/**
+ * Store en mémoire : sert de faux relais dans les tests et de référence pour le Store D1.
+ * Comme l'AUTOINCREMENT de D1, un seul compteur numérote les messages de tous les canaux :
+ * les numéros croissent dans chaque canal, avec des trous.
+ */
 export function createMemoryStore(): Store {
   const canaux = new Map<string, Canal>();
+  let compteur = 0;
   return {
     async getChannel(canal) {
       const c = canaux.get(canal);
@@ -24,7 +29,7 @@ export function createMemoryStore(): Store {
     async appendMessages(canal, msgs, now) {
       const c = canaux.get(canal);
       if (!c) throw new Error('canal inconnu');
-      for (const m of msgs) c.messages.push({ n: ++c.dernier, iv: m.iv, data: m.data, recu: now });
+      for (const m of msgs) c.messages.push({ n: (c.dernier = ++compteur), iv: m.iv, data: m.data, recu: now });
       return c.dernier;
     },
     async listMessages(canal, after, max) {

@@ -16,7 +16,7 @@ describe('Store D1', () => {
     expect(() => db.exec(schema)).not.toThrow();
   });
 
-  it('200 messages en un envoi, en une seule requête SQL', async () => {
+  it('200 messages en un envoi, en au plus deux requêtes SQL (une transaction)', async () => {
     const { d1 } = createFakeD1();
     let queries = 0;
     const counting = {
