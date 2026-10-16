@@ -340,3 +340,23 @@ Une barre d'onglets en bas de l'écran, avec des zones à toucher de 48 px minim
 - Gestion de stock tabac et statistiques de ventes.
 - Version .apk Android (la même app pourra être emballée plus tard, gratuitement).
 - Comptes utilisateurs et vente de l'app à d'autres buralistes.
+
+## 15. Évolutions validées le 16/10/2026 (après la V1)
+
+- **Comptage : quantité linéaire et quantité stock.**
+  - La colonne Quantité est remplacée par deux colonnes, **Linéaire** (au présentoir) et **Stock** (en réserve), toutes deux en tickets.
+  - Il n'y a pas de colonne Total : seuls les totaux Linéaire et Stock figurent en bas du tableau et de l'export.
+  - Au scan, le pavé demande le linéaire, puis le stock. Chaque validation est enregistrée.
+  - Toucher une quantité ouvre le pavé pour cette seule quantité.
+  - Migration : l'ancienne quantité devient le linéaire, le stock part de 0. Concerne la base (v2) et les sauvegardes (schéma 2) ; les sauvegardes de schéma 1 restent lisibles.
+- **Liste des jeux FDJ mise à jour chaque semaine.**
+  - Le robot du lundi lit la page des jeux de fdj.fr (`npm run fdj:update`), qui n'est pas une API officielle.
+  - Il garde les jeux de grattage vendus en point de vente et écrit `public/data/fdj-games.json`.
+  - L'app fusionne ces jeux comme la liste Douane :
+    - produits `source:'fdj'` ;
+    - seule `base` est remplacée et la couche `user` est conservée ;
+    - un jeu absent passe en « retiré » ;
+    - les jeux de l'ancienne liste de départ sont repris par leur nom, avec le même id.
+  - Le type de jeu est déduit : « gros lot » à partir de 5 € avec un gain d'au moins 500 000 €, sinon « classique ».
+  - Si une source ne peut pas être lue, le robot déploie quand même ce qui a réussi, puis termine en échec visible.
+- **Hébergement** : le dépôt s'appelle `Buraliste`, donc l'app est servie sous `/Buraliste/`.

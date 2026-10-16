@@ -33,6 +33,7 @@ export function ProductSheet({ id }: { id: string }) {
         <span className="chip">{KIND_LABELS[f.kind]}</span>
         {state === 'bientot' && f.effectiveDate && <span className="pill">En vente au {formatIsoDateFr(f.effectiveDate)}</span>}
         {state === 'retire' && <span className="pill alert">Retiré de la liste officielle</span>}
+        {f.isNew && state !== 'retire' && <span className="pill">Nouveau jeu</span>}
       </div>
       <div className="row">
         <button type="button" className={'btn' + (product.outOfStock ? ' stock-out' : '')} aria-pressed={product.outOfStock}

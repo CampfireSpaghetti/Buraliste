@@ -7,7 +7,7 @@ test.skip(!process.env.AUDIT, 'captures d’audit à la demande');
 
 const refs = JSON.parse(readFileSync('public/data/references.json', 'utf8'));
 const depart = JSON.parse(readFileSync('src/data/seed/depart.json', 'utf8')).items as { ref: string }[];
-const fdj = JSON.parse(readFileSync('src/data/seed/fdj.json', 'utf8')).items;
+const fdj = JSON.parse(readFileSync('public/data/fdj-games.json', 'utf8')).items.map((g: any) => ({ name: g.name, ticketPrice: g.ticketPrice, maxPrize: g.maxPrize }));
 const pick = new Set(depart.map((d) => d.ref));
 const enriched = new Map(JSON.parse(readFileSync('src/data/seed/depart.json', 'utf8')).items.map((d: any) => [d.ref, d]));
 const products = [
@@ -16,7 +16,7 @@ const products = [
     return { id: 'r' + n, source: 'douane', douaneRef: i.ref, outOfStock: false, pinnedSubstitutes: [], updatedAt: 0,
       base: { kind: i.kind, name: i.name, brand: i.brand, format: i.format, price: i.price, previousPrice: i.previousPrice, status: i.status, effectiveDate: refs.effectiveDate, origin: d.origin, strength: d.strength, tasteTags: d.tasteTags }, user: {} };
   }),
-  ...fdj.map((g: any, n: number) => ({ id: 'g' + n, source: 'depart', outOfStock: false, pinnedSubstitutes: [], updatedAt: 0, base: { kind: 'jeu-fdj', ...g, ...(n === 24 ? { fdjPrefix: '0417' } : {}) }, user: {} })),
+  ...fdj.map((g: any, n: number) => ({ id: 'g' + n, source: 'depart', outOfStock: false, pinnedSubstitutes: [], updatedAt: 0, base: { kind: 'jeu-fdj', ...g, ...(g.name === 'CASH' ? { fdjPrefix: '0417' } : {}) }, user: {} })),
 ];
 const now = Date.now();
 const countLines = fdj.slice(0, 30).map((g: any, n: number) => ({ id: 'l' + n, gameId: 'g' + n, code: '0417' + String(1000000000 + n * 7919).slice(0, 10), name: g.name, linearQty: (n * 13) % 70, stockQty: ((n * 37) % 9) * 30, updatedAt: now - n * 97_000 }));
@@ -36,10 +36,10 @@ for (const scheme of ['light', 'dark'] as const) {
     await seed(page, { products, countLines, settings: { shopName: 'Tabac du Centre', lastBackupAt: now - 9 * 86_400_000, referencesEffectiveDate: refs.effectiveDate, referencesVersion: refs.version } });
     const s = (n: string) => shot(page, `${scheme}-${n}`);
     await s('01-grattage');
-    await page.getByRole('button', { name: /^Linéaire Cash/ }).click();
+    await page.getByRole('button', { name: /^Linéaire CASH/ }).click();
     await s('02-pave');
     await page.getByRole('button', { name: 'Annuler' }).click();
-    await page.getByRole('button', { name: 'Cash', exact: true }).click();
+    await page.getByRole('button', { name: 'CASH', exact: true }).click();
     await s('03-ligne');
     await page.keyboard.press('Escape');
     await page.locator('.sheet-scrim').click({ position: { x: 10, y: 10 } });

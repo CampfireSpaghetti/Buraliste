@@ -26,7 +26,7 @@ function validLine(l: unknown): boolean {
 
 function validProduct(p: unknown): boolean {
   return isObj(p) && typeof p.id === 'string' && isObj(p.base) && isObj(p.user) && Array.isArray(p.pinnedSubstitutes)
-    && ['douane', 'depart', 'utilisateur'].includes(p.source as string);
+    && ['douane', 'fdj', 'depart', 'utilisateur'].includes(p.source as string);
 }
 
 export function parseBackup(text: string): { ok: true; data: BackupFile } | { ok: false; error: string } {

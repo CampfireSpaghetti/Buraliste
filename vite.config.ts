@@ -4,7 +4,7 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
-  base: '/buraliste/',
+  base: '/Buraliste/',
   plugins: [
     react(),
     VitePWA({
@@ -17,8 +17,8 @@ export default defineConfig({
         lang: 'fr',
         display: 'standalone',
         orientation: 'portrait',
-        start_url: '/buraliste/',
-        scope: '/buraliste/',
+        start_url: '/Buraliste/',
+        scope: '/Buraliste/',
         theme_color: '#8e1b1f',
         background_color: '#f6f4ee',
         icons: [

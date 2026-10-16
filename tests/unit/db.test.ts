@@ -3,7 +3,8 @@ import Dexie from 'dexie';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { db, listProducts, patchUserFields, upsertCountLine, deleteCountLine, restoreCountLine, listCountLines, getSettings, saveSettings } from '../../src/data/db';
-import { syncReferences, seedFdj } from '../../src/data/referencesSync';
+import { syncReferences, syncFdjGames } from '../../src/data/referencesSync';
+import type { FdjGamesFile } from '../../src/domain/fdj';
 import type { ReferenceFile } from '../../src/domain/catalog';
 import depart from '../../src/data/seed/depart.json';
 
@@ -81,12 +82,22 @@ describe('données de départ', () => {
     if (missing.length) console.warn(`depart.json : ${missing.length} référence(s) absente(s) de la liste officielle :`, missing);
     expect(missing.length).toBeLessThanOrEqual(Math.floor(depart.items.length / 4));
   });
-  it('seedFdj est idempotent', async () => {
-    await seedFdj();
-    const n = (await listProducts()).length;
-    expect(n).toBeGreaterThan(20);
-    await seedFdj();
-    expect(await listProducts()).toHaveLength(n);
-    expect((await listProducts()).every((p) => p.base.kind === 'jeu-fdj' && p.source === 'depart')).toBe(true);
+  it('syncFdjGames importe la liste FDJ, puis ne refait rien pour la même version', async () => {
+    const fdj: FdjGamesFile = { version: 'f1', fetchedAt: '2026-10-16', source: 't', items: [
+      { ref: 'fdj|ITGC9K', fdjId: 'ITGC9K', name: 'CASH', ticketPrice: 5, maxPrize: 500000, isNew: false },
+      { ref: 'fdj|ITGBUT', fdjId: 'ITGBUT', name: 'Goal', ticketPrice: 1, maxPrize: 4000, isNew: true },
+    ] };
+    const fetchFdj = (async () => new Response(JSON.stringify(fdj))) as unknown as typeof fetch;
+    expect(await syncFdjGames(fetchFdj)).toEqual({ updated: true, version: 'f1' });
+    const games = await listProducts();
+    expect(games.map((p) => p.base.name).sort()).toEqual(['CASH', 'Goal']);
+    expect(games.every((p) => p.source === 'fdj' && p.base.kind === 'jeu-fdj')).toBe(true);
+    expect(await syncFdjGames(fetchFdj)).toEqual({ updated: false, version: 'f1' });
+    expect((await getSettings()).fdjVersion).toBe('f1');
+  });
+  it('le fichier fdj-games.json publié contient au moins 15 jeux en point de vente', () => {
+    const f = JSON.parse(readFileSync('public/data/fdj-games.json', 'utf8')) as FdjGamesFile;
+    expect(f.items.length).toBeGreaterThanOrEqual(15);
+    expect(f.items.every((i) => i.ref.startsWith('fdj|ITG') && i.ticketPrice > 0)).toBe(true);
   });
 });

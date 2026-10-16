@@ -30,18 +30,24 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Mise à jour de la liste officielle Douane
+        id: refs
         if: github.event_name != 'push'
+        continue-on-error: true
         run: npm run refs:update
+      - name: Mise à jour de la liste des jeux FDJ
+        id: fdj
+        if: github.event_name != 'push'
+        continue-on-error: true
+        run: npm run fdj:update
       - run: npm test
-      - name: Publication de la nouvelle liste (après les tests)
+      - name: Publication des listes mises à jour (après les tests)
         if: github.event_name != 'push'
         run: |
-          if ! git diff --quiet -- public/data/references.json; then
-            DATE=$(node -e "console.log(require('./public/data/references.json').effectiveDate)")
+          if ! git diff --quiet -- public/data; then
             git config user.name "la-carotte-bot"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add public/data/references.json
-            git commit -m "chore: liste Douane $DATE"
+            git add public/data
+            git commit -m "chore: listes Douane et FDJ du $(date +%Y-%m-%d)"
             git push
           fi
       - run: npm run build
@@ -51,3 +57,8 @@ jobs:
           path: dist
       - id: deploy
         uses: actions/deploy-pages@v4
+      - name: Signaler une source qui n'a pas pu être lue
+        if: steps.refs.outcome == 'failure' || steps.fdj.outcome == 'failure'
+        run: |
+          echo "::error::Liste Douane : ${{ steps.refs.outcome }} · Liste FDJ : ${{ steps.fdj.outcome }}. L'app garde la dernière liste connue."
+          exit 1

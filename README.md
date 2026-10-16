@@ -10,17 +10,17 @@ C'est une application web installable (PWA) : gratuite, sans App Store ni Play S
 
 ## Installer l'app
 
-Adresse : **https://wongmichel2048.github.io/buraliste/**
+Adresse : **https://wongmichel2048.github.io/Buraliste/**
 
 - **iPhone (Safari)** : ouvrir l'adresse → bouton Partager → « Sur l'écran d'accueil ».
 - **Android (Chrome)** : ouvrir l'adresse → menu ⋮ → « Installer l'application ».
 
 ## Mise en ligne (à faire une fois par le propriétaire du dépôt)
 
-1. GitHub → Settings → General → *Danger Zone* → **Change visibility → Public**. Le code devient visible, mais aucune donnée du tabac n'est dans le dépôt.
+1. GitHub → Settings → General → *Danger Zone* → **Change visibility → Public**. Le code devient visible, mais aucune donnée du tabac n’est dans le dépôt.
 2. GitHub → Settings → **Pages** → *Source* : **GitHub Actions**.
 
-Ensuite, chaque modification fusionnée dans `main` est publiée automatiquement, et la liste officielle des tabacs (Douane) est mise à jour chaque lundi.
+Ensuite, chaque modification fusionnée dans `main` est publiée automatiquement, et les listes officielles (tabacs Douane et jeux de grattage FDJ) sont mises à jour chaque lundi.
 
 ## Liste de contrôle du premier test au comptoir
 
@@ -38,6 +38,7 @@ npm run dev        # serveur local
 npm test           # tests unitaires (Vitest)
 npm run e2e        # tests de bout en bout (Playwright)
 npm run refs:update  # récupère la dernière liste officielle Douane
+npm run fdj:update   # récupère la gamme des jeux de grattage (fdj.fr)
 ```
 
 Conception : `docs/superpowers/specs/2026-10-16-la-carotte-design.md` · Plan : `docs/superpowers/plans/2026-10-16-la-carotte.md`

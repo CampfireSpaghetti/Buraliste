@@ -21,6 +21,7 @@ export function SettingsScreen() {
   useEffect(() => { if (settings && name === null) setName(settings.shopName); }, [settings, name]);
   if (!settings) return null;
   const official = (products ?? []).filter((p) => p.source === 'douane').length;
+  const fdjGames = (products ?? []).filter((p) => p.source === 'fdj' && p.base.status !== 'retrait').length;
 
   const saveName = () => { if (name !== null && name.trim() && name.trim() !== settings.shopName) void actions.saveSettings({ shopName: name.trim() }); };
 
@@ -69,6 +70,11 @@ export function SettingsScreen() {
       <span className="label">Liste officielle des tabacs</span>
       <p className="muted hint">
         Douane{settings.referencesEffectiveDate ? ` · En vigueur au ${formatIsoDateFr(settings.referencesEffectiveDate)}` : ''} · {official.toLocaleString('fr-FR')} références · mise à jour automatique chaque semaine
+      </p>
+
+      <span className="label">Jeux de grattage FDJ</span>
+      <p className="muted hint">
+        Gamme en point de vente (fdj.fr){settings.fdjFetchedAt ? ` · liste du ${formatIsoDateFr(settings.fdjFetchedAt)}` : ''} · {fdjGames} jeux · mise à jour automatique chaque semaine
       </p>
 
       <button type="button" className="btn" onClick={() => setInstall(true)}>Installer sur mon téléphone</button>

@@ -20,7 +20,7 @@ export function installTestHooks() {
       await Promise.all([db.products.clear(), db.countLines.clear(), db.settings.clear()]);
       await db.products.bulkPut(data.products ?? []);
       await db.countLines.bulkPut(data.countLines ?? []);
-      await db.settings.put({ shopName: 'Mon tabac', sortCount: 'name', fdjSeeded: true, ...data.settings, key: 'main' });
+      await db.settings.put({ shopName: 'Mon tabac', sortCount: 'name', ...data.settings, key: 'main' });
     });
     notifyDataChanged();
   };

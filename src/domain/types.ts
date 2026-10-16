@@ -27,13 +27,15 @@ export interface ProductFields {
   ticketPrice?: number;
   maxPrize?: number;
   gameType?: string;
+  isNew?: boolean; // jeu FDJ signalé « nouveau » par la FDJ
   notes?: string;
 }
 
 export interface Product {
   id: string;
-  source: 'douane' | 'depart' | 'utilisateur';
-  douaneRef?: string;
+  source: 'douane' | 'fdj' | 'depart' | 'utilisateur';
+  douaneRef?: string;           // clé de la ligne Douane (tabac)
+  fdjRef?: string;              // clé du jeu dans la liste FDJ (« fdj|ITGC9K »)
   base: Partial<ProductFields>;
   user: Partial<ProductFields>;
   outOfStock: boolean;
@@ -57,7 +59,8 @@ export interface Settings {
   referencesVersion?: string;
   referencesEffectiveDate?: string;
   sortCount: 'name' | 'updatedAt';
-  fdjSeeded?: boolean;
+  fdjVersion?: string;
+  fdjFetchedAt?: string;
 }
 
 export const TASTES = ['doux', 'léger', 'équilibré', 'corsé', 'intense', 'boisé', 'épicé', 'terreux', 'vanillé', 'fruité', 'crémeux', 'torréfié', 'herbacé'] as const;
