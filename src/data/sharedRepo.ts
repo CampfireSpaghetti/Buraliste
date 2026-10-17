@@ -12,6 +12,7 @@ import { applyFields, diffFields, withoutClock, type Clocked, type Op } from '..
 import { observe, tick } from '../sync/clock';
 import { relayUrl } from '../sync/relayConfig';
 import { syncRegistryName } from '../tabacs/registry';
+import { gameKey } from '../domain/productId';
 // Import circulaire voulu : db.ts appelle writeShared, et ce module utilise `db` ; des deux côtés, seulement
 // dans des fonctions (jamais à l'évaluation du module), donc l'ordre de chargement est sans effet.
 import { db, dbTabacId, DEFAULT_SETTINGS, type CarotteDB } from './db';
@@ -192,17 +193,18 @@ function wellFormed(op: unknown): op is Op {
     && !!o.f && typeof o.f === 'object' && !Array.isArray(o.f);
 }
 
-/** Id d'un jeu de l'ancienne liste de départ et id du même jeu repris par la liste FDJ (et inversement). */
-function counterpart(id: string): string | undefined {
-  if (id.startsWith('depart:')) return 'f:' + id.slice('depart:'.length);
-  if (id.startsWith('f:')) return 'depart:' + id.slice('f:'.length);
-  return undefined;
-}
+const DEPART = 'depart:';
+const FDJ = 'f:';
 
 /**
- * Un jeu de départ (`depart:<clé>`) passe à `f:<clé>` quand la liste FDJ le reprend, pas forcément au même moment sur
- * tous les téléphones. Une opération qui vise l'un des deux ids, absent ici alors que l'autre existe, est réécrite vers
- * la fiche présente : id du produit, ligne `game:<id>` et son `gameId`, remplaçants, jeux enlevés.
+ * Un jeu de l'ancienne liste de départ (`depart:<nom comparable>`) devient `f:<référence FDJ>` (par exemple
+ * `f:fdj|ITGC9K`) quand la liste FDJ le reprend, pas forcément au même moment sur tous les téléphones. Les deux ids ne
+ * se déduisent pas l'un de l'autre : seul le nom du jeu les relie (gameKey). Une opération qui vise l'un des deux,
+ * absent ici, est réécrite vers la fiche présente : id du produit, ligne `game:<id>` et son `gameId`, remplaçants,
+ * jeux enlevés.
+ * - `depart:<clé>` absent : le jeu FDJ d'ici dont le nom donne la même clé ;
+ * - `f:<référence>` absent : `depart:<clé du nom>` si l'opération donne le nom du jeu (ligne de comptage : `name`).
+ *   Sans nom, l'opération attend la liste FDJ (opérations en attente).
  */
 function idResolver(d: CarotteDB) {
   const known = new Map<string, boolean>();
@@ -210,24 +212,42 @@ function idResolver(d: CarotteDB) {
     if (!known.has(id)) known.set(id, (await d.products.get(id)) !== undefined);
     return known.get(id)!;
   };
-  const product = async (id: unknown): Promise<unknown> => {
-    if (typeof id !== 'string') return id;
-    const alt = counterpart(id);
-    return alt && !(await exists(id)) && (await exists(alt)) ? alt : id;
+  let fdjByKey: Promise<Map<string, string>> | undefined;
+  const fdjGame = async (key: string): Promise<string | undefined> => {
+    fdjByKey ??= d.products.where('source').equals('fdj').toArray().then((list) => {
+      const m = new Map<string, string>();
+      for (const p of list) {
+        const name = (p.base as { name?: unknown } | undefined)?.name;
+        const k = typeof name === 'string' ? gameKey(name) : '';
+        if (k && !m.has(k)) m.set(k, p.id);
+      }
+      return m;
+    });
+    return (await fdjByKey).get(key);
+  };
+  const product = async (id: unknown, name?: unknown): Promise<unknown> => {
+    if (typeof id !== 'string' || (await exists(id))) return id;
+    if (id.startsWith(DEPART)) return (await fdjGame(id.slice(DEPART.length))) ?? id;
+    if (id.startsWith(FDJ) && typeof name === 'string' && gameKey(name)) {
+      const alt = DEPART + gameKey(name);
+      if (await exists(alt)) return alt;
+    }
+    return id;
   };
   const list = async (v: unknown): Promise<unknown> =>
-    Array.isArray(v) ? [...new Set(await Promise.all(v.map(product)))] : v;
+    Array.isArray(v) ? [...new Set(await Promise.all(v.map((x) => product(x))))] : v;
   return async (op: Op): Promise<Op> => {
     if (op.e === 'settings') return Array.isArray(op.f.hiddenGames) ? { ...op, f: { ...op.f, hiddenGames: await list(op.f.hiddenGames) } } : op;
     if (op.e === 'product') {
       const f = Array.isArray(op.f.pinnedSubstitutes) ? { ...op.f, pinnedSubstitutes: await list(op.f.pinnedSubstitutes) } : op.f;
-      return { ...op, id: (await product(op.id)) as string, f };
+      return { ...op, id: (await product(op.id, op.f['user.name'])) as string, f };
     }
     let id = op.id;
+    const name = op.f.name;
     if (id.startsWith('game:') && (await d.countLines.get(id)) === undefined) {
-      id = 'game:' + ((await product(id.slice('game:'.length))) as string);
+      id = 'game:' + ((await product(id.slice('game:'.length), name)) as string);
     }
-    return 'gameId' in op.f ? { ...op, id, f: { ...op.f, gameId: await product(op.f.gameId) } } : { ...op, id };
+    return 'gameId' in op.f ? { ...op, id, f: { ...op.f, gameId: await product(op.f.gameId, name) } } : { ...op, id };
   };
 }
 

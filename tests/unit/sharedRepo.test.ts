@@ -457,50 +457,52 @@ describe('types des valeurs reçues', () => {
   });
 });
 
-describe('applyRemoteOps : jeu de départ repris par la liste FDJ (depart:<clé> ↔ f:<clé>)', () => {
-  const fdjGame = (id: string, over: Partial<Product> = {}) =>
-    product({ id, source: id.startsWith('f:') ? 'fdj' : 'depart', douaneRef: undefined, fdjRef: id.startsWith('f:') ? id.slice(2) : undefined, base: { kind: 'jeu-fdj', name: 'Cash' }, ...over });
+describe('applyRemoteOps : jeu de départ repris par la liste FDJ (depart:<nom comparable> ↔ f:<référence FDJ>)', () => {
+  // Ids réels : un jeu de la liste FDJ a l'id « f:fdj|<code> » ; le même jeu de l'ancienne liste de départ,
+  // « depart:<nom comparable> » (gameKey du nom). Ils ne se déduisent pas l'un de l'autre : seul le nom les relie.
+  const fdjGame = (fdjRef: string, name: string, over: Partial<Product> = {}) =>
+    product({ id: 'f:' + fdjRef, source: 'fdj', douaneRef: undefined, fdjRef, base: { kind: 'jeu-fdj', name }, ...over });
+  const departGame = (name: string, over: Partial<Product> = {}) =>
+    product({ id: 'depart:' + name.toLowerCase().replace(/[^a-z0-9]/g, ''), source: 'depart', douaneRef: undefined, base: { kind: 'jeu-fdj', name }, ...over });
   const t = () => hlcAt(Date.now() + 1000);
 
-  it('une opération produit visant depart:<clé> absent ici s’applique à f:<clé>, et inversement', async () => {
-    await db.products.put(fdjGame('f:cash'));
-    await db.products.put(fdjGame('depart:goal'));
+  it('une opération produit visant depart:<clé> absent ici s’applique au jeu FDJ du même nom (f:fdj|<code>)', async () => {
+    await db.products.put(fdjGame('fdj|ITGC9K', 'CASH'));
+    await db.products.put(fdjGame('fdj|GOAL01', 'Goal !'));
     expect(await applyRemoteOps([
-      { e: 'product', id: 'depart:cash', f: { outOfStock: true, pinnedSubstitutes: ['f:goal'] }, t: t() },
-      { e: 'product', id: 'f:goal', f: { 'user.notes': 'vu' }, t: t() },
-    ])).toBe(2);
-    expect((await db.products.get('f:cash'))!).toMatchObject({ outOfStock: true, pinnedSubstitutes: ['depart:goal'] });
-    expect((await db.products.get('depart:goal'))!.user).toEqual({ notes: 'vu' });
+      { e: 'product', id: 'depart:cash', f: { outOfStock: true, pinnedSubstitutes: ['depart:goal'] }, t: t() },
+    ])).toBe(1);
+    expect((await db.products.get('f:fdj|ITGC9K'))!).toMatchObject({ outOfStock: true, pinnedSubstitutes: ['f:fdj|GOAL01'] });
     expect(await db.products.get('depart:cash')).toBeUndefined();
-    expect(await db.products.get('f:goal')).toBeUndefined();
   });
 
-  it('ligne de jeu : id game:<produit> et gameId suivent la fiche présente ici ; jeux enlevés aussi', async () => {
-    await db.products.put(fdjGame('f:cash'));
-    await db.countLines.put({ id: 'game:f:cash', gameId: 'f:cash', code: '', name: 'Cash', linearQty: 0, stockQty: 0, updatedAt: 0 });
-    await db.products.put(fdjGame('f:goal'));
+  it('ligne de jeu : id game:<produit> et gameId suivent la fiche présente ici, dans les deux sens ; jeux enlevés aussi', async () => {
+    // ici : Cash vient de la liste FDJ ; Goal est encore un jeu de départ
+    await db.products.put(fdjGame('fdj|ITGC9K', 'Cash'));
+    await db.countLines.put({ id: 'game:f:fdj|ITGC9K', gameId: 'f:fdj|ITGC9K', code: '', name: 'Cash', linearQty: 0, stockQty: 0, updatedAt: 0 });
+    await db.products.put(departGame('Goal'));
     await applyRemoteOps([
       { e: 'line', id: 'game:depart:cash', f: { gameId: 'depart:cash', linearQty: 4 }, t: t() },
-      { e: 'line', id: 'game:depart:goal', f: { gameId: 'depart:goal', name: 'Goal', linearQty: 2 }, t: t() },
+      // un téléphone qui a déjà la liste FDJ : la ligne porte le nom du jeu, qui le relie au jeu de départ d'ici
+      { e: 'line', id: 'game:f:fdj|GOAL01', f: { gameId: 'f:fdj|GOAL01', name: 'Goal', linearQty: 2 }, t: t() },
       { e: 'settings', id: 'main', f: { hiddenGames: ['depart:cash', 'autre'] }, t: t() },
     ]);
-    expect((await db.countLines.get('game:f:cash'))!).toMatchObject({ gameId: 'f:cash', linearQty: 4 });
-    // ligne inconnue ici, mais la fiche f:goal existe : la ligne est créée sous son id local
-    expect((await db.countLines.get('game:f:goal'))!).toMatchObject({ gameId: 'f:goal', name: 'Goal', linearQty: 2 });
+    expect((await db.countLines.get('game:f:fdj|ITGC9K'))!).toMatchObject({ gameId: 'f:fdj|ITGC9K', linearQty: 4 });
+    expect((await db.countLines.get('game:depart:goal'))!).toMatchObject({ gameId: 'depart:goal', name: 'Goal', linearQty: 2 });
     expect(await db.countLines.get('game:depart:cash')).toBeUndefined();
-    expect(await db.countLines.get('game:depart:goal')).toBeUndefined();
-    expect((await getSettings()).hiddenGames).toEqual(['f:cash', 'autre']);
+    expect(await db.countLines.get('game:f:fdj|GOAL01')).toBeUndefined();
+    expect((await getSettings()).hiddenGames).toEqual(['f:fdj|ITGC9K', 'autre']);
   });
 
   it('sans contrepartie ici (ou si l’id visé existe), rien n’est réécrit', async () => {
-    await db.products.put(fdjGame('depart:cash'));
-    await db.products.put(fdjGame('f:cash'));
+    await db.products.put(departGame('Cash'));
+    await db.products.put(fdjGame('fdj|ITGC9K', 'Cash'));
     await applyRemoteOps([
       { e: 'product', id: 'depart:cash', f: { outOfStock: true }, t: t() },
       { e: 'line', id: 'game:depart:zut', f: { gameId: 'depart:zut', linearQty: 1 }, t: t() },
     ]);
     expect((await db.products.get('depart:cash'))!.outOfStock).toBe(true);
-    expect((await db.products.get('f:cash'))!.outOfStock).toBe(false);
+    expect((await db.products.get('f:fdj|ITGC9K'))!.outOfStock).toBe(false);
     expect((await db.countLines.get('game:depart:zut'))!).toMatchObject({ gameId: 'depart:zut', linearQty: 1 });
   });
 });
