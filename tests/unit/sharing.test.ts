@@ -65,16 +65,43 @@ describe('robot : vérification et fusion', () => {
     expect(r.accepted).toBe(2);
     expect(r.file.version).toMatch(/^2026-10-16-[0-9a-f]{8}$/);
   });
-  it('refuse les références inconnues, les codes invalides et les conflits', () => {
-    const start = { ...empty, barcodes: { '3017620422003': 'pmi|marlboro' } };
-    const r = mergeContributions(start, [
+  it('refuse les références inconnues et les codes invalides', () => {
+    const r = mergeContributions(empty, [
       { kind: 'barcode', code: '123', ref: 'pmi|marlboro' },
       { kind: 'barcode', code: '4006381333931', ref: 'inconnu|x' },
-      { kind: 'barcode', code: '3017620422003', ref: 'seita|gitanes' },
       { kind: 'fdjPrefix', prefix: '04', ref: 'fdj|ITGC9K' },
     ], known, '2026-10-16');
     expect(r.accepted).toBe(0);
-    expect(r.rejected.map((x) => x.reason)).toEqual(['code invalide', 'référence inconnue', 'code déjà attribué à un autre produit', 'code de jeu trop court']);
+    expect(r.rejected.map((x) => x.reason)).toEqual(['code invalide', 'référence inconnue', 'code de jeu trop court']);
+    expect(r.held).toEqual([]);
+  });
+  it('R28 : n’applique jamais un changement de ce qui est déjà publié (code réattribué, code de jeu changé) : à vérifier', () => {
+    const start = { ...empty, barcodes: { '3017620422003': 'pmi|marlboro' }, fdjPrefixes: { 'fdj|ITGC9K': '0417' } };
+    const r = mergeContributions(start, [
+      { kind: 'barcode', code: '3017620422003', ref: 'seita|gitanes' }, // réattribution
+      { kind: 'fdjPrefix', prefix: '0418', ref: 'fdj|ITGC9K' }, // changement
+      { kind: 'fdjPrefix', prefix: '0417', ref: 'fdj|AUTRE' }, // code de jeu déjà pris par un autre jeu
+      { kind: 'barcode', code: '3017620422003', ref: 'pmi|marlboro' }, // déjà connu : sans effet
+      { kind: 'fdjPrefix', prefix: '0417', ref: 'fdj|ITGC9K' }, // déjà connu : sans effet
+      { kind: 'barcode', code: '4006381333931', ref: 'seita|gitanes' }, // nouveau : appliqué
+    ], new Set([...known, 'fdj|AUTRE']), '2026-10-16');
+    expect(r.accepted).toBe(1);
+    expect(r.rejected).toEqual([]);
+    expect(r.held.map((h) => h.reason)).toEqual([
+      'code déjà attribué à pmi|marlboro',
+      'code de jeu déjà connu pour ce jeu : 0417',
+      'code de jeu déjà attribué à fdj|ITGC9K',
+    ]);
+    expect(r.file.barcodes).toEqual({ '3017620422003': 'pmi|marlboro', '4006381333931': 'seita|gitanes' });
+    expect(r.file.fdjPrefixes).toEqual({ 'fdj|ITGC9K': '0417' });
+  });
+  it('deux contributions contradictoires dans le même envoi : la première (nouvelle) passe, la seconde est à vérifier', () => {
+    const r = mergeContributions(empty, [
+      { kind: 'barcode', code: '3017620422003', ref: 'pmi|marlboro' },
+      { kind: 'barcode', code: '3017620422003', ref: 'seita|gitanes' },
+    ], known, '2026-10-16');
+    expect(r.accepted).toBe(1);
+    expect(r.held).toHaveLength(1);
     expect(r.file.barcodes).toEqual({ '3017620422003': 'pmi|marlboro' });
   });
 });
