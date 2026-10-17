@@ -68,6 +68,15 @@ describe('coller le lien d’invitation', () => {
     expect(parsePastedInvite(`Rejoins le tabac « Tabac de la Gare » sur La Carotte : ouvre ce lien sur ton téléphone. ${link}`)).toEqual(ok);
     expect(parsePastedInvite(payload)).toEqual(ok);
   });
+  it('lien coupé par un SMS (espaces ou retours à la ligne dedans) : recollé ; les mots qui suivent ne sont pas avalés', () => {
+    const link = inviteLink(payload, BASE);
+    const cut = link.length - 25;
+    expect(parsePastedInvite(link.slice(0, cut) + '\n' + link.slice(cut))).toEqual(ok);
+    expect(parsePastedInvite(link.slice(0, 60) + ' \r\n ' + link.slice(60, cut) + '\n' + link.slice(cut) + '\nMerci et à demain')).toEqual(ok);
+    expect(parsePastedInvite(payload.slice(0, 30) + '\n' + payload.slice(30) + ' bonne journée')).toEqual(ok);
+    // Morceau manquant : toujours refusé.
+    expect(parsePastedInvite(link.slice(0, cut) + '\n' + link.slice(cut + 5))).toEqual({ ok: false });
+  });
   it('n’importe quoi : refusé', () => {
     expect(parsePastedInvite('')).toEqual({ ok: false });
     expect(parsePastedInvite('bonjour')).toEqual({ ok: false });

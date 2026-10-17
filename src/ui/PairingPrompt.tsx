@@ -30,9 +30,10 @@ function takeIosHint(): boolean {
     return false;
   }
 }
-function rememberIosHint() {
+function rememberIosHint(on: boolean) {
   try {
-    sessionStorage.setItem(IOS_HINT_KEY, '1');
+    if (on) sessionStorage.setItem(IOS_HINT_KEY, '1');
+    else sessionStorage.removeItem(IOS_HINT_KEY);
   } catch {
     /* tant pis : pas d'astuce */
   }
@@ -73,8 +74,14 @@ export function PairingPrompt() {
   }, []);
   const join = (a: { invite: TabacInvite; viaLink: boolean }) => {
     setJoining(true);
-    if (a.viaLink && isIosBrowserTabNow()) rememberIosHint();
-    void joinTabac(a.invite, dbTabacId);
+    // Posée avant : rejoindre recharge la page. Retirée si rejoindre échoue, et le bouton redevient utilisable.
+    const hint = a.viaLink && isIosBrowserTabNow();
+    if (hint) rememberIosHint(true);
+    joinTabac(a.invite, dbTabacId).catch(() => {
+      if (hint) rememberIosHint(false);
+      setJoining(false);
+      setToast('Le tabac n’a pas pu être rejoint : réessayez');
+    });
   };
   return (
     <>
@@ -94,8 +101,8 @@ export function PairingPrompt() {
         <Sheet label="Sur l’écran d’accueil" onClose={() => setIosHint(false)}>
           <h3>Sur l’écran d’accueil</h3>
           <p style={{ margin: 0 }}>
-            Pour l’avoir sur l’écran d’accueil : Partager → « Sur l’écran d’accueil ». Puis ouvrez l’app, Mes tabacs →
-            Rejoindre un tabac → Coller le lien d’invitation.
+            Pour l’avoir sur l’écran d’accueil : ouvrez ce lien dans Safari, puis Partager → « Sur l’écran d’accueil ».
+            Ensuite, ouvrez l’app, touchez le nom du tabac en haut → Rejoindre un tabac → Coller le lien d’invitation.
           </p>
           <button type="button" className="btn accent" onClick={() => setIosHint(false)}>Compris</button>
         </Sheet>

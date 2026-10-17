@@ -32,13 +32,33 @@ export function parseInviteHash(hash: string): ReadInvite | undefined {
   return fromB64u(hash.slice(LINK_MARK.length));
 }
 
+/** Blocs base64url séparés seulement par des espaces ou retours à la ligne (lien coupé par une messagerie). */
+const WRAPPED_RUN = /^[A-Za-z0-9_-]+(?:\s+[A-Za-z0-9_-]+)*/;
+
+/**
+ * Comme `fromB64u`, mais si le premier bloc ne se lit pas, on y recolle les blocs suivants un à un (les SMS coupent les
+ * longs liens) jusqu'à une invitation lisible ; les mots du message qui suivent le lien ne sont donc jamais avalés.
+ */
+function fromWrapped(text: string): ReadInvite {
+  const first = fromB64u(text);
+  if (first.ok) return first;
+  const parts = WRAPPED_RUN.exec(text)?.[0].split(/\s+/) ?? [];
+  let joined = parts[0] ?? '';
+  for (const part of parts.slice(1)) {
+    joined += part;
+    const r = fromB64u(joined);
+    if (r.ok) return r;
+  }
+  return { ok: false };
+}
+
 /** Texte collé par l'employé : le lien, le message entier qui le contient, ou l'invitation LACAROTTE2: brute. */
 export function parsePastedInvite(text: string): ReadInvite {
   const t = typeof text === 'string' ? text : '';
   const link = t.indexOf(LINK_MARK);
-  if (link >= 0) return fromB64u(t.slice(link + LINK_MARK.length));
+  if (link >= 0) return fromWrapped(t.slice(link + LINK_MARK.length));
   const raw = t.indexOf(INVITE_PREFIX);
-  if (raw >= 0) return fromB64u(t.slice(raw + INVITE_PREFIX.length));
+  if (raw >= 0) return fromWrapped(t.slice(raw + INVITE_PREFIX.length));
   return { ok: false };
 }
 

@@ -58,7 +58,9 @@ type Invite = { tabacId: string; name: string; payload: string };
  */
 function InvitePanel({ shopName, onClose }: { shopName: string; onClose: () => void }) {
   const tabacs = listTabacs();
-  const [selected, setSelected] = useState(() => (tabacs.some((t) => t.id === dbTabacId) ? dbTabacId : tabacs[0].id));
+  // Le tabac de la page a pu être retiré (autre onglet) : on ne se rabat jamais en silence sur un autre.
+  const pageRemoved = !tabacs.some((t) => t.id === dbTabacId);
+  const [selected, setSelected] = useState(dbTabacId);
   const [invite, setInvite] = useState<Invite | null>(null);
   const [failed, setFailed] = useState(false);
   const [version, setVersion] = useState(0);
@@ -66,6 +68,7 @@ function InvitePanel({ shopName, onClose }: { shopName: string; onClose: () => v
   const [manual, setManual] = useState<string | null>(null);
 
   useEffect(() => {
+    if (pageRemoved) return;
     let alive = true;
     setFailed(false);
     setManual(null);
@@ -74,7 +77,7 @@ function InvitePanel({ shopName, onClose }: { shopName: string; onClose: () => v
       () => alive && setFailed(true),
     );
     return () => { alive = false; };
-  }, [selected, shopName, version]);
+  }, [selected, shopName, version, pageRemoved]);
 
   // Le QR code d'un autre tabac n'est jamais montré sous le nom de celui qu'on vient de choisir.
   const shown = invite?.tabacId === selected ? invite : null;
@@ -100,6 +103,14 @@ function InvitePanel({ shopName, onClose }: { shopName: string; onClose: () => v
       setManual(url);
     }
   };
+
+  if (pageRemoved) {
+    return (
+      <Panel title="Inviter un employé" onClose={onClose}>
+        <p style={{ margin: 0 }}>Ce tabac a été retiré de ce téléphone.</p>
+      </Panel>
+    );
+  }
 
   let qrSrc = '';
   if (shown) {
