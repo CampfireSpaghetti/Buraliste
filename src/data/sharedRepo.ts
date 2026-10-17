@@ -12,7 +12,7 @@ import { applyFields, diffFields, withoutClock, type Clocked, type Op } from '..
 import { observe, tick } from '../sync/clock';
 import { relayUrl } from '../sync/relayConfig';
 import { syncRegistryName } from '../tabacs/registry';
-import { gameKey } from '../domain/productId';
+import { gameKey, remapOp, type IdMap } from '../domain/productId';
 // Import circulaire voulu : db.ts appelle writeShared, et ce module utilise `db` ; des deux côtés, seulement
 // dans des fonctions (jamais à l'évaluation du module), donc l'ordre de chargement est sans effet.
 import { db, dbTabacId, DEFAULT_SETTINGS, type CarotteDB } from './db';
@@ -251,22 +251,37 @@ function idResolver(d: CarotteDB) {
   };
 }
 
+/** Au plus 5 000 opérations en attente (les plus anciennes partent), gardées 60 jours au plus. */
+export const PARKED_MAX = 5000;
+export const PARKED_MAX_AGE_MS = 60 * 24 * 3_600_000;
+
+type Received = { op: unknown; at: number };
+
 /**
  * Applique des opérations reçues (dans l'ordre) et renvoie le nombre d'opérations qui ont changé quelque chose.
  * Ignorées : opérations mal formées ou d'entité inconnue, réglages autres que `main`, horodatage à plus de 24 h
- * dans le futur (R15, non observé), produit inconnu ici sans fiche créée à la main. Les clés non partagées sont
- * retirées (R16). Rien n'est mis en file : ces opérations viennent déjà du canal.
+ * dans le futur (R15, non observé). Les clés non partagées sont retirées (R16). Rien n'est mis en file : ces
+ * opérations viennent déjà du canal.
+ * Une opération pour un produit inconnu ici (sans fiche créée à la main) n'est pas perdue : les téléphones d'un tabac
+ * n'ont pas toujours la même version des listes publiques. Elle est mise en attente (`parkedOps`) et rejouée après
+ * chaque mise à jour des listes (`replayParkedOps`).
  * `target` : base du tabac visé (par défaut celle de la page ; le moteur de synchronisation peut en donner une autre).
  */
-export async function applyRemoteOps(ops: Op[], target: CarotteDB = db): Promise<number> {
+export function applyRemoteOps(ops: Op[], target: CarotteDB = db): Promise<number> {
+  const at = Date.now();
+  return applyReceived(ops.map((op) => ({ op, at })), target);
+}
+
+async function applyReceived(entries: Received[], target: CarotteDB, replay = false): Promise<number> {
   const limit = Date.now() + MAX_AHEAD_MS;
   let future = 0;
-  let orphans = 0;
+  let parked = 0;
   let renamed: string | undefined;
-  const changes = await target.transaction('rw', target.countLines, target.products, target.settings, async () => {
+  const changes = await target.transaction('rw', [target.countLines, target.products, target.settings, target.parkedOps], async () => {
     const resolve = idResolver(target);
+    const park: { op: Op; at: number }[] = [];
     let n = 0;
-    for (const received of ops) {
+    for (const { op: received, at } of entries) {
       if (!wellFormed(received)) continue;
       if (Number(STAMP.exec(received.t)![1]) > limit) {
         future++;
@@ -280,7 +295,7 @@ export async function applyRemoteOps(ops: Op[], target: CarotteDB = db): Promise
       const { record, changed } = applyFields(local ?? blank(op.e, op.id), f, op.t);
       if (!changed) continue;
       if (op.e === 'product' && !local && !isManual(record)) {
-        orphans++;
+        park.push({ op: received, at });
         continue;
       }
       if (op.e === 'product' && local) record.updatedAt = Date.now();
@@ -288,10 +303,33 @@ export async function applyRemoteOps(ops: Op[], target: CarotteDB = db): Promise
       if (op.e === 'settings' && 'shopName' in f && typeof record.shopName === 'string') renamed = record.shopName;
       n++;
     }
+    if (park.length) {
+      parked = park.length;
+      await target.parkedOps.bulkAdd(park);
+      const extra = (await target.parkedOps.count()) - PARKED_MAX;
+      if (extra > 0) await target.parkedOps.bulkDelete((await target.parkedOps.orderBy('seq').limit(extra).primaryKeys()) as number[]);
+    }
     return n;
   });
   if (future) console.warn(`Synchronisation : ${future} opération(s) ignorée(s), horodatée(s) à plus de 24 h dans le futur.`);
-  if (orphans) console.warn(`Synchronisation : ${orphans} opération(s) ignorée(s) pour des produits inconnus sur ce téléphone.`);
+  if (parked && !replay) console.warn(`Synchronisation : ${parked} opération(s) en attente : produits pas encore dans les listes de ce téléphone.`);
   if (renamed !== undefined && target === db) syncRegistryName(dbTabacId, renamed);
   return changes;
+}
+
+/**
+ * Rejoue les opérations en attente (après une mise à jour des listes Douane ou FDJ) : celles dont le produit existe
+ * maintenant sont appliquées (le plus récent gagne toujours, champ par champ), les autres restent en attente avec leur
+ * date de réception ; celles de plus de 60 jours sont abandonnées. `renames` : ancien id → nouvel id (renommages de la
+ * liste Douane, `previousRef`), appliqué avant de rejouer. Renvoie le nombre d'opérations qui ont changé quelque chose.
+ */
+export async function replayParkedOps(target: CarotteDB = db, renames: IdMap = new Map()): Promise<number> {
+  return target.transaction('rw', [target.countLines, target.products, target.settings, target.parkedOps], async () => {
+    const rows = await target.parkedOps.orderBy('seq').toArray();
+    if (rows.length === 0) return 0;
+    await target.parkedOps.clear();
+    const oldest = Date.now() - PARKED_MAX_AGE_MS;
+    const keep = rows.filter((r) => typeof r.at === 'number' && r.at >= oldest);
+    return applyReceived(keep.map((r) => ({ op: remapOp(r.op, renames), at: r.at })), target, true);
+  });
 }

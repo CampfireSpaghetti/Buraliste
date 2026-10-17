@@ -196,7 +196,7 @@ describe('une base par tabac', () => {
     old.close();
     const upgraded = new CarotteDB(name);
     await upgraded.open();
-    expect(upgraded.verno).toBe(5);
+    expect(upgraded.verno).toBe(6);
     expect(await upgraded.countLines.get('avant')).toMatchObject({ name: 'Cash', linearQty: 3 });
     expect((await upgraded.settings.get('main'))?.shopName).toBe('Chez moi');
     upgraded.close();

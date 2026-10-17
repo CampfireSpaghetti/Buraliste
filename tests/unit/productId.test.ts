@@ -203,7 +203,7 @@ describe('base de données', () => {
 
     const up = new CarotteDB(name);
     await up.open();
-    expect(up.verno).toBe(5);
+    expect(up.verno).toBe(6);
     expect((await up.products.toCollection().primaryKeys()).sort()).toEqual(['d:a|1', 'f:fdj|ITGC9K', 'u1']);
     expect(await up.products.get('d:a|1')).toEqual({
       id: 'd:a|1', source: 'douane', douaneRef: 'a|1', base: { kind: 'cigarette', name: 'Un' }, user: { notes: 'fort' }, outOfStock: true,
@@ -239,7 +239,7 @@ describe('base de données', () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const up = new CarotteDB(name);
     await up.open();
-    expect(up.verno).toBe(5);
+    expect(up.verno).toBe(6);
     expect(await up.products.count()).toBe(1);
     expect((await up.products.get('d:a|9'))!.pinnedSubstitutes).toBe('abîmé');
     up.close();
@@ -258,14 +258,14 @@ describe('base de données', () => {
     for (const which of ['products', 'countLines'] as const) {
       const tables: IdTables = { products: db.products, countLines: db.countLines, settings: db.settings, opsOut: db.opsOut };
       tables[which] = failing(db[which], 'bulkPut') as never;
-      await db.transaction('rw', [db.products, db.countLines, db.settings, db.opsOut], async () => {
+      await db.transaction('rw', [db.products, db.countLines, db.settings, db.opsOut, db.parkedOps], async () => {
         await normalizeProductIds(tables).catch(() => undefined);
       });
       expect(await db.products.get('rnd')).toMatchObject({ outOfStock: true, user: { notes: 'n' }, _clock: { outOfStock: 'c1' } });
       expect(await db.countLines.get('game:rnd')).toMatchObject({ linearQty: 3, stockQty: 40 });
     }
     // La normalisation suivante fusionne le doublon laissé (ancien id + nouvel id).
-    await db.transaction('rw', [db.products, db.countLines, db.settings, db.opsOut], () => normalizeProductIds(db));
+    await db.transaction('rw', [db.products, db.countLines, db.settings, db.opsOut, db.parkedOps], () => normalizeProductIds(db));
     expect((await db.products.toArray()).map((p) => [p.id, p.outOfStock, p.user])).toEqual([['d:a|1', true, { notes: 'n' }]]);
     expect((await db.countLines.toArray()).map((l) => [l.id, l.linearQty])).toEqual([['game:d:a|1', 3]]);
   });
@@ -274,10 +274,10 @@ describe('base de données', () => {
     await db.products.bulkPut([prod({ id: 'rnd', douaneRef: 'a|1', pinnedSubstitutes: ['u'] }), prod({ id: 'u', source: 'utilisateur', pinnedSubstitutes: ['rnd'] })]);
     await db.countLines.put({ id: 'game:rnd', gameId: 'rnd', code: '', name: 'Un', linearQty: 3, stockQty: 4, updatedAt: 2, _clock: { linearQty: 'c' } } as CountLine);
     await db.opsOut.add({ op: { e: 'product', id: 'rnd', f: { outOfStock: true }, t: 'c' } });
-    const first = await db.transaction('rw', [db.products, db.countLines, db.settings, db.opsOut], () => normalizeProductIds(db));
+    const first = await db.transaction('rw', [db.products, db.countLines, db.settings, db.opsOut, db.parkedOps], () => normalizeProductIds(db));
     expect(first.size).toBe(1);
     const after = await dump();
-    const second = await db.transaction('rw', [db.products, db.countLines, db.settings, db.opsOut], () => normalizeProductIds(db));
+    const second = await db.transaction('rw', [db.products, db.countLines, db.settings, db.opsOut, db.parkedOps], () => normalizeProductIds(db));
     expect(second.size).toBe(0);
     expect(await dump()).toEqual(after);
   });
@@ -285,7 +285,7 @@ describe('base de données', () => {
   it('les produits récents ne sont réécrits qu’une fois la transaction validée', async () => {
     await db.products.put(prod({ id: 'rnd', douaneRef: 'a|1' }));
     localStorage.setItem('carotte:recent', JSON.stringify(['rnd']));
-    await db.transaction('rw', [db.products, db.countLines, db.settings, db.opsOut], async () => {
+    await db.transaction('rw', [db.products, db.countLines, db.settings, db.opsOut, db.parkedOps], async () => {
       await normalizeProductIds(db);
       throw new Error('annulée');
     }).catch(() => undefined);

@@ -1,7 +1,7 @@
 import Dexie, { type Table } from 'dexie';
 import type { CountLine, Product, ProductFields, Settings } from '../domain/types';
 import type { Contribution } from '../domain/sharing';
-import { productIdMap, remapIdList, remapProductIds, type IdMap } from '../domain/productId';
+import { productIdMap, remapIdList, remapOp, remapProductIds, type IdMap } from '../domain/productId';
 import { withoutClock, type Clocked, type Op } from '../sync/merge';
 import { currentTabac, DEFAULT_TABAC_NAME, dbNameFor, ensureRegistry, listTabacs, syncRegistryName } from '../tabacs/registry';
 // Import circulaire voulu avec sharedRepo.ts : chacun n'utilise l'autre que dans des fonctions (voir sharedRepo.ts).
@@ -10,6 +10,8 @@ import { writeShared } from './sharedRepo';
 export type OutboxItem = Contribution & { id?: number; createdAt: number };
 
 export type OpOut = { seq?: number; op: Op };
+/** Opération reçue pour un produit inconnu ici (liste plus récente ailleurs), gardée pour plus tard ; `at` : reçue le. */
+export type ParkedOp = { seq?: number; op: Op; at: number };
 export type SyncStateRow = { key: string; value: unknown };
 
 type SettingsRow = Settings & { key: 'main' };
@@ -24,6 +26,7 @@ export class CarotteDB extends Dexie {
   outbox!: Table<OutboxItem, number>;
   opsOut!: Table<OpOut, number>;
   syncState!: Table<SyncStateRow, string>;
+  parkedOps!: Table<ParkedOp, number>;
   constructor(name = 'la-carotte') {
     super(name);
     this.version(1).stores({
@@ -56,6 +59,8 @@ export class CarotteDB extends Dexie {
         console.error('Ids stables des produits : migration non faite', e);
       }
     });
+    // v6 : opérations reçues pour des produits encore inconnus ici, rejouées après chaque mise à jour des listes.
+    this.version(6).stores({ parkedOps: '++seq, at' });
   }
 }
 
@@ -64,12 +69,15 @@ export type IdTables = {
   countLines: Table<Clocked<CountLine>, string>;
   settings: Table<Clocked<SettingsRow>, string>;
   opsOut: Table<OpOut, number>;
+  /** Absente pendant la migration v5 (la table naît en v6). */
+  parkedOps?: Table<ParkedOp, number>;
 };
 
 /**
  * Passe chaque fiche à son id stable (`stableProductId`) et réécrit tout ce qui la désigne : remplaçants, lignes de
  * comptage, jeux enlevés, opérations en file. Horodatages gardés, aucune opération produite : chaque téléphone fait
- * la même chose de son côté. À appeler dans une transaction qui inclut les quatre tables ; renvoie la table des ids,
+ * la même chose de son côté. Les opérations en attente (`parkedOps`) sont réécrites avec la même table des ids.
+ * À appeler dans une transaction qui inclut ces tables ; renvoie la table des ids,
  * à passer à `remapRecent` une fois la transaction validée (la liste des récents n'est pas dans la base).
  *
  * Toutes les écritures passent avant tout effacement : si l'une échoue (et que l'appelant rattrape l'erreur), le pire
@@ -86,10 +94,22 @@ export async function normalizeProductIds(t: IdTables): Promise<IdMap> {
   await t.countLines.bulkPut(c.linePut);
   if (settings && c.hiddenChanged) await t.settings.put({ ...settings, hiddenGames: c.hiddenGames });
   if (c.ops.length) await t.opsOut.bulkPut(c.ops);
+  if (t.parkedOps) await remapParkedOps(t.parkedOps, map);
   await t.products.bulkDelete(c.productDel);
   await t.countLines.bulkDelete(c.lineDel);
   if (c.opDel.length) await t.opsOut.bulkDelete(c.opDel);
   return map;
+}
+
+/** Réécrit les opérations en attente avec une table des ids (produit visé, remplaçants, lignes de jeu, jeux enlevés). */
+export async function remapParkedOps(table: Table<ParkedOp, number>, map: IdMap): Promise<void> {
+  if (map.size === 0) return;
+  const changed: ParkedOp[] = [];
+  for (const row of await table.toArray()) {
+    const op = remapOp(row.op, map);
+    if (op !== row.op) changed.push({ ...row, op });
+  }
+  if (changed.length) await table.bulkPut(changed);
 }
 
 /** Produits consultés récemment (sur ce téléphone). */
