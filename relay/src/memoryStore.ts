@@ -15,6 +15,7 @@ type Canal = {
  */
 export function createMemoryStore(): Store {
   const canaux = new Map<string, Canal>();
+  const quotas = new Map<string, { n: number; fenetre: number }>();
   let compteur = 0;
   return {
     async getChannel(canal) {
@@ -56,6 +57,13 @@ export function createMemoryStore(): Store {
       const c = canaux.get(canal);
       if (!c) return;
       c.messages = c.messages.filter((m) => !(m.n <= n && m.recu < olderThan));
+    },
+    async bumpQuota(cle, fenetre) {
+      for (const [k, q] of quotas) if (q.fenetre < fenetre - 24 * 3_600_000) quotas.delete(k);
+      const q = quotas.get(cle);
+      const next = !q || fenetre > q.fenetre ? { n: 1, fenetre } : { n: q.fenetre === fenetre ? q.n + 1 : 1, fenetre: q.fenetre };
+      quotas.set(cle, next);
+      return next.n;
     },
   };
 }

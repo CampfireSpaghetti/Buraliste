@@ -104,5 +104,17 @@ export function storeContract(name: string, makeStore: () => Store | Promise<Sto
       expect(n1).toBeLessThan(n2);
       expect((await s.listMessages('c2', 0, 10)).map((x) => x.data)).toEqual(['data-autre']);
     });
+
+    it('bumpQuota compte par clé et par fenêtre, et repart à 1 dans une nouvelle fenêtre', async () => {
+      const s = await makeStore();
+      expect(await s.bumpQuota('issues', 3_600_000)).toBe(1);
+      expect(await s.bumpQuota('issues', 3_600_000)).toBe(2);
+      expect(await s.bumpQuota('autre', 3_600_000)).toBe(1);
+      expect(await s.bumpQuota('issues', 3_600_000)).toBe(3);
+      expect(await s.bumpQuota('issues', 7_200_000)).toBe(1);
+      expect(await s.bumpQuota('issues', 7_200_000)).toBe(2);
+      // un compteur d'une vieille fenêtre ne gêne pas : il repart à 1
+      expect(await s.bumpQuota('autre', 7_200_000)).toBe(1);
+    });
   });
 }

@@ -20,6 +20,8 @@ const env: RelayEnv = {
     return new Response('{}', { status: 201 });
   },
   allowedOrigins: ['http://localhost:4173'],
+  // Toutes les requêtes des tests viennent de la même adresse : limites par IP et plafond global relevés.
+  limits: { requetesParCanalMinute: 100_000, ecrituresParIpMinute: 100_000, canauxParIpHeure: 100_000, codesParIpHeure: 100_000, issuesParHeure: 100_000 },
 };
 
 async function toRequest(req: IncomingMessage): Promise<Request> {

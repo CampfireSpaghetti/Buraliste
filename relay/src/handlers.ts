@@ -19,7 +19,35 @@ export interface Store {
   getPhoto(canal: string): Promise<Photo | null>;
   /** Supprime les messages de numéro ≤ n reçus avant `olderThan`. */
   pruneBefore(canal: string, n: number, olderThan: number): Promise<void>;
+  /**
+   * Compteur partagé par toutes les instances du relais (D1) : ajoute 1 au compteur `cle` pour la fenêtre qui commence
+   * à `fenetre` (ms) et renvoie sa nouvelle valeur. Une fenêtre plus récente remet le compteur à 1. Les compteurs d'une
+   * fenêtre de plus d'un jour sont supprimés au passage.
+   */
+  bumpQuota(cle: string, fenetre: number): Promise<number>;
 }
+
+/** Limites du relais (R28). Le faux relais des tests de bout en bout les relève (tout vient de la même adresse). */
+export type RelayLimits = {
+  /** Requêtes par minute sur un canal (lecture comprise), en mémoire de l'instance. */
+  requetesParCanalMinute: number;
+  /** Écritures (messages, photographie) par minute depuis une même adresse IP, en mémoire de l'instance. */
+  ecrituresParIpMinute: number;
+  /** Canaux créés par heure depuis une même adresse IP, compteur partagé (D1). */
+  canauxParIpHeure: number;
+  /** Envois de codes par heure depuis une même adresse IP, en mémoire de l'instance. */
+  codesParIpHeure: number;
+  /** Issues GitHub ouvertes par heure, tous téléphones confondus, compteur partagé (D1). */
+  issuesParHeure: number;
+};
+
+export const DEFAULT_LIMITS: RelayLimits = {
+  requetesParCanalMinute: 120,
+  ecrituresParIpMinute: 300,
+  canauxParIpHeure: 20,
+  codesParIpHeure: 20,
+  issuesParHeure: 10,
+};
 
 export type RelayEnv = {
   store: Store;
@@ -28,6 +56,7 @@ export type RelayEnv = {
   now: () => number;
   fetch: typeof fetch;
   allowedOrigins: string[];
+  limits?: Partial<RelayLimits>;
 };
 
 const MAX_BODY_BYTES = 64 * 1024;
@@ -38,8 +67,6 @@ const MAX_REF_LENGTH = 64;
 const MAX_MESSAGES = 200;
 const MAX_CODES = 200;
 const DEFAULT_PAGE = 500;
-const CANAL_PER_MINUTE = 120;
-const CODES_PER_HOUR = 20;
 const MINUTE = 60_000;
 const HOUR = 3_600_000;
 const PRUNE_AGE = 30 * 24 * HOUR;
@@ -64,6 +91,15 @@ function hit(env: RelayEnv, key: string, limit: number, windowMs: number): boole
   recent.push(now);
   map.set(key, recent);
   return true;
+}
+
+const limit = (env: RelayEnv, k: keyof RelayLimits): number => env.limits?.[k] ?? DEFAULT_LIMITS[k];
+const clientIp = (req: Request): string => req.headers.get('CF-Connecting-IP') ?? 'inconnue';
+
+/** Compteur partagé (D1) sur une fenêtre fixe ; false au-delà de `max`. */
+async function quota(env: RelayEnv, cle: string, max: number, windowMs: number): Promise<boolean> {
+  const fenetre = Math.floor(env.now() / windowMs) * windowMs;
+  return (await env.store.bumpQuota(cle, fenetre)) <= max;
 }
 
 async function sha256Hex(text: string): Promise<string> {
@@ -109,12 +145,18 @@ async function readJson(req: Request, maxBytes = MAX_BODY_BYTES): Promise<Record
   return data;
 }
 
-/** Vérifie la clé d'écriture ; le premier envoi dans un canal enregistre son empreinte. */
-async function authorize(env: RelayEnv, canal: string, ecriture: unknown): Promise<void> {
+/**
+ * Vérifie la clé d'écriture ; le premier envoi dans un canal enregistre son empreinte. Créer un canal est limité par
+ * adresse IP (compteur partagé), pour qu'on ne puisse pas remplir la base de canaux vides.
+ */
+async function authorize(req: Request, env: RelayEnv, canal: string, ecriture: unknown): Promise<void> {
   if (!isStr(ecriture) || !ecriture) throw new HttpError(400, 'ecriture manquante');
   const hash = await sha256Hex(ecriture);
   let channel = await env.store.getChannel(canal);
   if (!channel) {
+    if (!(await quota(env, 'canaux-ip:' + clientIp(req), limit(env, 'canauxParIpHeure'), HOUR))) {
+      throw new HttpError(429, 'trop de tabacs créés depuis cette adresse');
+    }
     if (await env.store.createChannel(canal, hash, env.now())) return;
     // Un autre premier envoi a créé le canal entre-temps : on compare à son empreinte.
     channel = await env.store.getChannel(canal);
@@ -142,7 +184,7 @@ async function postMessages(req: Request, env: RelayEnv, canal: string): Promise
     if (!isObj(m) || !isStr(m.iv) || !isStr(m.data)) throw new HttpError(400, 'message invalide');
     msgs.push({ iv: m.iv, data: m.data });
   }
-  await authorize(env, canal, body.ecriture);
+  await authorize(req, env, canal, body.ecriture);
   return { dernier: await env.store.appendMessages(canal, msgs, env.now()) };
 }
 
@@ -164,7 +206,9 @@ async function putPhoto(req: Request, env: RelayEnv, canal: string): Promise<Rec
   if (typeof jusqua !== 'number' || !Number.isInteger(jusqua) || jusqua < 0 || !isStr(iv) || !isStr(data)) {
     throw new HttpError(400, 'photographie invalide');
   }
-  await authorize(env, canal, body.ecriture);
+  await authorize(req, env, canal, body.ecriture);
+  // Une photographie ne peut pas couvrir des messages qui n'existent pas encore.
+  if (jusqua > (await env.store.lastN(canal))) throw new HttpError(400, 'photographie au-delà du dernier message');
   const previous = await env.store.getPhoto(canal);
   // Une photographie plus ancienne que celle en place (publiée entre-temps par un autre téléphone) est refusée.
   if (previous && jusqua < previous.jusqua) throw new HttpError(409, 'photographie plus récente déjà publiée');
@@ -176,9 +220,10 @@ async function putPhoto(req: Request, env: RelayEnv, canal: string): Promise<Rec
 }
 
 async function postCodes(req: Request, env: RelayEnv): Promise<{ status: number; body: Record<string, unknown> }> {
+  // Envoi anonyme (aucune clé) : seulement depuis l'app publiée (Origin obligatoire ici), et en nombre limité.
+  if (req.headers.get('Origin') === null) throw new HttpError(403, 'origine manquante');
   if (!env.githubToken) throw new HttpError(503, 'envoi des codes indisponible');
-  const ip = req.headers.get('CF-Connecting-IP') ?? 'inconnue';
-  if (!hit(env, 'ip:' + ip, CODES_PER_HOUR, HOUR)) throw new HttpError(429, 'trop de requêtes');
+  if (!hit(env, 'codes-ip:' + clientIp(req), limit(env, 'codesParIpHeure'), HOUR)) throw new HttpError(429, 'trop de requêtes');
   const body = await readJson(req);
   const items = body.items;
   if (!Array.isArray(items) || items.length === 0) throw new HttpError(400, 'items manquants');
@@ -186,6 +231,8 @@ async function postCodes(req: Request, env: RelayEnv): Promise<{ status: number;
   const contributions = items.map(toContribution);
   if (contributions.some((c) => c === null)) throw new HttpError(400, 'item invalide');
   const issue = buildIssue(contributions as Contribution[]);
+  // Plafond global : toutes les issues sont ouvertes avec le jeton du propriétaire du dépôt.
+  if (!(await quota(env, 'issues', limit(env, 'issuesParHeure'), HOUR))) throw new HttpError(429, 'trop de contributions cette heure-ci');
   let res: Response;
   try {
     res = await env.fetch(`https://api.github.com/repos/${env.githubRepo}/issues`, {
@@ -208,7 +255,7 @@ async function postCodes(req: Request, env: RelayEnv): Promise<{ status: number;
 
 export async function handle(req: Request, env: RelayEnv): Promise<Response> {
   const requestOrigin = req.headers.get('Origin');
-  // Sans en-tête Origin (serveur à serveur, tests), la requête est acceptée.
+  // Sans en-tête Origin (serveur à serveur, tests), la requête est acceptée, sauf l'envoi de codes (voir postCodes).
   if (requestOrigin !== null && !env.allowedOrigins.includes(requestOrigin)) {
     return json(403, { erreur: 'origine refusée' }, null);
   }
@@ -243,7 +290,10 @@ export async function handle(req: Request, env: RelayEnv): Promise<Response> {
         : sub === 'photo' && (req.method === 'PUT' || req.method === 'GET') ? 'photo'
         : null;
       if (route) {
-        if (!hit(env, 'canal:' + canal, CANAL_PER_MINUTE, MINUTE)) throw new HttpError(429, 'trop de requêtes');
+        if (!hit(env, 'canal:' + canal, limit(env, 'requetesParCanalMinute'), MINUTE)) throw new HttpError(429, 'trop de requêtes');
+        if (req.method !== 'GET' && !hit(env, 'ecritures-ip:' + clientIp(req), limit(env, 'ecrituresParIpMinute'), MINUTE)) {
+          throw new HttpError(429, 'trop de requêtes');
+        }
         if (route === 'messages') {
           return json(200, req.method === 'POST' ? await postMessages(req, env, canal) : await getMessages(url, env, canal), origin);
         }

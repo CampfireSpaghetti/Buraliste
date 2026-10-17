@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect, vi } from 'vitest';
 import { handle } from '../../relay/src/handlers.ts';
+import { DEFAULT_LIMITS } from '../../relay/src/handlers.ts';
 import type { RelayEnv, Store } from '../../relay/src/handlers.ts';
 import { createMemoryStore } from '../../relay/src/memoryStore.ts';
 
@@ -166,8 +167,14 @@ describe('relais : messages', () => {
 });
 
 describe('relais : photographie', () => {
+  /** Canal c1 avec `n` messages (numéros 1..n) : une photographie ne peut couvrir que des messages existants. */
+  const fill = async (env: RelayEnv, n: number) => {
+    for (let i = 0; i < n; i++) await post(env, 'c1', 'w1', [{ iv: 'a', data: String(i) }]);
+  };
+
   it('PUT puis GET renvoie l’objet', async () => {
     const { env } = makeEnv();
+    await fill(env, 7);
     const put = await call(env, 'PUT', '/v1/canaux/c1/photo', { ecriture: 'w1', jusqua: 7, iv: 'i', data: 'd' });
     expect(put.status).toBe(200);
     const g = await call(env, 'GET', '/v1/canaux/c1/photo');
@@ -177,6 +184,7 @@ describe('relais : photographie', () => {
 
   it('photographie plus ancienne que celle en place (jusqua inférieur) : 409, la plus récente reste', async () => {
     const { env } = makeEnv();
+    await fill(env, 9);
     expect((await call(env, 'PUT', '/v1/canaux/c1/photo', { ecriture: 'w1', jusqua: 9, iv: 'i9', data: 'd9' })).status).toBe(200);
     expect((await call(env, 'PUT', '/v1/canaux/c1/photo', { ecriture: 'w1', jusqua: 5, iv: 'i5', data: 'd5' })).status).toBe(409);
     expect(await (await call(env, 'GET', '/v1/canaux/c1/photo')).json()).toEqual({ jusqua: 9, iv: 'i9', data: 'd9' });
@@ -188,6 +196,17 @@ describe('relais : photographie', () => {
   it('GET sans photographie : 404', async () => {
     const { env } = makeEnv();
     expect((await call(env, 'GET', '/v1/canaux/c1/photo')).status).toBe(404);
+  });
+
+  it('jusqua au-delà du dernier message du canal : 400, rien n’est enregistré', async () => {
+    const { env } = makeEnv();
+    expect((await call(env, 'PUT', '/v1/canaux/c1/photo', { ecriture: 'w1', jusqua: 1, iv: 'i', data: 'd' })).status).toBe(400);
+    await fill(env, 3);
+    expect((await call(env, 'PUT', '/v1/canaux/c1/photo', { ecriture: 'w1', jusqua: 4, iv: 'i', data: 'd' })).status).toBe(400);
+    expect((await call(env, 'GET', '/v1/canaux/c1/photo')).status).toBe(404);
+    expect((await call(env, 'PUT', '/v1/canaux/c1/photo', { ecriture: 'w1', jusqua: 3, iv: 'i', data: 'd' })).status).toBe(200);
+    // canal vide : une photographie jusqu'à 0 est acceptée (premier partage d'un tabac existant)
+    expect((await call(env, 'PUT', '/v1/canaux/c2/photo', { ecriture: 'w2', jusqua: 0, iv: 'i', data: 'd' })).status).toBe(200);
   });
 
   it('mauvaise clé d’écriture : 403', async () => {
@@ -208,6 +227,7 @@ describe('relais : photographie', () => {
   it('photographie de 100 Ko : acceptée (limite propre à la photographie : 1 Mo)', async () => {
     const { env } = makeEnv();
     const data = 'x'.repeat(100_000);
+    await fill(env, 1);
     const r = await call(env, 'PUT', '/v1/canaux/c1/photo', { ecriture: 'w1', jusqua: 1, iv: 'i', data });
     expect(r.status).toBe(200);
     expect(((await (await call(env, 'GET', '/v1/canaux/c1/photo')).json()) as { data: string }).data).toBe(data);
@@ -250,6 +270,9 @@ describe('relais : photographie', () => {
 });
 
 describe('relais : codes-barres', () => {
+  /** Envoi de codes depuis l'app publiée (en-tête Origin obligatoire sur cette route). */
+  const codes = (env: RelayEnv, body: unknown, headers: Record<string, string> = {}) =>
+    call(env, 'POST', '/v1/codes', body, { Origin: ORIGIN, ...headers });
   const items = [
     { kind: 'barcode', code: '3000000000001', ref: 'r1' },
     { kind: 'fdjPrefix', prefix: '12345678', ref: 'r2' },
@@ -257,7 +280,7 @@ describe('relais : codes-barres', () => {
 
   it('crée une issue GitHub', async () => {
     const { env, fetchMock } = makeEnv();
-    const r = await call(env, 'POST', '/v1/codes', { items });
+    const r = await codes(env, { items });
     expect(r.status).toBe(202);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
@@ -271,39 +294,69 @@ describe('relais : codes-barres', () => {
 
   it('sans jeton GitHub : 503', async () => {
     const { env, fetchMock } = makeEnv({ githubToken: undefined });
-    expect((await call(env, 'POST', '/v1/codes', { items })).status).toBe(503);
+    expect((await codes(env, { items })).status).toBe(503);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('plus de 200 codes : 413', async () => {
     const { env, fetchMock } = makeEnv();
     const many = Array.from({ length: 201 }, () => items[0]);
-    expect((await call(env, 'POST', '/v1/codes', { items: many })).status).toBe(413);
+    expect((await codes(env, { items: many })).status).toBe(413);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('plus de 20 requêtes par heure depuis la même IP : 429', async () => {
-    const { env, clock } = makeEnv();
+    // Plafond global relevé : seul le plafond par adresse IP est testé ici.
+    const { env, clock } = makeEnv({ limits: { issuesParHeure: 1000 } });
     const ip = { 'CF-Connecting-IP': '1.2.3.4' };
-    for (let i = 0; i < 20; i++) expect((await call(env, 'POST', '/v1/codes', { items }, ip)).status).toBe(202);
-    expect((await call(env, 'POST', '/v1/codes', { items }, ip)).status).toBe(429);
-    expect((await call(env, 'POST', '/v1/codes', { items }, { 'CF-Connecting-IP': '5.6.7.8' })).status).toBe(202);
+    for (let i = 0; i < 20; i++) expect((await codes(env, { items }, ip)).status).toBe(202);
+    expect((await codes(env, { items }, ip)).status).toBe(429);
+    expect((await codes(env, { items }, { 'CF-Connecting-IP': '5.6.7.8' })).status).toBe(202);
     clock.t += 3600_000 + 1;
-    expect((await call(env, 'POST', '/v1/codes', { items }, ip)).status).toBe(202);
+    expect((await codes(env, { items }, ip)).status).toBe(202);
+  });
+
+  it('plus de 10 issues par heure, toutes adresses confondues : 429 sans appeler GitHub, puis reprise l’heure suivante', async () => {
+    const { env, clock, fetchMock } = makeEnv();
+    clock.t = 10 * 3600_000; // début d'une heure
+    for (let i = 0; i < 10; i++) expect((await codes(env, { items }, { 'CF-Connecting-IP': `10.0.0.${i}` })).status).toBe(202);
+    expect((await codes(env, { items }, { 'CF-Connecting-IP': '10.0.1.1' })).status).toBe(429);
+    expect(fetchMock).toHaveBeenCalledTimes(10);
+    // compteur dans le Store (D1) : une autre instance du relais, sur la même base, le voit aussi
+    const other: RelayEnv = { ...env, store: { ...env.store } };
+    expect((await codes(other, { items }, { 'CF-Connecting-IP': '10.0.1.2' })).status).toBe(429);
+    clock.t += 3600_000;
+    expect((await codes(env, { items }, { 'CF-Connecting-IP': '10.0.1.1' })).status).toBe(202);
+    expect(fetchMock).toHaveBeenCalledTimes(11);
+  });
+
+  it('une requête invalide ne consomme pas le plafond global', async () => {
+    const { env, fetchMock } = makeEnv({ limits: { issuesParHeure: 1 } });
+    expect((await codes(env, { items: [] })).status).toBe(400);
+    expect((await codes(env, { items })).status).toBe(202);
+    expect((await codes(env, { items })).status).toBe(429);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('sans en-tête Origin : 403 (seule l’app publiée peut envoyer des codes)', async () => {
+    const { env, fetchMock } = makeEnv();
+    expect((await call(env, 'POST', '/v1/codes', { items })).status).toBe(403);
+    expect((await call(env, 'POST', '/v1/codes', { items }, { Origin: 'https://evil.example' })).status).toBe(403);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('éléments invalides : 400', async () => {
     const { env } = makeEnv();
-    expect((await call(env, 'POST', '/v1/codes', { items: [] })).status).toBe(400);
-    expect((await call(env, 'POST', '/v1/codes', { items: 'x' })).status).toBe(400);
-    expect((await call(env, 'POST', '/v1/codes', { items: [{ kind: 'barcode', code: 5, ref: 'r' }] })).status).toBe(400);
-    expect((await call(env, 'POST', '/v1/codes', { items: [{ kind: 'autre' }] })).status).toBe(400);
-    expect((await call(env, 'POST', '/v1/codes', 'pas du json')).status).toBe(400);
+    expect((await codes(env, { items: [] })).status).toBe(400);
+    expect((await codes(env, { items: 'x' })).status).toBe(400);
+    expect((await codes(env, { items: [{ kind: 'barcode', code: 5, ref: 'r' }] })).status).toBe(400);
+    expect((await codes(env, { items: [{ kind: 'autre' }] })).status).toBe(400);
+    expect((await codes(env, 'pas du json')).status).toBe(400);
   });
 
   it('seuls les champs connus partent dans l’issue', async () => {
     const { env, fetchMock } = makeEnv();
-    const r = await call(env, 'POST', '/v1/codes', {
+    const r = await codes(env, {
       items: [
         { kind: 'barcode', code: '3000000000001', ref: 'r1', pirate: '<script>', extra: { a: 1 } },
         { kind: 'fdjPrefix', prefix: '12345678', ref: 'r2', code: 'intrus' },
@@ -324,7 +377,7 @@ describe('relais : codes-barres', () => {
 
   it('chaînes trop longues : 400 (code ≤ 32, préfixe ≤ 32, référence ≤ 64)', async () => {
     const { env, fetchMock } = makeEnv();
-    const ok = await call(env, 'POST', '/v1/codes', {
+    const ok = await codes(env, {
       items: [
         { kind: 'barcode', code: '1'.repeat(32), ref: 'r'.repeat(64) },
         { kind: 'fdjPrefix', prefix: '2'.repeat(32), ref: 'r' },
@@ -337,7 +390,7 @@ describe('relais : codes-barres', () => {
       { kind: 'fdjPrefix', prefix: '2'.repeat(33), ref: 'r' },
       { kind: 'fdjPrefix', prefix: '2', ref: 'r'.repeat(65) },
     ]) {
-      expect((await call(env, 'POST', '/v1/codes', { items: [items[0], item] })).status).toBe(400);
+      expect((await codes(env, { items: [items[0], item] })).status).toBe(400);
     }
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
@@ -345,10 +398,54 @@ describe('relais : codes-barres', () => {
   it('GitHub en erreur ou injoignable : 502', async () => {
     const a = makeEnv();
     a.fetchMock.mockResolvedValueOnce(new Response('nope', { status: 500 }));
-    expect((await call(a.env, 'POST', '/v1/codes', { items })).status).toBe(502);
+    expect((await codes(a.env, { items })).status).toBe(502);
     const b = makeEnv();
     b.fetchMock.mockRejectedValueOnce(new Error('réseau'));
-    expect((await call(b.env, 'POST', '/v1/codes', { items })).status).toBe(502);
+    expect((await codes(b.env, { items })).status).toBe(502);
+  });
+});
+
+describe('relais : limites par adresse IP', () => {
+  it('valeurs par défaut (R28)', () => {
+    expect(DEFAULT_LIMITS).toEqual({ requetesParCanalMinute: 120, ecrituresParIpMinute: 300, canauxParIpHeure: 20, codesParIpHeure: 20, issuesParHeure: 10 });
+  });
+
+  it('écritures (messages, photographie) : au-delà de la limite par minute et par IP, 429 ; les lectures passent', async () => {
+    const { env, clock } = makeEnv({ limits: { ecrituresParIpMinute: 3 } });
+    const ip = { 'CF-Connecting-IP': '1.2.3.4' };
+    const body = (k: string) => ({ ecriture: 'w1', messages: [{ iv: 'a', data: k }] });
+    expect((await call(env, 'POST', '/v1/canaux/c1/messages', body('1'), ip)).status).toBe(200);
+    expect((await call(env, 'POST', '/v1/canaux/c2/messages', body('2'), ip)).status).toBe(200);
+    expect((await call(env, 'PUT', '/v1/canaux/c1/photo', { ecriture: 'w1', jusqua: 0, iv: 'i', data: 'd' }, ip)).status).toBe(200);
+    expect((await call(env, 'POST', '/v1/canaux/c3/messages', body('3'), ip)).status).toBe(429);
+    expect((await call(env, 'PUT', '/v1/canaux/c1/photo', { ecriture: 'w1', jusqua: 0, iv: 'i', data: 'd' }, ip)).status).toBe(429);
+    expect((await call(env, 'GET', '/v1/canaux/c1/messages', undefined, ip)).status).toBe(200);
+    expect((await call(env, 'POST', '/v1/canaux/c1/messages', body('4'), { 'CF-Connecting-IP': '5.6.7.8' })).status).toBe(200);
+    clock.t += 61_000;
+    expect((await call(env, 'POST', '/v1/canaux/c1/messages', body('5'), ip)).status).toBe(200);
+  });
+
+  it('300 écritures par minute et par IP par défaut', async () => {
+    const { env } = makeEnv({ limits: { requetesParCanalMinute: 1000 } });
+    const ip = { 'CF-Connecting-IP': '1.2.3.4' };
+    const body = { ecriture: 'w1', messages: [{ iv: 'a', data: 'b' }] };
+    for (let i = 0; i < 300; i++) expect((await call(env, 'POST', '/v1/canaux/c1/messages', body, ip)).status).toBe(200);
+    expect((await call(env, 'POST', '/v1/canaux/c1/messages', body, ip)).status).toBe(429);
+  });
+
+  it('plus de 20 tabacs (canaux) créés par heure depuis une IP : 429 ; les canaux existants restent utilisables', async () => {
+    const { env, clock } = makeEnv();
+    clock.t = 5 * 3600_000;
+    const ip = { 'CF-Connecting-IP': '1.2.3.4' };
+    const body = { ecriture: 'w', messages: [{ iv: 'a', data: 'b' }] };
+    for (let i = 0; i < 20; i++) expect((await call(env, 'POST', `/v1/canaux/k${i}/messages`, body, ip)).status).toBe(200);
+    expect((await call(env, 'POST', '/v1/canaux/k20/messages', body, ip)).status).toBe(429);
+    expect((await call(env, 'PUT', '/v1/canaux/k21/photo', { ecriture: 'w', jusqua: 0, iv: 'i', data: 'd' }, ip)).status).toBe(429);
+    expect(await env.store.getChannel('k20')).toBeNull();
+    expect((await call(env, 'POST', '/v1/canaux/k0/messages', body, ip)).status).toBe(200);
+    expect((await call(env, 'POST', '/v1/canaux/k20/messages', body, { 'CF-Connecting-IP': '5.6.7.8' })).status).toBe(200);
+    clock.t += 3600_000;
+    expect((await call(env, 'POST', '/v1/canaux/k22/messages', body, ip)).status).toBe(200);
   });
 });
 

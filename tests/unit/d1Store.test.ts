@@ -42,4 +42,14 @@ describe('Store D1', () => {
     await expect(s.appendMessages('inconnu', [{ iv: 'a', data: 'b' }], 1)).rejects.toThrow();
     expect(await s.listMessages('inconnu', 0, 10)).toEqual([]);
   });
+
+  it('bumpQuota supprime au passage les compteurs d’une fenêtre de plus d’un jour', async () => {
+    const { d1, db } = createFakeD1();
+    const s = createD1Store(d1);
+    await s.bumpQuota('canaux-ip:1.2.3.4', 0);
+    await s.bumpQuota('issues', 20 * 3_600_000);
+    await s.bumpQuota('issues', 26 * 3_600_000);
+    const rows = db.exec('SELECT cle FROM quotas ORDER BY cle')[0].values.map((r) => r[0]);
+    expect(rows).toEqual(['issues']);
+  });
 });

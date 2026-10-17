@@ -53,14 +53,14 @@ describe('Worker du relais', () => {
 
   it('/v1/codes sans GITHUB_TOKEN : 503', async () => {
     const { call } = setup();
-    expect((await call('POST', '/v1/codes', { items: [{ kind: 'barcode', code: '3000000000001', ref: 'r' }] })).status).toBe(503);
+    expect((await call('POST', '/v1/codes', { items: [{ kind: 'barcode', code: '3000000000001', ref: 'r' }] }, { Origin: ORIGIN })).status).toBe(503);
   });
 
   it('/v1/codes : issue créée sur wongmichel2048/Buraliste avec le jeton du Worker', async () => {
     const fetchMock = vi.fn(async (_url: unknown, _init?: unknown) => new Response('{}', { status: 201 }));
     vi.stubGlobal('fetch', fetchMock);
     const { call } = setup({ GITHUB_TOKEN: 'secret-gh' });
-    const r = await call('POST', '/v1/codes', { items: [{ kind: 'barcode', code: '3000000000001', ref: 'r' }] });
+    const r = await call('POST', '/v1/codes', { items: [{ kind: 'barcode', code: '3000000000001', ref: 'r' }] }, { Origin: ORIGIN });
     expect(r.status).toBe(202);
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe('https://api.github.com/repos/wongmichel2048/Buraliste/issues');

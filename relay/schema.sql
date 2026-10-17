@@ -4,3 +4,5 @@ CREATE TABLE IF NOT EXISTS canaux (canal TEXT PRIMARY KEY, ecriture_hash TEXT NO
 CREATE TABLE IF NOT EXISTS messages (n INTEGER PRIMARY KEY AUTOINCREMENT, canal TEXT NOT NULL, iv TEXT NOT NULL, data TEXT NOT NULL, recu INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS messages_canal ON messages (canal, n);
 CREATE TABLE IF NOT EXISTS photos (canal TEXT PRIMARY KEY, jusqua INTEGER NOT NULL, iv TEXT NOT NULL, data TEXT NOT NULL, recu INTEGER NOT NULL);
+-- quotas : compteurs partagés par toutes les instances du relais (issues GitHub par heure, canaux créés par adresse IP).
+CREATE TABLE IF NOT EXISTS quotas (cle TEXT PRIMARY KEY, n INTEGER NOT NULL, fenetre INTEGER NOT NULL);

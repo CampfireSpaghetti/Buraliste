@@ -375,11 +375,11 @@ describe('moteur de synchronisation', () => {
     const A = phone();
     const e = createSyncEngine({ relay: r.client, key, db: A });
     await e.syncNow();
-    // un autre téléphone a déjà publié une photographie plus avancée
-    await r.client.putPhoto(canal, { ecriture, jusqua: 1_000_000_000, ...(await encryptJson(key, { v: 1, etat: {} })) });
     const msgs = [];
     for (let i = 0; i < 501; i++) msgs.push(await encryptJson(key, { v: 1, ops: [lineOp('l1', { name: 'Cash', linearQty: i }, hlcAt(Date.now() - 10_000 + i))] }));
     for (let i = 0; i < msgs.length; i += 200) await r.client.post(canal, { ecriture, messages: msgs.slice(i, i + 200) });
+    // un autre téléphone a déjà publié une photographie plus avancée (écrite directement dans le Store)
+    await r.store.putPhoto(canal, { jusqua: 1_000_000_000, ...(await encryptJson(key, { v: 1, etat: {} })) }, Date.now());
     const puts = () => r.requests.filter((q) => q.method === 'PUT').length;
     const before = puts();
     await e.syncNow();

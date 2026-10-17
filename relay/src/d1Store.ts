@@ -21,6 +21,9 @@ export interface D1Database {
  * Les numéros de messages viennent d'un AUTOINCREMENT commun à tous les canaux : ils croissent dans
  * chaque canal sans être consécutifs. `canaux.dernier` garde le dernier numéro malgré le ménage.
  */
+/** Les compteurs d'une fenêtre de plus d'un jour sont supprimés. */
+const QUOTA_TTL = 24 * 3_600_000;
+
 export function createD1Store(db: D1Database): Store {
   return {
     async getChannel(canal) {
@@ -92,6 +95,21 @@ export function createD1Store(db: D1Database): Store {
 
     async pruneBefore(canal, n, olderThan) {
       await db.prepare('DELETE FROM messages WHERE canal = ? AND n <= ? AND recu < ?').bind(canal, n, olderThan).run();
+    },
+
+    async bumpQuota(cle, fenetre) {
+      // Une seule transaction : ménage des vieux compteurs, puis incrément atomique (ou remise à 1 si la fenêtre a changé).
+      const [, bumped] = await db.batch<{ n: number }>([
+        db.prepare('DELETE FROM quotas WHERE fenetre < ?').bind(fenetre - QUOTA_TTL),
+        db
+          .prepare(
+            `INSERT INTO quotas (cle, n, fenetre) VALUES (?1, 1, ?2)
+             ON CONFLICT (cle) DO UPDATE SET n = CASE WHEN fenetre = ?2 THEN n + 1 ELSE 1 END, fenetre = MAX(fenetre, ?2)
+             RETURNING n`,
+          )
+          .bind(cle, fenetre),
+      ]);
+      return Number(bumped.results[0]?.n ?? 1);
     },
   };
 }
