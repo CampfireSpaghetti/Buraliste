@@ -644,6 +644,64 @@ describe('moteur de synchronisation', () => {
     expect((await A.syncState.get('lastN'))!.value).toBe(await r.store.lastN(canal));
   });
 
+  it('relais remis à zéro (base effacée, canal changé) : le téléphone rejoint de nouveau et republie son état', async () => {
+    const key = generateTabacKey();
+    const { canal } = await deriveChannel(key);
+    const r1 = fakeRelay();
+    const A = phone();
+    const B = phone();
+    const now = Date.now();
+    const full = { code: '0417', name: 'Cash', stockQty: 0, deleted: false, updatedAt: now };
+    await localWrite(A, lineOp('l1', { ...full, linearQty: 5 }, hlcAt(now - 5000, 0, 'aaaaaaaa')));
+    for (let i = 0; i < 5; i++) await localWrite(B, lineOp('l' + (i + 2), { ...full, name: 'Jeu ' + i, linearQty: i }, hlcAt(now - 4000 + i, 0, 'bbbbbbbb')));
+    await createSyncEngine({ relay: r1.client, key, db: A }).syncNow();
+    await createSyncEngine({ relay: r1.client, key, db: B }).syncNow();
+    const ea1 = createSyncEngine({ relay: r1.client, key, db: A });
+    await ea1.syncNow();
+    const lastBefore = (await A.syncState.get('lastN'))!.value as number;
+    expect(lastBefore).toBeGreaterThan(1);
+
+    // Le relais repart de zéro : base neuve, numérotation qui recommence.
+    const r2 = fakeRelay();
+    const ea = createSyncEngine({ relay: r2.client, key, db: A });
+    await ea.syncNow();
+    expect(ea.status()).toBe('ok');
+    const photo = await r2.store.getPhoto(canal);
+    expect(photo).not.toBeNull();
+    expect((await A.syncState.get('lastN'))!.value).toBeLessThanOrEqual(await r2.store.lastN(canal));
+
+    // un téléphone neuf qui rejoint le relais neuf reçoit tout ce que A savait (ses lignes et celles de B)
+    const C = phone();
+    await createSyncEngine({ relay: r2.client, key, db: C }).syncNow();
+    expect((await C.countLines.get('l1'))!).toMatchObject({ linearQty: 5 });
+    expect((await C.countLines.get('l6'))!).toMatchObject({ name: 'Jeu 4', linearQty: 4 });
+    // et une modification suivante de A part et arrive
+    await localWrite(A, lineOp('l1', { linearQty: 9 }, hlcAt(Date.now(), 0, 'aaaaaaaa')));
+    await ea.syncNow();
+    await createSyncEngine({ relay: r2.client, key, db: C }).syncNow();
+    expect((await C.countLines.get('l1'))!.linearQty).toBe(9);
+  });
+
+  it('relais remis à zéro alors que des opérations attendaient : détecté aussi par le numéro rendu à l’envoi', async () => {
+    const key = generateTabacKey();
+    const { canal } = await deriveChannel(key);
+    const r1 = fakeRelay();
+    const A = phone();
+    const now = Date.now();
+    await localWrite(A, lineOp('l1', { code: '0417', name: 'Cash', stockQty: 0, deleted: false, updatedAt: now, linearQty: 5 }, hlcAt(now - 5000)));
+    await createSyncEngine({ relay: r1.client, key, db: A }).syncNow();
+    expect((await A.syncState.get('lastN'))!.value).toBe(1);
+    // relais neuf ; une écriture attend : son envoi reçoit le numéro 1, égal au dernier numéro connu (pas de recul visible)
+    const r2 = fakeRelay();
+    await localWrite(A, lineOp('l2', { code: '0418', name: 'Goal', stockQty: 0, deleted: false, updatedAt: now, linearQty: 2 }, hlcAt(now - 4000)));
+    await createSyncEngine({ relay: r2.client, key, db: A }).syncNow();
+    expect(await r2.store.getPhoto(canal)).not.toBeNull();
+    const C = phone();
+    await createSyncEngine({ relay: r2.client, key, db: C }).syncNow();
+    expect((await C.countLines.get('l1'))!).toMatchObject({ linearQty: 5 });
+    expect((await C.countLines.get('l2'))!).toMatchObject({ linearQty: 2 });
+  });
+
   it('relais défaillant qui renvoie toujours la même page pleine : pas de boucle infinie ; seuls les messages nouveaux sont comptés', async () => {
     const page = Array.from({ length: 500 }, (_, i) => ({ n: i + 1, iv: 'x', data: 'y' }));
     let lists = 0;

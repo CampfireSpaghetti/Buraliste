@@ -6,6 +6,7 @@
  * - publie une photographie au-delà de 500 messages vus depuis la précédente, ou au premier contact d'une base qui a
  *   des données avec un canal vide et sans photographie (le tabac `principal`, sans action du gérant).
  * Les numéros de messages croissent dans un canal, avec des trous : on ne suppose jamais qu'ils se suivent.
+ * Un relais dont le dernier numéro recule (données effacées, canal changé) est rejoint de nouveau, état republié.
  */
 import { db as appDb, type CarotteDB } from '../data/db';
 import { applyRemoteOps, OPS_QUEUED_EVENT } from '../data/sharedRepo';
@@ -169,11 +170,16 @@ export function createSyncEngine(opts: SyncEngineOptions): SyncEngine {
 
   // ---------------------------------------------------------------- réception
 
-  /** Lit les messages qui suivent `lastN` (page après page), les applique, puis avance `lastN`. */
-  async function pull(canal: string): Promise<void> {
+  /**
+   * Lit les messages qui suivent `lastN` (page après page), les applique, puis avance `lastN`.
+   * Renvoie true si le relais a moins de messages que ce téléphone n'en a déjà vu (`dernier` < `lastN`) : ses données
+   * ont été effacées ou le canal a changé ; rien n'est appliqué, l'appelant rejoint de nouveau le canal.
+   */
+  async function pull(canal: string): Promise<boolean> {
     let last = await numState(K_LAST);
     for (;;) {
       const page = await relay.list(canal, last, PAGE);
+      if (typeof page?.dernier === 'number' && page.dernier < last) return true;
       const list = Array.isArray(page?.messages) ? page.messages : [];
       const ops: Op[] = [];
       let maxN = last;
@@ -206,6 +212,18 @@ export function createSyncEngine(opts: SyncEngineOptions): SyncEngine {
       last = maxN;
     }
     await d.syncState.put({ key: K_PULL, value: now() });
+    return false;
+  }
+
+  /**
+   * Relais remis à zéro : ce téléphone oublie sa position dans le canal (et ses compteurs de photographie) puis le
+   * rejoint comme au premier contact, ce qui republie son état fusionné (R25, R26). Sinon il attendrait pour toujours
+   * des numéros que le relais ne donnera plus, avec un statut « à jour ».
+   */
+  async function rejoin(canal: string): Promise<void> {
+    console.warn('Synchronisation : le relais a perdu les messages de ce tabac, ce téléphone republie son état.');
+    await d.syncState.bulkDelete([K_LAST, K_PULL, K_SEEN, K_PHOTO_TODO]);
+    await join(canal);
   }
 
   /** Photographie lisible du canal ; `null` si le relais n'en a pas, `undefined` si elle est illisible. */
@@ -253,10 +271,16 @@ export function createSyncEngine(opts: SyncEngineOptions): SyncEngine {
 
   // ---------------------------------------------------------------- envoi
 
-  async function send(canal: string, ecriture: string): Promise<void> {
+  /**
+   * Envoie la file. Renvoie true si le relais a numéroté un envoi sans dépasser le dernier numéro déjà vu ici : sur un
+   * relais sain, tout nouveau message reçoit un numéro plus grand que tous ceux du canal ; c'est donc une remise à zéro.
+   */
+  async function send(canal: string, ecriture: string): Promise<boolean> {
     const rows = (await d.opsOut.orderBy('seq').toArray()).filter((r): r is Row => typeof r.seq === 'number');
     stuck = 0;
-    if (rows.length === 0) return;
+    if (rows.length === 0) return false;
+    const seen = await numState(K_LAST);
+    let reset = false;
     const { posts, tooBig } = pack(rows);
     // Une opération plus grosse qu'un envoi (limite du relais : 64 Ko par requête) ne partira jamais. Elle n'est pas
     // effacée (rien ne disparaît sans que le gérant le voie) mais sautée, pour ne pas bloquer les autres ; le statut
@@ -266,10 +290,12 @@ export function createSyncEngine(opts: SyncEngineOptions): SyncEngine {
     for (const post of posts) {
       const messages: Sealed[] = [];
       for (const m of post) messages.push(await encryptJson(key, { v: 1, ops: m.ops }));
-      await relay.post(canal, { ecriture, messages });
+      const r = await relay.post(canal, { ecriture, messages });
+      if (seen > 0 && typeof r?.dernier === 'number' && r.dernier <= seen) reset = true;
       // Exactement les opérations envoyées : d'autres ont pu être ajoutées entre-temps.
       await d.opsOut.bulkDelete(post.flatMap((m) => m.seqs));
     }
+    return reset;
   }
 
   // ---------------------------------------------------------------- photographie
@@ -311,8 +337,8 @@ export function createSyncEngine(opts: SyncEngineOptions): SyncEngine {
       const { canal, ecriture } = await channel;
       if ((await getState(K_LAST)) === undefined) await join(canal);
       else if (now() - (await numState(K_PULL)) > STALE_PULL_MS) await catchUp(canal);
-      await send(canal, ecriture);
-      await pull(canal);
+      const resetOnSend = await send(canal, ecriture);
+      if ((await pull(canal)) || resetOnSend) await rejoin(canal);
       await maybePublish(canal, ecriture);
       failures = 0;
       refused = false;
