@@ -40,7 +40,7 @@ export interface Product {
   user: Partial<ProductFields>;
   outOfStock: boolean;
   pinnedSubstitutes: string[];
-  sharedBarcodes?: string[]; // codes partagés par les téléphones jumelés (liste publique)
+  sharedBarcodes?: string[]; // codes partagés par les téléphones de tous les tabacs (liste publique)
   sharedFdjPrefix?: string; // code de jeu partagé
   updatedAt: number;
 }

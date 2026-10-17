@@ -8,14 +8,14 @@ import { Toast } from './Toast';
 
 export const PAIRING_EVENT = 'carotte:pairing';
 
-/** QR code scanné qui n'est pas un produit : ancien jumelage (clé GitHub, supprimé) ou invitation à un tabac. */
+/** QR code de La Carotte scanné : ancien QR code à clé GitHub (`LACAROTTE1`, supprimé) ou invitation à un tabac. */
 export type PairingScan = { kind: 'ancien' } | { kind: 'invitation'; invite?: TabacInvite };
 
 export const announcePairing = (detail: PairingScan) => window.dispatchEvent(new CustomEvent<PairingScan>(PAIRING_EVENT, { detail }));
 
 /**
- * N'importe quel scanner de l'app envoie ici les QR codes de La Carotte. Une invitation propose « Rejoindre le <nom> ? » ;
- * l'ancien QR code de jumelage reçoit une explication plutôt que d'être traité comme un code inconnu.
+ * Tous les scanners de l'app envoient ici les QR codes de La Carotte. Une invitation demande « Rejoindre « nom » ? »
+ * (ou « Bientôt disponible » sans relais) ; un ancien QR code à clé GitHub reçoit une explication.
  */
 export function PairingPrompt() {
   const [toast, setToast] = useState<string | null>(null);

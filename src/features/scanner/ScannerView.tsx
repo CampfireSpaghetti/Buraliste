@@ -27,7 +27,7 @@ export function ScannerView({ mode, onResult, paused = false, footer }: Props) {
 
   const handle = (raw: string, bypassDebounce = false) => {
     // QR codes de La Carotte : ce ne sont pas des produits. Invitation à un tabac (« Rejoindre le … ? ») ou ancien
-    // QR code de jumelage (clé GitHub, supprimé : on explique quoi faire).
+    // Ancien QR code à clé GitHub (supprimé : on explique quoi faire).
     const invite = scannedInvite(raw);
     if (invite || isLegacyPairingCode(raw)) {
       if (bypassDebounce || (accept(raw, Date.now()) && !pausedRef.current)) {

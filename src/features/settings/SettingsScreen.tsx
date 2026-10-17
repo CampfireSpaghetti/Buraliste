@@ -22,6 +22,8 @@ export function SettingsScreen() {
   const [error, setError] = useState<string>();
   const [toast, setToast] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  /** Valeur du champ au moment où il a reçu le focus. */
+  const nameAtFocus = useRef<string | null>(null);
   useEffect(() => { if (settings && name === null) setName(settings.shopName); }, [settings, name]);
   // Nom changé ailleurs (autre téléphone du tabac, invitation) : le champ suit, sauf pendant la saisie. Sinon, quitter
   // le champ réécrirait l'ancien nom par-dessus le nouveau.
@@ -33,7 +35,14 @@ export function SettingsScreen() {
   const official = (products ?? []).filter((p) => p.source === 'douane').length;
   const fdjGames = (products ?? []).filter((p) => p.source === 'fdj' && p.base.status !== 'retrait').length;
 
-  const saveName = () => { if (name !== null && name.trim() && name.trim() !== settings.shopName) void actions.saveSettings({ shopName: name.trim() }); };
+  // Champ quitté sans rien saisir : rien n'est écrit (un nom reçu d'un autre téléphone pendant le focus n'est pas
+  // écrasé par l'ancien) et le champ reprend le nom partagé.
+  const saveName = () => {
+    const untouched = name === nameAtFocus.current;
+    nameAtFocus.current = null;
+    if (untouched) setName(settings.shopName);
+    else if (name !== null && name.trim() && name.trim() !== settings.shopName) void actions.saveSettings({ shopName: name.trim() });
+  };
 
   const onFile = async (f: File | undefined) => {
     setError(undefined);
@@ -61,7 +70,8 @@ export function SettingsScreen() {
       <span className="label">Tabac</span>
       <label className="field-label">
         Nom du tabac
-        <input className="input" id="shop-name" value={name ?? ''} onChange={(e) => setName(e.target.value)} onBlur={saveName}
+        <input className="input" id="shop-name" value={name ?? ''} onChange={(e) => setName(e.target.value)}
+          onFocus={() => { nameAtFocus.current = name; }} onBlur={saveName}
           onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
       </label>
       <p className="muted hint">Partagé avec les téléphones du tabac et affiché en tête des exports du comptage.</p>
