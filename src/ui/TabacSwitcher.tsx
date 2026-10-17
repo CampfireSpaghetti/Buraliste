@@ -3,8 +3,10 @@ import { createPortal } from 'react-dom';
 import { dbTabacId, openTabacDb } from '../data/db';
 import { formatIsoDateFr } from '../domain/format';
 import { relayUrl } from '../sync/relayConfig';
+import { parsePastedInvite } from '../tabacs/inviteLink';
 import { switchAfterSync } from '../tabacs/pageTabac';
 import { addTabac, listTabacs, removeTabac, TabacBusyError, type TabacEntry } from '../tabacs/registry';
+import { announcePairing } from './PairingPrompt';
 import { Sheet } from './Panel';
 import { SyncDot } from './SyncDot';
 
@@ -12,7 +14,7 @@ type Mode = { type: 'liste' } | { type: 'creer' } | { type: 'rejoindre' } | { ty
 
 const pad = (n: number) => String(n).padStart(2, '0');
 /** « ajouté le 16 octobre 2026 » : distingue deux tabacs du même nom (« Mon tabac » tant qu'on ne les a pas nommés). */
-function addedOn(ts: number): string {
+export function addedOn(ts: number): string {
   const d = new Date(ts);
   return `ajouté le ${formatIsoDateFr(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`)}`;
 }
@@ -39,6 +41,8 @@ function TabacsSheet({ onClose, removeTimeoutMs }: { onClose: () => void; remove
   const [mode, setMode] = useState<Mode>({ type: 'liste' });
   const [tabacs, setTabacs] = useState(listTabacs);
   const [newName, setNewName] = useState('');
+  const [pasted, setPasted] = useState('');
+  const [pasteError, setPasteError] = useState(false);
   const [busy, setBusy] = useState(false);
   // Le tabac dont cette page a ouvert la base (un autre onglet a pu changer le tabac courant du registre).
   const current = dbTabacId;
@@ -61,6 +65,14 @@ function TabacsSheet({ onClose, removeTimeoutMs }: { onClose: () => void; remove
   const openScanner = () => {
     onClose();
     location.hash = 'scanner';
+  };
+
+  /** Lien reçu par message (ou invitation brute) : même question « Rejoindre « nom » ? » qu'un QR code scanné. */
+  const joinByLink = () => {
+    const r = parsePastedInvite(pasted);
+    if (!r.ok) return setPasteError(true);
+    onClose();
+    announcePairing({ kind: 'invitation', via: 'lien', invite: r.invite });
   };
 
   if (mode.type === 'retirer') {
@@ -127,6 +139,23 @@ function TabacsSheet({ onClose, removeTimeoutMs }: { onClose: () => void; remove
           <div className="tabac-join">
             <p style={{ margin: 0 }}>Scannez le QR code « Inviter un employé » affiché sur le téléphone du gérant.</p>
             <button type="button" className="btn accent" onClick={openScanner}>Ouvrir le Scanner</button>
+            <form className="tabac-form" onSubmit={(e) => { e.preventDefault(); joinByLink(); }}>
+              <p style={{ margin: 0 }}>Ou, si le gérant vous a envoyé l’invitation par message :</p>
+              <label className="field-label">
+                Coller le lien d’invitation
+                <input
+                  className="input"
+                  value={pasted}
+                  onChange={(e) => { setPasted(e.target.value); setPasteError(false); }}
+                  placeholder="https://…#rejoindre=…"
+                  autoComplete="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
+                />
+              </label>
+              {pasteError && <p className="error" role="alert">Lien d’invitation invalide ou incomplet.</p>}
+              <button type="submit" className="btn" disabled={!pasted.trim()}>Rejoindre avec ce lien</button>
+            </form>
           </div>
         ) : (
           <p className="muted" style={{ margin: 0 }}>Rejoindre un tabac : bientôt disponible</p>

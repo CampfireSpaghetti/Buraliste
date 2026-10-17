@@ -8,6 +8,10 @@
 .steps svg { vertical-align: middle; }
 .card h3 { font-size: 18px; }
 .settings .row { flex-direction: column; }
+.invite-choice { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.invite-choice legend { padding: 0; margin-bottom: 6px; font-weight: 700; }
+.invite-choice .tabac-item { cursor: pointer; }
+.invite-choice input[type="radio"] { width: 20px; height: 20px; flex: none; margin: 0; accent-color: var(--accent); }
 .invite-qr { width: min(280px, 80vw); height: auto; align-self: center; image-rendering: pixelated; background: #fff; padding: 8px; border-radius: 8px; }
 .sync-state .sync-dot { width: 12px; height: 12px; border-color: var(--line); vertical-align: middle; font-size: 9px; }
 .sync-state .sync-dot.sync-connexion { border-color: var(--muted); }
