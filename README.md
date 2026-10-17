@@ -6,7 +6,7 @@ L'outil de poche du buraliste, pour iPhone et Android :
 - **Proposer un remplaçant** quand un produit manque ;
 - **Compter les jeux de grattage** et envoyer le comptage en image .jpg sur Google Drive (par le menu Partager, sans accès de l'app au Drive).
 
-C'est une application web installable (PWA) : gratuite, sans App Store ni Play Store, elle fonctionne hors connexion. Les données sont enregistrées sur le téléphone ; elles ne sont partagées qu'avec les téléphones de votre tabac, si vous le décidez (voir plus bas).
+C'est une application web installable (PWA) : gratuite, sans App Store ni Play Store, elle fonctionne hors connexion. Les données sont enregistrées sur le téléphone. Dès que l'administrateur a mis le relais en service (voir plus bas), les données de chaque tabac sont envoyées automatiquement, **chiffrées**, pour être partagées avec les téléphones de ce tabac, et seulement eux.
 
 ## Installer l'app
 
@@ -27,6 +27,7 @@ Chaque gérant crée son tabac lui-même, sans compte ni mot de passe. Ses emplo
 - **Confidentialité** : les données d'un tabac sont **chiffrées de bout en bout**. Elles sont chiffrées sur le téléphone avant d'être envoyées, avec une clé qui ne se trouve que sur les téléphones du tabac (elle voyage uniquement dans le QR code). **Personne ne peut lire les données d'un tabac** : ni le relais, ni Cloudflare qui l'héberge, ni GitHub, ni les autres tabacs, ni l'auteur de l'app.
 - **Sans réseau**, tout fonctionne comme d'habitude. Les modifications partent au retour du réseau. Un petit point en haut indique l'état : vert, à jour ; laiton, envoi en attente ; gris, hors ligne ; rouge, problème (le détail est dans Réglages).
 - **Retirer un employé** : il n'y a pas encore de retrait individuel. Pour écarter quelqu'un, créez un nouveau tabac et réinvitez les autres.
+- **Téléphone réinstallé ou navigateur effacé (gérant)** : les données du tabac sont restées sur les téléphones des employés et sur le relais. Demandez à un employé d'ouvrir **Réglages** → **Inviter un employé** sur son téléphone, scannez son QR code : votre téléphone rejoint votre tabac et récupère tout.
 
 Pour que tout cela fonctionne, l'administrateur de l'app doit mettre en service le relais une fois (voir ci-dessous).
 
@@ -77,6 +78,7 @@ Ensuite :
 
 - chaque publication de l'app met aussi le relais à jour, automatiquement ;
 - quand la clé GitHub arrive à expiration, en créer une nouvelle (étape 3.2), remplacer le secret `RELAY_GITHUB_TOKEN`, puis relancer le workflow ;
+- pour **retirer au relais la clé GitHub** (clé divulguée, ou arrêt de l'envoi des codes) : la révoquer sur GitHub (**Settings** → **Developer settings** → **Fine-grained tokens** → la clé → **Delete**), puis, soit la supprimer du relais (dans le dossier `relay/` : `npx wrangler secret delete GITHUB_TOKEN`) et supprimer le secret `RELAY_GITHUB_TOKEN` du dépôt, soit remplacer ce secret par une nouvelle clé et relancer le workflow « Déploiement » ;
 - tant que ces secrets ne sont pas renseignés, l'app fonctionne comme avant et les options de partage affichent « Bientôt disponible ».
 
 ## Partage des codes-barres (liste commune)
@@ -86,9 +88,11 @@ Les codes-barres rattachés à un produit officiel (et les codes de jeux FDJ app
 Aucun compte et aucune clé sur les téléphones : l'app envoie les codes au relais, qui détient la clé GitHub (secret `RELAY_GITHUB_TOKEN`, voir plus haut). Tout est automatique :
 
 - chaque code part tout seul vers le relais, qui ouvre un message (issue `[codes-barres]`) ;
-- le robot vérifie que l'expéditeur est bien le propriétaire du dépôt, que le code est valide et que la référence existe ;
+- le robot vérifie que le code est valide et que la référence existe ;
 - il ajoute le code à `public/data/codes-barres.json` (public) et republie l'app ;
 - tous les téléphones le reçoivent à la prochaine ouverture.
+
+Ces envois sont **anonymes** : le relais ouvre les messages avec la clé du propriétaire du dépôt, donc l'auteur affiché sur GitHub est toujours le propriétaire, quel que soit le téléphone qui a envoyé le code (le robot ne s'en sert que pour écarter les messages ouverts à la main par d'autres comptes). Pour limiter les abus, le relais n'accepte les codes que depuis l'app publiée et en nombre limité (10 messages par heure au total, et une limite par adresse). Surtout, le robot n'ajoute que des liens **nouveaux** : un envoi qui changerait un lien déjà publié (code-barres attribué à un autre produit, code de jeu FDJ différent) n'est jamais appliqué ; le message reste ouvert avec l'étiquette **« à vérifier »**, et c'est le propriétaire qui décide (corriger `public/data/codes-barres.json` à la main s'il le faut, puis fermer le message).
 
 Sans relais configuré, les codes restent en attente sur le téléphone et Réglages affiche « Partage entre téléphones : bientôt disponible ».
 
