@@ -384,3 +384,32 @@ Une barre d'onglets en bas de l'écran, avec des zones à toucher de 48 px minim
   - priorité : `user` d'abord, puis `base`, puis `shared` ;
   - la réception est réappliquée après une mise à jour des listes.
 - **Clé** : ~~gardée sur le téléphone~~ : elle est désormais un secret du relais (`RELAY_GITHUB_TOKEN`). Quand elle expire, l'administrateur la remplace dans GitHub et relance le déploiement (voir le README).
+
+## 17. Remplaçants des cigarettes et du tabac à rouler (validé le 16/10/2026)
+
+L'ancien score (force et goût estimés, prix) ne permettait pas d'expliquer un choix au client. Il reste utilisé pour les cigares, les cigarillos et les jeux.
+
+Pour les **cigarettes** et le **tabac à rouler**, le raisonnement suit le **nom officiel** (`src/domain/rangeProfile.ts`) :
+- la **marque** (dont les marques en plusieurs mots, et sans le « by … ») ;
+- la **couleur de gamme** et son niveau :
+  - rouge, noir, classique → corsé (4) ;
+  - bleu, gold, blond → équilibré (3) ;
+  - argent, clair, vert → léger (2) ;
+  - blanc → très léger (1) ;
+- le **type** : blond ou brun. Il vient du nom (« brunes ») ou de la marque (Gitanes) ;
+- le **format** : nombre de cigarettes ou poids, longueur (100s, longues, slims), paquet rigide ou souple ;
+- le **prix officiel**.
+
+L'ordre des propositions (`suggestSubstitutes`) :
+1. même marque, même couleur, format le plus proche ;
+2. même marque, couleur voisine, avec « un cran plus léger » ou « plus corsé » ;
+3. même marque, couleur non précisée ;
+4. autre marque, même niveau de goût, même format, prix le plus proche ;
+5. autre marque, même niveau de goût, autre format.
+
+Règles :
+- au plus 3 propositions de la même marque, puis d'autres marques, 5 propositions au total ;
+- les épinglés restent en tête ;
+- jamais de brun pour un blond, ni de produit retiré, pas encore en vente ou en rupture.
+
+Chaque proposition affiche une phrase, par exemple : « Même marque, même goût (Rouge), paquet de 25 au lieu de 20 · +0,20 € ». La fiche affiche une ligne « Gamme » : marque, couleur, niveau, format.
