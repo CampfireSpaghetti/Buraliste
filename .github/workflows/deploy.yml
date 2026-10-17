@@ -7,7 +7,7 @@ on:
     - cron: '17 4 * * 1' # chaque lundi 04:17 UTC : listes Douane et FDJ, codes en retard
   workflow_dispatch:
   issues:
-    types: [opened] # codes-barres envoyés par les téléphones jumelés
+    types: [opened] # codes-barres envoyés par les téléphones, par le relais
 
 permissions:
   contents: write
@@ -21,9 +21,11 @@ concurrency:
 
 jobs:
   relay:
-    # Relais de partage entre téléphones (Cloudflare Worker + base D1) : déployé à chaque publication,
+    # Relais de partage entre téléphones (Cloudflare Worker + base D1) : déployé à chaque publication et chaque lundi,
     # seulement si les secrets Cloudflare sont présents. L'adresse obtenue est transmise à la construction de l'app.
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    # Aussi chaque lundi (planification) : une modification du relais sautée par la file d'attente (concurrence) part
+    # au plus tard la semaine suivante.
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -156,8 +158,9 @@ jobs:
   build-deploy:
     needs: relay
     runs-on: ubuntu-latest
-    # Pour un message (issue), seulement ceux des téléphones jumelés : titre « [codes-barres] » et compte du propriétaire.
-    # Le job relay est ignoré hors publication (issue, planification) : la construction a lieu quand même.
+    # Pour un message (issue), seulement ceux ouverts par le relais : titre « [codes-barres] » et compte du propriétaire
+    # (le relais utilise son jeton ; l'expéditeur reste anonyme, voir R28).
+    # Le job relay est ignoré pour un message (issue) : la construction a lieu quand même.
     # Si le relais échoue (job relay en rouge), l'app est publiée quand même avec l'adresse de secours ci-dessous.
     if: ${{ !cancelled() && (github.event_name != 'issues' || (startsWith(github.event.issue.title, '[codes-barres]') && github.event.issue.user.login == github.repository_owner)) }}
     environment:
@@ -183,14 +186,15 @@ jobs:
         if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         continue-on-error: true
         run: npm run fdj:update
-      - name: Codes-barres reçus des téléphones jumelés
+      - name: Codes-barres reçus des téléphones (par le relais)
         id: codes
         if: github.event_name != 'push'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # Les messages déjà laissés « à vérifier » (R28) sont écartés par collect.ts (champ labels).
           gh issue list --repo ${{ github.repository }} --state open --author ${{ github.repository_owner }} \
-            --search "[codes-barres] in:title" --json number,title,body,author --limit 100 > "${{ runner.temp }}/issues.json"
+            --search "[codes-barres] in:title" --json number,title,body,author,labels --limit 100 > "${{ runner.temp }}/issues.json"
           node scripts/codes/collect.ts "${{ runner.temp }}/issues.json" "${{ runner.temp }}/replies.json" ${{ github.repository_owner }}
       - run: npm test
       - name: Publication des listes mises à jour (après les tests)
@@ -211,7 +215,8 @@ jobs:
           CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          # 1. adresse du relais tout juste déployé ; 2. variable RELAY_URL ; 3. adresse workers.dev du compte Cloudflare.
+          # 1. adresse du relais tout juste déployé ; 2. variable RELAY_URL ; 3. adresse workers.dev du compte Cloudflare ;
+          # 4. adresse de la version en ligne (CSP). Ne bloque jamais la publication.
           url="$FROM_JOB"
           if [ -z "$url" ]; then url="$FROM_VAR"; fi
           if [ -z "$url" ] && [ -n "$CF_TOKEN" ] && [ -n "$CF_ACCOUNT" ]; then
@@ -220,9 +225,19 @@ jobs:
             if [[ "$sub" =~ ^[a-z0-9-]+$ ]]; then
               url="https://la-carotte-relais.$sub.workers.dev"
             else
-              msg="Relais configuré mais adresse introuvable (Cloudflare injoignable ?) : cette version de l'app est publiée SANS partage entre téléphones. Relancer le workflow « Déploiement », ou renseigner la variable RELAY_URL."
-              echo "::warning::$msg"
-              echo "### Attention : $msg" >> "$GITHUB_STEP_SUMMARY"
+              # 4. (R29) adresse du relais de la version en ligne, lue dans sa CSP (connect-src) : une construction ne doit
+              # jamais perdre le relais, sinon les modifications des téléphones resteraient sur chaque téléphone. Les anciennes
+              # versions (avant le relais) y avaient api.github.com : ignoré.
+              live=$(curl -fsS --retry 3 https://wongmichel2048.github.io/Buraliste/ 2>/dev/null | grep -oE 'connect-src[^";]*' | head -n 1 |
+                grep -oE 'https://[A-Za-z0-9.-]+(:[0-9]+)?' | grep -vx 'https://api.github.com' | head -n 1 || true)
+              if [[ "$live" =~ ^https://[A-Za-z0-9.-]+(:[0-9]+)?(/[A-Za-z0-9._~/-]*)?$ ]]; then
+                url="$live"
+                echo "::warning::Adresse du relais reprise de la version en ligne ($url) : Cloudflare n'a pas répondu."
+              else
+                msg="Relais configuré mais adresse introuvable (Cloudflare injoignable ?) : cette version de l'app est publiée SANS partage entre téléphones. Relancer le workflow « Déploiement », ou renseigner la variable RELAY_URL."
+                echo "::warning::$msg"
+                echo "### Attention : $msg" >> "$GITHUB_STEP_SUMMARY"
+              fi
             fi
           fi
           url="${url%/}"
@@ -247,10 +262,21 @@ jobs:
         if: steps.codes.outcome == 'success'
         env:
           GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
         run: |
-          node -e 'for (const [n, s] of Object.entries(require(process.argv[1]))) console.log(n + "\t" + Buffer.from(s).toString("base64"))' "${{ runner.temp }}/replies.json" |
-          while IFS=$'\t' read -r num summary; do
-            gh issue close "$num" --repo ${{ github.repository }} --comment "$(echo "$summary" | base64 -d)"
+          # Un message qui contient des contributions en conflit avec la liste publiée (R28) reçoit la réponse et reste
+          # ouvert avec l'étiquette « à vérifier » : le propriétaire décide. Les autres sont fermés avec la réponse.
+          label="à vérifier"
+          node -e 'for (const [n, r] of Object.entries(require(process.argv[1]))) console.log(n + "\t" + (r.review ? "review" : "close") + "\t" + Buffer.from(r.text).toString("base64"))' "${{ runner.temp }}/replies.json" |
+          while IFS=$'\t' read -r num action summary; do
+            text="$(echo "$summary" | base64 -d)"
+            if [ "$action" = "review" ]; then
+              gh label create "$label" --repo "$REPO" --color FBCA04 --description "Contribution de codes-barres à vérifier par le propriétaire" 2>/dev/null || true
+              gh issue comment "$num" --repo "$REPO" --body "$text"
+              gh issue edit "$num" --repo "$REPO" --add-label "$label" || echo "::warning::Étiquette « $label » non posée sur le message #$num : il reste ouvert."
+            else
+              gh issue close "$num" --repo "$REPO" --comment "$text"
+            fi
           done
       - name: Signaler une source qui n'a pas pu être lue
         if: steps.refs.outcome == 'failure' || steps.fdj.outcome == 'failure'
