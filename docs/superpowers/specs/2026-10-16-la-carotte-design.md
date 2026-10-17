@@ -363,18 +363,17 @@ Une barre d'onglets en bas de l'écran, avec des zones à toucher de 48 px minim
 
 ## 16. Partage des codes-barres (validé le 16/10/2026)
 
+> **Mis à jour** : l'envoi ne se fait plus depuis les téléphones avec une clé GitHub, ni par jumelage QR code `LACAROTTE1`. Les téléphones envoient les contributions au relais La Carotte, qui détient la clé GitHub. Voir `2026-10-16-tabacs-multiples-design.md` (§3.5 et §4). Les points « Envoi automatique », « Jumelage » et « Clé » ci-dessous décrivent la première version et sont remplacés ; le reste (contenu envoyé, robot, réception) est inchangé.
+
 - **But** : partager entre plusieurs téléphones, et constituer une base commune publique pour d'autres buralistes.
 - **Ce qui part** : uniquement les contributions `{code → ref officielle}` (liste Douane ou FDJ) et `{préfixe de jeu → ref FDJ}`.
   - Une fiche créée à la main n'est pas partagée.
   - Ne partent jamais : comptages, stocks, prix, ruptures, nom du tabac, clé.
 - **Envoi automatique** :
   - Une file d'attente (Dexie v3, table `outbox`) est alimentée à chaque modification d'un produit officiel qui ajoute un code (`contributionsFor`).
-  - La file est envoyée regroupée 15 s après le dernier ajout, au démarrage et au retour du réseau, par `POST https://api.github.com/repos/wongmichel2048/Buraliste/issues`, sous le titre `[codes-barres] N codes` avec un corps JSON.
-  - L'envoi utilise une clé fine-grained « Issues : lecture et écriture » sur ce seul dépôt.
-  - La CSP autorise `connect-src https://api.github.com`, et rien d'autre.
-- **Jumelage** :
-  - le téléphone qui a la clé affiche un QR code `LACAROTTE1:<base64url {token, repo, shop}>` ;
-  - un autre téléphone le scanne avec n'importe quel scanner de l'app, et confirme.
+  - La file est envoyée regroupée 15 s après le dernier ajout, au démarrage et au retour du réseau, par `POST <relais>/v1/codes` (le relais ouvre l'issue GitHub `[codes-barres] N codes` avec un corps JSON).
+  - ~~L'envoi utilise une clé fine-grained sur le téléphone~~ : remplacé, voir la nouvelle spec (la clé est dans le relais ; la CSP autorise l'adresse du relais).
+- ~~**Jumelage** par QR code `LACAROTTE1`~~ : retiré, plus aucune clé sur les téléphones.
 - **Robot** (workflow sur `issues: opened`, sur le planning hebdomadaire et à la main) :
   - il traite **tous** les messages `[codes-barres]` ouverts du propriétaire du dépôt ;
   - il vérifie le code (6 à 24 caractères), le préfixe (au moins 4 chiffres) et l'existence de la référence ;
@@ -384,7 +383,7 @@ Une barre d'onglets en bas de l'écran, avec des zones à toucher de 48 px minim
   - `syncSharedCodes` remplit `sharedBarcodes` et `sharedFdjPrefix` sur les produits officiels ;
   - priorité : `user` d'abord, puis `base`, puis `shared` ;
   - la réception est réappliquée après une mise à jour des listes.
-- **Clé** : gardée sur le téléphone, exclue des sauvegardes, conservée lors d'une restauration. Elle peut expirer ; l'état « clé refusée » s'affiche alors dans Réglages.
+- **Clé** : ~~gardée sur le téléphone~~ : elle est désormais un secret du relais (`RELAY_GITHUB_TOKEN`). Quand elle expire, l'administrateur la remplace dans GitHub et relance le déploiement (voir le README).
 
 ## 17. Remplaçants des cigarettes et du tabac à rouler (validé le 16/10/2026)
 

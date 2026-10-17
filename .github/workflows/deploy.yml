@@ -7,7 +7,7 @@ on:
     - cron: '17 4 * * 1' # chaque lundi 04:17 UTC : listes Douane et FDJ, codes en retard
   workflow_dispatch:
   issues:
-    types: [opened] # codes-barres envoyés par les téléphones jumelés
+    types: [opened] # codes-barres envoyés par les téléphones, par le relais
 
 permissions:
   contents: write
@@ -20,10 +20,149 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build-deploy:
+  relay:
+    # Relais de partage entre téléphones (Cloudflare Worker + base D1) : déployé à chaque publication et chaque lundi,
+    # seulement si les secrets Cloudflare sont présents. L'adresse obtenue est transmise à la construction de l'app.
+    # Aussi chaque lundi (planification) : une modification du relais sautée par la file d'attente (concurrence) part
+    # au plus tard la semaine suivante.
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
     runs-on: ubuntu-latest
-    # Pour un message (issue), seulement ceux des téléphones jumelés : titre « [codes-barres] » et compte du propriétaire.
-    if: github.event_name != 'issues' || (startsWith(github.event.issue.title, '[codes-barres]') && github.event.issue.user.login == github.repository_owner)
+    permissions:
+      contents: read
+    outputs:
+      url: ${{ steps.deploy.outputs.url }}
+    env:
+      WRANGLER_SEND_METRICS: 'false'
+    steps:
+      - name: Relais configuré ?
+        id: check
+        env:
+          CF: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -n "$CF" ] && [ -n "$CF_ACCOUNT" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            if [ -n "$CF" ]; then echo "::warning::Secret CLOUDFLARE_ACCOUNT_ID absent : le relais n'est pas déployé."; fi
+            echo "Relais non configuré (secrets Cloudflare absents) : l'app est publiée sans partage entre téléphones." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.check.outputs.enabled == 'true'
+        with:
+          ref: ${{ github.event_name == 'push' && github.sha || 'main' }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        if: steps.check.outputs.enabled == 'true'
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: relay/package-lock.json
+      - name: Installation de wrangler
+        if: steps.check.outputs.enabled == 'true'
+        working-directory: relay
+        run: npm ci
+      - name: Adresse workers.dev du compte Cloudflare
+        id: subdomain
+        if: steps.check.outputs.enabled == 'true'
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          # Un compte Cloudflare neuf n'a pas encore d'adresse workers.dev (erreur 10007) : on en réserve une, comme wrangler
+          # le propose hors CI. Toute autre erreur arrête le job : on ne touche jamais à une adresse existante.
+          api="https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT/workers/subdomain"
+          # Réponse de l'API → « ok <adresse> » ou « err <code d'erreur> ».
+          read_cf() { node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const j=JSON.parse(s);console.log(j.success&&j.result?.subdomain?"ok "+j.result.subdomain:"err "+(j.errors?.[0]?.code??"inconnue"))}catch{console.log("err illisible")}})'; }
+          res=$(curl -sS --retry 3 -H "Authorization: Bearer $CF_TOKEN" "$api" | read_cf)
+          case "$res" in
+            "ok "*) sub="${res#ok }" ;;
+            "err 10007")
+              base="la-carotte-$(printf '%s' "$OWNER" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9-' '-')"
+              sub=""
+              for name in "$base" "$base-$(openssl rand -hex 3)"; do
+                put=$(curl -sS --retry 3 -X PUT -H "Authorization: Bearer $CF_TOKEN" -H "Content-Type: application/json" \
+                  --data "{\"subdomain\":\"$name\"}" "$api" | read_cf)
+                case "$put" in
+                  "ok "*) sub="${put#ok }"; break ;;
+                  *) echo "::warning::Adresse $name.workers.dev refusée ($put)." ;;
+                esac
+              done
+              ;;
+            *)
+              echo "::error::Lecture de l'adresse workers.dev impossible ($res) : vérifier la clé CLOUDFLARE_API_TOKEN et l'état de Cloudflare."
+              exit 1
+              ;;
+          esac
+          if ! [[ "$sub" =~ ^[a-z0-9-]+$ ]]; then
+            echo "::error::Impossible de réserver une adresse workers.dev pour le compte Cloudflare."
+            exit 1
+          fi
+          echo "subdomain=$sub" >> "$GITHUB_OUTPUT"
+      - name: Base D1
+        if: steps.check.outputs.enabled == 'true'
+        working-directory: relay
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -o pipefail
+          d1_id() {
+            npx wrangler d1 list --json | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const a=JSON.parse(s.slice(s.search(/^\[/m),s.lastIndexOf("]")+1));const db=a.find(d=>d.name==="la-carotte");process.stdout.write(db?db.uuid:"")})'
+          }
+          id=$(d1_id)
+          if [ -z "$id" ]; then
+            npx wrangler d1 create la-carotte
+            id=$(d1_id)
+          fi
+          if ! [[ "$id" =~ ^[0-9a-f-]{36}$ ]]; then
+            echo "::error::Base D1 « la-carotte » introuvable."
+            exit 1
+          fi
+          sed -i "s/A_REMPLACER_AU_DEPLOIEMENT/$id/" wrangler.toml
+          npx wrangler d1 execute la-carotte --remote --yes --file schema.sql
+      - name: Déploiement du relais
+        id: deploy
+        if: steps.check.outputs.enabled == 'true'
+        working-directory: relay
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          RELAY_GITHUB_TOKEN: ${{ secrets.RELAY_GITHUB_TOKEN }}
+          SUBDOMAIN: ${{ steps.subdomain.outputs.subdomain }}
+        run: |
+          set -o pipefail
+          secrets="$RUNNER_TEMP/relay-secrets.json"
+          trap 'rm -f "$secrets"' EXIT
+          args=()
+          if [ -n "$RELAY_GITHUB_TOKEN" ]; then
+            # Le jeton GitHub devient le secret GITHUB_TOKEN du Worker (jamais affiché).
+            node -e 'require("fs").writeFileSync(process.argv[1], JSON.stringify({ GITHUB_TOKEN: process.env.RELAY_GITHUB_TOKEN }), { mode: 0o600 })' "$secrets"
+            args=(--secrets-file "$secrets")
+          else
+            echo "::warning::Secret RELAY_GITHUB_TOKEN absent : les codes-barres des téléphones ne partiront pas vers la liste commune."
+          fi
+          npx wrangler deploy "${args[@]}" 2>&1 | tee "$RUNNER_TEMP/relay-deploy.log"
+          url=$(grep -oE 'https://la-carotte-relais\.[A-Za-z0-9-]+\.workers\.dev' "$RUNNER_TEMP/relay-deploy.log" | head -n 1 || true)
+          if [ -z "$url" ]; then url="https://la-carotte-relais.$SUBDOMAIN.workers.dev"; fi
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Relais de partage déployé"
+            echo
+            echo "Adresse : $url"
+            echo
+            echo "Elle est transmise automatiquement à l'app : rien à copier."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  build-deploy:
+    needs: relay
+    runs-on: ubuntu-latest
+    # Pour un message (issue), seulement ceux ouverts par le relais : titre « [codes-barres] » et compte du propriétaire
+    # (le relais utilise son jeton ; l'expéditeur reste anonyme, voir R28).
+    # Le job relay est ignoré pour un message (issue) : la construction a lieu quand même.
+    # Si le relais échoue (job relay en rouge), l'app est publiée quand même avec l'adresse de secours ci-dessous.
+    if: ${{ !cancelled() && (github.event_name != 'issues' || (startsWith(github.event.issue.title, '[codes-barres]') && github.event.issue.user.login == github.repository_owner)) }}
     environment:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
@@ -47,14 +186,15 @@ jobs:
         if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         continue-on-error: true
         run: npm run fdj:update
-      - name: Codes-barres reçus des téléphones jumelés
+      - name: Codes-barres reçus des téléphones (par le relais)
         id: codes
         if: github.event_name != 'push'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # Les messages déjà laissés « à vérifier » (R28) sont écartés par collect.ts (champ labels).
           gh issue list --repo ${{ github.repository }} --state open --author ${{ github.repository_owner }} \
-            --search "[codes-barres] in:title" --json number,title,body,author --limit 100 > "${{ runner.temp }}/issues.json"
+            --search "[codes-barres] in:title" --json number,title,body,author,labels --limit 100 > "${{ runner.temp }}/issues.json"
           node scripts/codes/collect.ts "${{ runner.temp }}/issues.json" "${{ runner.temp }}/replies.json" ${{ github.repository_owner }}
       - run: npm test
       - name: Publication des listes mises à jour (après les tests)
@@ -68,6 +208,49 @@ jobs:
             git pull --rebase origin main
             git push
           fi
+      - name: Adresse du relais
+        env:
+          FROM_JOB: ${{ needs.relay.outputs.url }}
+          FROM_VAR: ${{ vars.RELAY_URL }}
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          # 1. adresse du relais tout juste déployé ; 2. variable RELAY_URL ; 3. adresse workers.dev du compte Cloudflare ;
+          # 4. adresse de la version en ligne (CSP). Ne bloque jamais la publication.
+          url="$FROM_JOB"
+          if [ -z "$url" ]; then url="$FROM_VAR"; fi
+          if [ -z "$url" ] && [ -n "$CF_TOKEN" ] && [ -n "$CF_ACCOUNT" ]; then
+            sub=$(curl -fsS --retry 3 --retry-all-errors -H "Authorization: Bearer $CF_TOKEN" "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT/workers/subdomain" |
+              node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{process.stdout.write(JSON.parse(s).result?.subdomain||"")}catch{}})' || true)
+            if [[ "$sub" =~ ^[a-z0-9-]+$ ]]; then
+              url="https://la-carotte-relais.$sub.workers.dev"
+            else
+              # 4. (R29) adresse du relais de la version en ligne, lue dans sa CSP (connect-src) : une construction ne doit
+              # jamais perdre le relais, sinon les modifications des téléphones resteraient sur chaque téléphone. Les anciennes
+              # versions (avant le relais) y avaient api.github.com : ignoré.
+              live=$(curl -fsS --retry 3 https://wongmichel2048.github.io/Buraliste/ 2>/dev/null | grep -oE 'connect-src[^";]*' | head -n 1 |
+                grep -oE 'https://[A-Za-z0-9.-]+(:[0-9]+)?' | grep -vx 'https://api.github.com' | head -n 1 || true)
+              if [[ "$live" =~ ^https://[A-Za-z0-9.-]+(:[0-9]+)?(/[A-Za-z0-9._~/-]*)?$ ]]; then
+                url="$live"
+                echo "::warning::Adresse du relais reprise de la version en ligne ($url) : Cloudflare n'a pas répondu."
+              else
+                msg="Relais configuré mais adresse introuvable (Cloudflare injoignable ?) : cette version de l'app est publiée SANS partage entre téléphones. Relancer le workflow « Déploiement », ou renseigner la variable RELAY_URL."
+                echo "::warning::$msg"
+                echo "### Attention : $msg" >> "$GITHUB_STEP_SUMMARY"
+              fi
+            fi
+          fi
+          url="${url%/}"
+          if [ -n "$url" ] && ! [[ "$url" =~ ^https://[A-Za-z0-9.-]+(:[0-9]+)?(/[A-Za-z0-9._~/-]*)?$ ]]; then
+            echo "::warning::Adresse du relais invalide, ignorée : l'app est construite sans partage entre téléphones."
+            url=""
+          fi
+          echo "VITE_RELAY_URL=$url" >> "$GITHUB_ENV"
+          if [ -n "$url" ]; then
+            echo "Relais : $url"
+          elif [ -z "$CF_TOKEN" ] || [ -z "$CF_ACCOUNT" ]; then
+            echo "Relais non configuré : le partage entre téléphones affichera « Bientôt disponible »."
+          fi
       - run: npm run build
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
@@ -79,10 +262,21 @@ jobs:
         if: steps.codes.outcome == 'success'
         env:
           GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
         run: |
-          node -e 'for (const [n, s] of Object.entries(require(process.argv[1]))) console.log(n + "\t" + Buffer.from(s).toString("base64"))' "${{ runner.temp }}/replies.json" |
-          while IFS=$'\t' read -r num summary; do
-            gh issue close "$num" --repo ${{ github.repository }} --comment "$(echo "$summary" | base64 -d)"
+          # Un message qui contient des contributions en conflit avec la liste publiée (R28) reçoit la réponse et reste
+          # ouvert avec l'étiquette « à vérifier » : le propriétaire décide. Les autres sont fermés avec la réponse.
+          label="à vérifier"
+          node -e 'for (const [n, r] of Object.entries(require(process.argv[1]))) console.log(n + "\t" + (r.review ? "review" : "close") + "\t" + Buffer.from(r.text).toString("base64"))' "${{ runner.temp }}/replies.json" |
+          while IFS=$'\t' read -r num action summary; do
+            text="$(echo "$summary" | base64 -d)"
+            if [ "$action" = "review" ]; then
+              gh label create "$label" --repo "$REPO" --color FBCA04 --description "Contribution de codes-barres à vérifier par le propriétaire" 2>/dev/null || true
+              gh issue comment "$num" --repo "$REPO" --body "$text"
+              gh issue edit "$num" --repo "$REPO" --add-label "$label" || echo "::warning::Étiquette « $label » non posée sur le message #$num : il reste ouvert."
+            else
+              gh issue close "$num" --repo "$REPO" --comment "$text"
+            fi
           done
       - name: Signaler une source qui n'a pas pu être lue
         if: steps.refs.outcome == 'failure' || steps.fdj.outcome == 'failure'

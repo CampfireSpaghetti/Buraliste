@@ -31,6 +31,27 @@ h1, h2, h3 { margin: 0; text-wrap: balance; }
 }
 .app-header h1 { font-family: var(--font-display); font-weight: 400; font-size: 22px; letter-spacing: .02em; line-height: 1.1; }
 .app-header small { display: block; opacity: .8; font-size: 13px; }
+.app-title { min-width: 0; flex: 1; }
+.tabac-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.tabac-btn {
+  display: inline-flex; align-items: center; gap: 4px; min-width: 0; min-height: var(--tap); margin: -10px 0 -10px -6px; padding: 0 6px;
+  border: 0; border-radius: 8px; background: transparent; color: inherit; text-align: left;
+}
+.tabac-btn small { opacity: .9; font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tabac-btn:active { background: rgba(255,255,255,.12); }
+.tabac-caret { font-size: 12px; opacity: .8; }
+/* Point de synchronisation : couleurs vives cerclées de crème, lisibles sur le bordeaux de l'en-tête. Le bouton qui le
+   porte a la taille d'un doigt et ouvre Réglages. « ! » en cas d'erreur, cercle vide pendant la connexion : pas que la couleur. */
+.sync-dot-btn { flex: none; display: inline-flex; align-items: center; justify-content: center; width: var(--tap); height: var(--tap); margin: -10px -12px; border: 0; border-radius: 50%; background: transparent; padding: 0; }
+.sync-dot {
+  display: inline-flex; align-items: center; justify-content: center; flex: none; width: 12px; height: 12px; border-radius: 50%;
+  border: 2px solid var(--email); background: #b9bcc4; color: #fff; font-size: 11px; font-weight: 700; line-height: 1;
+}
+.sync-dot.sync-ok { background: #3fb560; }
+.sync-dot.sync-attente { background: #e0b04a; }
+.sync-dot.sync-hors-ligne { background: #b9bcc4; }
+.sync-dot.sync-connexion { background: transparent; }
+.sync-dot.sync-erreur, .sync-dot.sync-refuse { width: 16px; height: 16px; background: #d8352b; }
 .app-main { flex: 1; overflow-y: auto; padding: 16px; padding-bottom: 24px; }
 .screen-title { font-family: var(--font-display); font-weight: 400; font-size: 24px; color: var(--accent); margin-bottom: 12px; }
 

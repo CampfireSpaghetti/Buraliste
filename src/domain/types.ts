@@ -40,7 +40,7 @@ export interface Product {
   user: Partial<ProductFields>;
   outOfStock: boolean;
   pinnedSubstitutes: string[];
-  sharedBarcodes?: string[]; // codes partagés par les téléphones jumelés (liste publique)
+  sharedBarcodes?: string[]; // codes partagés par les téléphones de tous les tabacs (liste publique)
   sharedFdjPrefix?: string; // code de jeu partagé
   updatedAt: number;
 }
@@ -53,6 +53,7 @@ export interface CountLine {
   linearQty: number; // quantité linéaire (au présentoir), en tickets
   stockQty: number; // quantité en stock (réserve), en tickets
   updatedAt: number;
+  deleted?: boolean; // ligne supprimée (gardée pour la synchronisation, jamais affichée)
 }
 
 export interface Settings {
@@ -65,9 +66,10 @@ export interface Settings {
   fdjFetchedAt?: string;
   sharedCodesVersion?: string;
   hiddenGames?: string[]; // jeux enlevés de la liste de comptage par le buraliste
-  // Partage des codes-barres (téléphone jumelé). La clé ne quitte jamais le téléphone : exclue des sauvegardes.
+  // Envoi des codes-barres au relais. `shareToken` est l'ancienne clé GitHub des versions précédentes : plus utilisée,
+  // effacée au démarrage, jamais partagée ni sauvegardée (le champ reste déclaré pour lire les anciennes données).
   shareToken?: string;
-  shareStatus?: 'ok' | 'cle-refusee' | 'hors-ligne' | 'erreur';
+  shareStatus?: 'ok' | 'hors-ligne' | 'erreur';
   lastShareAt?: number;
 }
 

@@ -1,0 +1,14 @@
+# Relais La Carotte (Cloudflare Worker + base D1), déployé par le workflow « Déploiement ».
+name = "la-carotte-relais"
+main = "src/index.ts"
+compatibility_date = "2026-09-01"
+
+[vars]
+# Origines autorisées (CORS), séparées par des virgules : uniquement l'app publiée.
+ALLOWED_ORIGINS = "https://wongmichel2048.github.io"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "la-carotte"
+# Remplacé par l'identifiant réel de la base pendant le déploiement (workflow « Déploiement »).
+database_id = "A_REMPLACER_AU_DEPLOIEMENT"

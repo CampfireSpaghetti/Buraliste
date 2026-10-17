@@ -4,8 +4,9 @@ import { useProducts } from '../../store';
 import { Sheet } from '../../ui/Panel';
 import { signalScanOk, TEST_SCAN_EVENT } from './feedback';
 import { useBarcodeScanner } from './useBarcodeScanner';
-import { decodePairing } from '../../domain/sharing';
-import { PAIRING_EVENT } from '../../ui/PairingPrompt';
+import { isLegacyPairingCode } from '../../domain/sharing';
+import { announcePairing } from '../../ui/PairingPrompt';
+import { scannedInvite } from '../../tabacs/invite';
 import './scanner.css';
 
 type Props = {
@@ -25,10 +26,13 @@ export function ScannerView({ mode, onResult, paused = false, footer }: Props) {
   pausedRef.current = paused || manual;
 
   const handle = (raw: string, bypassDebounce = false) => {
-    // QR code de jumelage (onglet Réglages d'un autre téléphone) : ce n'est pas un produit.
-    const pairing = decodePairing(raw.trim());
-    if (pairing) {
-      if (accept(raw, Date.now()) && !pausedRef.current) window.dispatchEvent(new CustomEvent(PAIRING_EVENT, { detail: pairing }));
+    // QR codes de La Carotte : ce ne sont pas des produits. Invitation à un tabac (« Rejoindre le … ? ») ou ancien
+    // Ancien QR code à clé GitHub (supprimé : on explique quoi faire).
+    const invite = scannedInvite(raw);
+    if (invite || isLegacyPairingCode(raw)) {
+      if (bypassDebounce || (accept(raw, Date.now()) && !pausedRef.current)) {
+        announcePairing(invite ? { kind: 'invitation', invite: invite.ok ? invite.invite : undefined } : { kind: 'ancien' });
+      }
       return;
     }
     if (!bypassDebounce) {

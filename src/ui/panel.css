@@ -45,3 +45,17 @@ button.chip { min-height: 40px; }
 .banner-actions .btn { flex: 1; }
 .banner-actions .btn { min-height: 44px; padding: 0 10px; font-size: 14px; }
 .update-banner { margin: 8px 16px 0; }
+
+.tabac-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.tabac-list li { display: flex; align-items: center; gap: 6px; }
+.tabac-item {
+  flex: 1; min-width: 0; min-height: var(--tap); display: flex; align-items: center; gap: 10px; padding: 0 12px;
+  border: 1.5px solid var(--line); border-radius: var(--radius); background: var(--surface); text-align: left; font-weight: 600;
+}
+.tabac-item.on { border-color: var(--fg); }
+.tabac-check { width: 18px; flex: none; color: var(--ok); font-weight: 700; }
+.tabac-text { min-width: 0; display: flex; flex-direction: column; line-height: 1.2; padding: 4px 0; }
+.tabac-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tabac-added { font-size: 13px; font-weight: 400; color: var(--muted); }
+.tabac-remove { flex: none; padding: 0 10px; color: var(--danger); font-size: 15px; }
+.tabac-form, .tabac-join { display: flex; flex-direction: column; gap: 10px; }

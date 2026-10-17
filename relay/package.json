@@ -1,0 +1,12 @@
+{
+  "name": "la-carotte-relais",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "4.145.0"
+  }
+}

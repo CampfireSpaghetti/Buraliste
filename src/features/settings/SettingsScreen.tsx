@@ -3,11 +3,13 @@ import { restoreFromText } from '../../data/backupData';
 import { parseBackup } from '../../domain/backup';
 import { formatDateLong, formatIsoDateFr } from '../../domain/format';
 import { actions, notifyDataChanged, useProducts, useSettings } from '../../store';
+import { relayUrl } from '../../sync/relayConfig';
 import { Sheet } from '../../ui/Panel';
 import { Toast } from '../../ui/Toast';
 import { BackupPanel } from './BackupPanel';
 import { InstallGuide } from './InstallGuide';
-import { SharingSection } from './SharingSection';
+import { TabacSection } from './TabacSection';
+import { tabacDisplayName } from '../../tabacs/pageTabac';
 import './settings.css';
 
 export function SettingsScreen() {
@@ -20,12 +22,27 @@ export function SettingsScreen() {
   const [error, setError] = useState<string>();
   const [toast, setToast] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  /** Valeur du champ au moment où il a reçu le focus. */
+  const nameAtFocus = useRef<string | null>(null);
   useEffect(() => { if (settings && name === null) setName(settings.shopName); }, [settings, name]);
+  // Nom changé ailleurs (autre téléphone du tabac, invitation) : le champ suit, sauf pendant la saisie. Sinon, quitter
+  // le champ réécrirait l'ancien nom par-dessus le nouveau.
+  const sharedName = settings?.shopName;
+  useEffect(() => {
+    if (sharedName !== undefined && document.activeElement?.id !== 'shop-name') setName(sharedName);
+  }, [sharedName]);
   if (!settings) return null;
   const official = (products ?? []).filter((p) => p.source === 'douane').length;
   const fdjGames = (products ?? []).filter((p) => p.source === 'fdj' && p.base.status !== 'retrait').length;
 
-  const saveName = () => { if (name !== null && name.trim() && name.trim() !== settings.shopName) void actions.saveSettings({ shopName: name.trim() }); };
+  // Champ quitté sans rien saisir : rien n'est écrit (un nom reçu d'un autre téléphone pendant le focus n'est pas
+  // écrasé par l'ancien) et le champ reprend le nom partagé.
+  const saveName = () => {
+    const untouched = name === nameAtFocus.current;
+    nameAtFocus.current = null;
+    if (untouched) setName(settings.shopName);
+    else if (name !== null && name.trim() && name.trim() !== settings.shopName) void actions.saveSettings({ shopName: name.trim() });
+  };
 
   const onFile = async (f: File | undefined) => {
     setError(undefined);
@@ -50,12 +67,15 @@ export function SettingsScreen() {
 
   return (
     <div className="settings">
+      <span className="label">Tabac</span>
       <label className="field-label">
         Nom du tabac
-        <input className="input" id="shop-name" value={name ?? ''} onChange={(e) => setName(e.target.value)} onBlur={saveName}
+        <input className="input" id="shop-name" value={name ?? ''} onChange={(e) => setName(e.target.value)}
+          onFocus={() => { nameAtFocus.current = name; }} onBlur={saveName}
           onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
       </label>
-      <p className="muted hint">Affiché en tête des exports du comptage.</p>
+      <p className="muted hint">Partagé avec les téléphones du tabac et affiché en tête des exports du comptage.</p>
+      <TabacSection shopName={tabacDisplayName(settings.shopName)} />
 
       <span className="label">Sauvegarde</span>
       <div className="row">
@@ -78,13 +98,28 @@ export function SettingsScreen() {
         Gamme en point de vente (fdj.fr){settings.fdjFetchedAt ? ` · liste du ${formatIsoDateFr(settings.fdjFetchedAt)}` : ''} · {fdjGames} jeux · mise à jour automatique chaque semaine
       </p>
 
-      <SharingSection settings={settings} />
+      {relayUrl() && (
+        <>
+          <span className="label">Codes-barres</span>
+          <p className="muted hint">
+            Les codes-barres scannés enrichissent automatiquement la liste commune.
+            {settings.lastShareAt ? ` Dernier envoi : ${formatDateLong(settings.lastShareAt)}.` : ''}
+          </p>
+        </>
+      )}
 
       <button type="button" className="btn" onClick={() => setInstall(true)}>Installer sur mon téléphone</button>
-      <p className="muted hint">
-        Vos données restent sur ce téléphone. Seuls partent : les fichiers que vous partagez vous-même et, si le partage
-        est activé, les codes-barres rattachés aux produits officiels.
-      </p>
+      {relayUrl() ? (
+        <p className="muted hint">
+          Ce qui quitte ce téléphone : les données de votre tabac, chiffrées, vers les seuls téléphones du tabac (le relais
+          ne peut pas les lire) ; les liens « code-barres → produit officiel », qui rejoignent la liste commune publique ;
+          et les fichiers que vous partagez vous-même. Rien d’autre. Aucun compte, aucune clé à saisir.
+        </p>
+      ) : (
+        <p className="muted hint">
+          Vos données restent sur ce téléphone. Seuls partent les fichiers que vous partagez vous-même.
+        </p>
+      )}
 
       {backup && <BackupPanel onClose={() => setBackup(false)} />}
       {install && <InstallGuide onClose={() => setInstall(false)} />}

@@ -1,4 +1,5 @@
 import { effectiveFields } from './matching';
+import { stableProductId } from './productId';
 import type { Kind, Product, ProductFields } from './types';
 
 export { effectiveFields };
@@ -74,12 +75,15 @@ function baseFor(item: RefItem, effectiveDate: string, depart?: DepartItem): Par
   });
 }
 
+/**
+ * Fusionne la liste Douane : seule la couche `base` est remplacée. Une nouvelle référence reçoit son id stable
+ * (`d:<référence>`, R20) ; une fiche existante garde le sien ici (la couche données le passe ensuite à son id stable).
+ */
 export function mergeReferences(
   existing: Product[],
   file: ReferenceFile,
   depart: DepartItem[],
   now: number,
-  newId: () => string,
 ): MergeOps {
   const byRef = new Map<string, Product>();
   for (const p of existing) if (p.source === 'douane' && p.douaneRef) byRef.set(p.douaneRef, p);
@@ -89,11 +93,13 @@ export function mergeReferences(
   let unchanged = 0;
 
   for (const item of file.items) {
+    // Une ligne sans référence ne peut avoir d'id stable (ni être retrouvée à la version suivante) : ignorée.
+    if (typeof item.ref !== 'string' || item.ref === '') continue;
     const target = byRef.get(item.ref) ?? (item.previousRef ? byRef.get(item.previousRef) : undefined);
     const depart = departByRef.get(item.ref) ?? (item.previousRef ? departByRef.get(item.previousRef) : undefined);
     const base = baseFor(item, file.effectiveDate, depart);
     if (!target) {
-      put.push({ id: newId(), source: 'douane', douaneRef: item.ref, base, user: {}, outOfStock: false, pinnedSubstitutes: [], updatedAt: now });
+      put.push({ id: stableProductId({ id: '', source: 'douane', douaneRef: item.ref }), source: 'douane', douaneRef: item.ref, base, user: {}, outOfStock: false, pinnedSubstitutes: [], updatedAt: now });
       continue;
     }
     seen.add(target.id);

@@ -1,8 +1,8 @@
-import { applySharedCodes, buildIssue, contributionsFor, type Contribution, type SharedCodesFile } from '../domain/sharing';
+import { applySharedCodes, contributionsFor, type Contribution, type SharedCodesFile } from '../domain/sharing';
 import type { Product } from '../domain/types';
+import { createRelayClient, RelayError } from '../sync/relayClient';
+import { relayUrl } from '../sync/relayConfig';
 import { db, getSettings, saveSettings } from './db';
-
-export const GITHUB_REPO = 'wongmichel2048/Buraliste';
 
 export async function enqueueContributions(before: Product, after: Product): Promise<number> {
   const items = contributionsFor(before, after);
@@ -12,51 +12,72 @@ export async function enqueueContributions(before: Product, after: Product): Pro
 
 export const pendingCount = () => db.outbox.count();
 
-let flushing: Promise<{ sent: number; status: string }> | undefined;
+/** Le relais accepte au plus 200 codes par requête. */
+const BATCH_SIZE = 200;
 
-/** Envoie la file d'attente en un seul message (issue) au dépôt GitHub. Sans clé ou sans réseau, tout reste en attente. */
-export function flushOutbox(fetchFn: typeof fetch = fetch): Promise<{ sent: number; status: string }> {
+type FlushResult = { sent: number; status: string };
+let flushing: Promise<FlushResult> | undefined;
+
+type Queued = Contribution & { id?: number; createdAt: number };
+const toContribution = ({ id: _id, createdAt: _at, ...c }: Queued): Contribution => c as Contribution;
+
+/**
+ * Envoie un lot au relais. Sur un refus « trop gros » (413) ou « contenu invalide » (400), le lot est coupé en deux et
+ * chaque moitié est renvoyée ; un code refusé seul est abandonné, sinon il bloquerait toute la file pour toujours.
+ * Les autres échecs (429, 5xx, réseau) lèvent l'erreur : le lot reste en file et sera renvoyé plus tard.
+ */
+async function sendBatch(client: ReturnType<typeof createRelayClient>, batch: Queued[]): Promise<number> {
+  try {
+    await client.postCodes(batch.map(toContribution));
+  } catch (e) {
+    if (!(e instanceof RelayError) || (e.status !== 413 && e.status !== 400)) throw e;
+    if (batch.length === 1) {
+      await db.outbox.bulkDelete([batch[0].id!]);
+      return 0;
+    }
+    const mid = Math.ceil(batch.length / 2);
+    return (await sendBatch(client, batch.slice(0, mid))) + (await sendBatch(client, batch.slice(mid)));
+  }
+  await db.outbox.bulkDelete(batch.map((q) => q.id!));
+  return batch.length;
+}
+
+/**
+ * Envoie la file d'attente au relais (`POST <relais>/v1/codes`), sans aucune clé : c'est le relais qui détient la clé
+ * GitHub. Sans relais configuré ou sans réseau, tout reste en attente.
+ */
+export function flushOutbox(fetchFn: typeof fetch = fetch): Promise<FlushResult> {
   flushing ??= (async () => {
-    const { shareToken } = await getSettings();
-    if (!shareToken) return { sent: 0, status: 'inactif' };
-    const queued = await db.outbox.orderBy('createdAt').limit(200).toArray();
-    if (queued.length === 0) return { sent: 0, status: 'ok' };
-    const items: Contribution[] = queued.map(({ id: _id, createdAt: _at, ...c }) => c as Contribution);
-    let res: Response;
-    try {
-      res = await fetchFn(`https://api.github.com/repos/${GITHUB_REPO}/issues`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${shareToken}`, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' },
-        body: JSON.stringify(buildIssue(items)),
-      });
-    } catch {
-      await saveSettings({ shareStatus: 'hors-ligne' });
-      return { sent: 0, status: 'hors-ligne' };
+    const base = relayUrl();
+    if (!base) return { sent: 0, status: 'inactif' };
+    const client = createRelayClient(base, fetchFn);
+    let sent = 0;
+    for (;;) {
+      const queued = (await db.outbox.orderBy('createdAt').limit(BATCH_SIZE).toArray()) as Queued[];
+      if (queued.length === 0) break;
+      try {
+        sent += await sendBatch(client, queued);
+      } catch (e) {
+        const status = e instanceof RelayError ? 'erreur' : 'hors-ligne';
+        await saveSettings(sent > 0 ? { shareStatus: status, lastShareAt: Date.now() } : { shareStatus: status });
+        return { sent, status };
+      }
     }
-    if (res.status === 401 || res.status === 403 || res.status === 404) {
-      await saveSettings({ shareStatus: 'cle-refusee' });
-      return { sent: 0, status: 'cle-refusee' };
-    }
-    if (!res.ok) {
-      await saveSettings({ shareStatus: 'erreur' });
-      return { sent: 0, status: 'erreur' };
-    }
-    await db.outbox.bulkDelete(queued.map((q) => q.id!));
-    await saveSettings({ shareStatus: 'ok', lastShareAt: Date.now() });
-    return { sent: items.length, status: 'ok' };
+    if (sent > 0) await saveSettings({ shareStatus: 'ok', lastShareAt: Date.now() });
+    return { sent, status: 'ok' };
   })().finally(() => (flushing = undefined));
   return flushing;
 }
 
-/** Vérifie qu'une clé est acceptée par GitHub pour ce dépôt (lecture des issues). */
-export async function checkToken(token: string, fetchFn: typeof fetch = fetch): Promise<boolean> {
-  try {
-    const res = await fetchFn(`https://api.github.com/repos/${GITHUB_REPO}/issues?per_page=1`, {
-      headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' },
-    });
-    return res.ok;
-  } catch {
-    return false;
+/**
+ * Les téléphones n'ont plus aucune clé GitHub (le relais la détient) : une clé enregistrée par une ancienne version est
+ * effacée au démarrage, avec l'ancien état d'envoi « clé refusée ». Réécriture directe : ces champs ne sont jamais partagés.
+ */
+export async function clearLegacyShareToken(): Promise<void> {
+  const row = await db.settings.get('main');
+  if (row && ('shareToken' in row || 'shareStatus' in row)) {
+    const { shareToken: _t, shareStatus: _s, ...rest } = row;
+    await db.settings.put(rest);
   }
 }
 
@@ -66,7 +87,7 @@ export async function syncSharedCodes(fetchFn: typeof fetch = fetch, force = fal
   if (!res.ok) throw new Error(`Liste des codes partagés indisponible (HTTP ${res.status})`);
   const file = (await res.json()) as SharedCodesFile;
   if (!force && (await getSettings()).sharedCodesVersion === file.version) return { updated: false, version: file.version };
-  await db.transaction('rw', db.products, db.settings, async () => {
+  await db.transaction('rw', db.products, db.settings, db.opsOut, db.syncState, async () => {
     await db.products.bulkPut(applySharedCodes(await db.products.toArray(), file));
     await saveSettings({ sharedCodesVersion: file.version });
   });

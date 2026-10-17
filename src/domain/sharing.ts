@@ -2,7 +2,7 @@ import { normalizeCode } from './barcode.ts';
 import { effectiveFields } from './matching.ts';
 import type { Product } from './types';
 
-/** Ce qu'un téléphone jumelé partage : uniquement « code → produit officiel ». */
+/** Ce qu'un téléphone partage (par le relais, anonymement) : uniquement « code → produit officiel ». */
 export type Contribution =
   | { kind: 'barcode'; code: string; ref: string }
   | { kind: 'fdjPrefix'; prefix: string; ref: string };
@@ -10,10 +10,8 @@ export type Contribution =
 /** Liste publique des codes partagés (public/data/codes-barres.json). */
 export type SharedCodesFile = { version: string; updatedAt: string; barcodes: Record<string, string>; fdjPrefixes: Record<string, string> };
 
-export type Pairing = { token: string; repo: string; shop: string };
-
 export const ISSUE_PREFIX = '[codes-barres]';
-const PAIRING_PREFIX = 'LACAROTTE1:';
+const PAIRING_PREFIX = 'LACAROTTE1:'; // ancien QR code à clé GitHub, supprimé
 
 /** Référence officielle partageable (liste Douane ou liste FDJ), sinon undefined. */
 export function officialRef(p: Product): string | undefined {
@@ -59,32 +57,9 @@ export function parseIssueBody(body: string): Contribution[] {
   }
 }
 
-function toBase64Url(text: string): string {
-  const bytes = new TextEncoder().encode(text);
-  let bin = '';
-  bytes.forEach((b) => (bin += String.fromCharCode(b)));
-  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
-
-function fromBase64Url(text: string): string {
-  const bin = atob(text.replace(/-/g, '+').replace(/_/g, '/'));
-  return new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0)));
-}
-
-/** Contenu du QR code de jumelage (à ne montrer qu'à vos employés : il contient la clé d'envoi). */
-export function encodePairing(p: Pairing): string {
-  return PAIRING_PREFIX + toBase64Url(JSON.stringify(p));
-}
-
-export function decodePairing(text: string): Pairing | undefined {
-  if (!text.startsWith(PAIRING_PREFIX)) return undefined;
-  try {
-    const p = JSON.parse(fromBase64Url(text.slice(PAIRING_PREFIX.length)));
-    if (typeof p?.token === 'string' && typeof p.repo === 'string' && typeof p.shop === 'string') return { token: p.token, repo: p.repo, shop: p.shop };
-  } catch {
-    /* QR code d'un autre usage */
-  }
-  return undefined;
+/** Ancien QR code à clé GitHub (supprimé) : reconnu seulement pour répondre à qui le scanne ; son contenu n'est pas lu. */
+export function isLegacyPairingCode(text: string): boolean {
+  return text.trim().startsWith(PAIRING_PREFIX);
 }
 
 /** Empreinte courte (FNV-1a), utilisable dans l'app comme dans le robot. */
@@ -94,29 +69,38 @@ function fingerprint(text: string): string {
   return (h >>> 0).toString(16).padStart(8, '0');
 }
 
-/** Robot : vérifie chaque contribution et l'ajoute à la liste publique. Un code déjà attribué n'est jamais réattribué. */
+/**
+ * Robot : vérifie chaque contribution et l'ajoute à la liste publique. Les contributions sont anonymes (le relais les
+ * transmet sans savoir qui les envoie) : seules les correspondances nouvelles et sans conflit sont appliquées (R28).
+ * Une contribution qui changerait ce qui est déjà publié (code-barres attribué à un autre produit, code de jeu changé,
+ * code de jeu déjà pris par un autre jeu) n'est jamais appliquée : elle est mise de côté (`held`) pour le propriétaire.
+ */
 export function mergeContributions(current: SharedCodesFile, items: Contribution[], knownRefs: Set<string>, today: string) {
   const barcodes = { ...current.barcodes };
   const fdjPrefixes = { ...current.fdjPrefixes };
   const rejected: { item: Contribution; reason: string }[] = [];
+  const held: { item: Contribution; reason: string }[] = [];
   let accepted = 0;
   for (const item of items) {
     if (item.kind === 'barcode') {
       const code = normalizeCode(item.code);
       if (!/^[0-9A-Z]{6,24}$/.test(code)) rejected.push({ item, reason: 'code invalide' });
       else if (!knownRefs.has(item.ref)) rejected.push({ item, reason: 'référence inconnue' });
-      else if (barcodes[code] && barcodes[code] !== item.ref) rejected.push({ item, reason: 'code déjà attribué à un autre produit' });
+      else if (barcodes[code] && barcodes[code] !== item.ref) held.push({ item, reason: `code déjà attribué à ${barcodes[code]}` });
       else if (!barcodes[code]) { barcodes[code] = item.ref; accepted++; }
     } else {
       const prefix = normalizeCode(item.prefix);
+      const owner = Object.keys(fdjPrefixes).find((ref) => ref !== item.ref && fdjPrefixes[ref] === prefix);
       if (!/^\d{4,24}$/.test(prefix)) rejected.push({ item, reason: 'code de jeu trop court' });
       else if (!knownRefs.has(item.ref)) rejected.push({ item, reason: 'référence inconnue' });
-      else if (fdjPrefixes[item.ref] !== prefix) { fdjPrefixes[item.ref] = prefix; accepted++; }
+      else if (fdjPrefixes[item.ref] && fdjPrefixes[item.ref] !== prefix) held.push({ item, reason: `code de jeu déjà connu pour ce jeu : ${fdjPrefixes[item.ref]}` });
+      else if (owner) held.push({ item, reason: `code de jeu déjà attribué à ${owner}` });
+      else if (!fdjPrefixes[item.ref]) { fdjPrefixes[item.ref] = prefix; accepted++; }
     }
   }
   const content = JSON.stringify({ barcodes, fdjPrefixes });
   const file: SharedCodesFile = { version: `${today}-${fingerprint(content)}`, updatedAt: today, barcodes, fdjPrefixes };
-  return { file, accepted, rejected };
+  return { file, accepted, rejected, held };
 }
 
 /** Téléphones : applique la liste publique aux produits officiels. Renvoie seulement les produits modifiés. */

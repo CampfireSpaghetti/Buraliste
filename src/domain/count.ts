@@ -1,5 +1,6 @@
 import { officialState } from './catalog';
 import { effectiveFields } from './matching';
+import { gameLineId } from './productId';
 import type { CountLine, Product } from './types';
 
 export type CountTotals = { linear: number; stock: number };
@@ -34,7 +35,10 @@ export function missingGameLines(products: Product[], lines: CountLine[], hidden
   for (const p of products) {
     const f = effectiveFields(p);
     if (f.kind !== 'jeu-fdj' || counted.has(p.id) || hidden.has(p.id) || officialState(f, today) === 'retire') continue;
-    out.push({ id: `game:${p.id}`, gameId: p.id, code: f.fdjPrefix ?? f.barcodes?.[0] ?? '', name: f.name, linearQty: 0, stockQty: 0, updatedAt: 0 });
+    out.push({ id: gameLineId(p.id), gameId: p.id, code: f.fdjPrefix ?? f.barcodes?.[0] ?? '', name: f.name, linearQty: 0, stockQty: 0, updatedAt: 0 });
   }
   return out;
 }
+
+/** Id d'une nouvelle ligne : `game:<id du jeu>` pour un jeu du catalogue (le même partout), sinon un id au hasard. */
+export const countLineId = (gameId: string | undefined, newId: () => string): string => (gameId ? gameLineId(gameId) : newId());

@@ -47,9 +47,16 @@ export function ProductForm({ id, initialCode, initialKind }: { id?: string; ini
   const products = useProducts();
   const existing: Product | undefined = id ? products?.find((p) => p.id === id) : undefined;
   const [draft, setDraft] = useState<Draft | null>(id ? null : toDraft({ kind: initialKind ?? 'cigarette' }, initialCode));
+  // La fiche telle qu'au début de la saisie (R21) : à l'enregistrement, seuls les champs changés depuis sont écrits,
+  // une modification faite entre-temps sur un autre téléphone n'est pas défaite.
+  const [start, setStart] = useState<Product>();
   if (id && !existing) return null;
+  const snap = start ?? existing;
   const d = draft ?? toDraft(effectiveFields(existing!));
-  const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setDraft({ ...d, [k]: v });
+  const set = <K extends keyof Draft>(k: K, v: Draft[K]) => {
+    if (!start && existing) setStart(existing);
+    setDraft({ ...d, [k]: v });
+  };
   const game = d.kind === 'jeu-fdj';
   const base = existing?.base ?? {};
   const isOfficial = (k: keyof ProductFields) => existing !== undefined && base[k] !== undefined;
@@ -59,6 +66,10 @@ export function ProductForm({ id, initialCode, initialKind }: { id?: string; ini
   const revert = (k: keyof ProductFields) => {
     const p = { ...existing!, user: { ...existing!.user } };
     delete p.user[k];
+    const from = snap ?? existing!;
+    const fromUser = { ...from.user };
+    delete fromUser[k];
+    setStart({ ...from, user: fromUser });
     setDraft(toDraft(effectiveFields(p)));
     void actions.clearUserField(existing!.id, k);
   };
@@ -72,7 +83,7 @@ export function ProductForm({ id, initialCode, initialKind }: { id?: string; ini
     }
     // On part de la couche user existante (préfixe FDJ appris, nicotine… restent intacts) et on ne
     // réécrit que les champs du formulaire : une valeur égale à l'officielle n'est pas dupliquée.
-    const user: Record<string, unknown> = { ...existing.user };
+    const user: Record<string, unknown> = { ...(snap ?? existing).user };
     for (const [k, v] of Object.entries(fields) as [keyof ProductFields, unknown][]) {
       if (k === 'barcodes') {
         const baseCodes = base.barcodes ?? [];
@@ -86,7 +97,7 @@ export function ProductForm({ id, initialCode, initialKind }: { id?: string; ini
     }
     // On ferme d'abord : l'écriture locale est immédiate et la fiche se met à jour d'elle-même.
     nav.close();
-    await actions.putProduct({ ...existing, user });
+    await actions.putProduct({ ...existing, user }, snap);
   };
 
   const officialHint = (k: keyof ProductFields) =>

@@ -2,6 +2,7 @@ import { db } from './data/db';
 import { TEST_SCAN_EVENT } from './features/scanner/feedback';
 import type { CountLine, Product, Settings } from './domain/types';
 import { notifyDataChanged } from './store';
+import type { SyncEngine } from './sync/engine';
 
 export function testModeEnabled(): boolean {
   try {
@@ -24,4 +25,11 @@ export function installTestHooks() {
     });
     notifyDataChanged();
   };
+}
+
+/** Tests de bout en bout avec un relais : synchroniser maintenant et lire le statut. */
+export function installSyncTestHooks(engine: SyncEngine) {
+  const w = window as unknown as Record<string, unknown>;
+  w.__carotteSync = () => engine.syncNow();
+  w.__carotteSyncStatus = () => engine.status();
 }

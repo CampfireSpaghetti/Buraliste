@@ -14,6 +14,8 @@ import { SettingsScreen } from './features/settings/SettingsScreen';
 import { UpdateBanner } from './ui/UpdateBanner';
 import { StorageBanner } from './ui/StorageBanner';
 import { PairingPrompt } from './ui/PairingPrompt';
+import { TabacSwitcher } from './ui/TabacSwitcher';
+import { tabacDisplayName } from './tabacs/pageTabac';
 import { useSettings } from './store';
 import './ui/panel.css';
 
@@ -83,9 +85,9 @@ function Shell() {
     <div className="app">
       <header className="app-header">
         <Carotte bounce={bounce} />
-        <div>
+        <div className="app-title">
           <h1>LA CAROTTE</h1>
-          <small>{settings?.shopName ?? ''}</small>
+          <TabacSwitcher name={tabacDisplayName(settings?.shopName)} />
         </div>
       </header>
       <UpdateBanner />
