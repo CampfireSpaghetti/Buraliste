@@ -4,6 +4,7 @@ import './theme/global.css';
 import App from './App';
 import { requestPersistence, syncSettingsNameAtStartup } from './data/db';
 import { DEFAULT_TABAC_NAME, ensureRegistry } from './tabacs/registry';
+import { setPendingLinkInvite, takeInviteFromUrl } from './tabacs/inviteLink';
 import { syncFdjGames, syncReferences } from './data/referencesSync';
 import { clearLegacyShareToken, syncSharedCodes } from './data/sharingData';
 import { notifyDataChanged, scheduleFlush } from './store';
@@ -12,6 +13,9 @@ import { startSyncEngine } from './sync/engineInstance';
 import { setPersisted } from './storageStatus';
 
 ensureRegistry(DEFAULT_TABAC_NAME);
+// Lien d'invitation (#rejoindre=…) : retiré de l'adresse avant tout affichage (la clé ne reste pas dans l'historique),
+// puis proposé par PairingPrompt dès qu'il est à l'écran.
+setPendingLinkInvite(takeInviteFromUrl());
 const test = testModeEnabled();
 if (test) installTestHooks();
 

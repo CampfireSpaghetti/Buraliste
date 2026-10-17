@@ -71,6 +71,8 @@ test('deux téléphones : créer, inviter par QR code, rejoindre, tout se partag
   await tabs(A.page).getByRole('button', { name: 'Réglages' }).click();
   await A.page.getByRole('button', { name: 'Inviter un employé' }).click();
   await expect(A.page.getByText('Toute personne qui scanne ce QR code accède aux données du tabac.')).toBeVisible();
+  // Deux tabacs sur A (« Mon tabac » et celui-ci) : le QR code est d'office celui du tabac ouvert.
+  await expect(A.page.getByRole('radio', { name: /Tabac de la Gare/ })).toBeChecked();
   const invite = await A.page.locator('[data-invite]').getAttribute('data-invite');
   expect(invite).toMatch(/^LACAROTTE2:/);
   await A.page.getByRole('button', { name: 'Fermer' }).click();
