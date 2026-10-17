@@ -101,9 +101,9 @@ export function SettingsScreen() {
       <button type="button" className="btn" onClick={() => setInstall(true)}>Installer sur mon téléphone</button>
       {relayUrl() ? (
         <p className="muted hint">
-          Les données du tabac ne vont qu’aux téléphones du tabac : elles passent par le relais chiffrées, illisibles pour
-          lui. Partent aussi les fichiers que vous partagez vous-même et les codes-barres rattachés aux produits officiels.
-          Aucun compte, aucune clé à saisir.
+          Ce qui quitte ce téléphone : les données de votre tabac, chiffrées, vers les seuls téléphones du tabac (le relais
+          ne peut pas les lire) ; les liens « code-barres → produit officiel », qui rejoignent la liste commune publique ;
+          et les fichiers que vous partagez vous-même. Rien d’autre. Aucun compte, aucune clé à saisir.
         </p>
       ) : (
         <p className="muted hint">

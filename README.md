@@ -6,7 +6,7 @@ L'outil de poche du buraliste, pour iPhone et Android :
 - **Proposer un remplaçant** quand un produit manque ;
 - **Compter les jeux de grattage** et envoyer le comptage en image .jpg sur Google Drive (par le menu Partager, sans accès de l'app au Drive).
 
-C'est une application web installable (PWA) : gratuite, sans App Store ni Play Store, elle fonctionne hors connexion. Toutes les données restent sur le téléphone.
+C'est une application web installable (PWA) : gratuite, sans App Store ni Play Store, elle fonctionne hors connexion. Les données sont enregistrées sur le téléphone ; elles ne sont partagées qu'avec les téléphones de votre tabac, si vous le décidez (voir plus bas).
 
 ## Installer l'app
 
@@ -14,6 +14,21 @@ Adresse : **https://wongmichel2048.github.io/Buraliste/**
 
 - **iPhone (Safari)** : ouvrir l'adresse → bouton Partager → « Sur l'écran d'accueil ».
 - **Android (Chrome)** : ouvrir l'adresse → menu ⋮ → « Installer l'application ».
+
+## Plusieurs tabacs, plusieurs employés
+
+Chaque gérant crée son tabac lui-même, sans compte ni mot de passe. Ses employés le rejoignent en scannant un QR code. Le partage se fait tout seul, comme dans une messagerie : une saisie faite sur un téléphone apparaît sur les autres, en général en moins de 30 secondes.
+
+- **Créer un tabac** : toucher le nom du tabac en haut de l'écran → **Créer un tabac** → saisir le nom. Le tabac que vous aviez déjà devient votre premier tabac, sans rien perdre.
+- **Inviter un employé** : **Réglages** → **Inviter un employé** → un QR code s'affiche. L'employé le scanne avec l'app (le scanner de l'app reconnaît ce QR code), puis confirme « Rejoindre « nom du tabac » ? ». Son téléphone se met à jour tout seul. Attention : **toute personne qui scanne ce QR code accède aux données du tabac**, ne le montrez qu'à vos employés.
+- **Changer de tabac** : un même téléphone peut servir pour plusieurs tabacs. Toucher le nom du tabac en haut → choisir le tabac. Les données de chaque tabac restent séparées.
+- **Ce qui est partagé dans un tabac** : le comptage des jeux de grattage, les ruptures et remplaçants épinglés, les fiches créées ou corrigées, les jeux enlevés de la liste, le nom du tabac et les réglages. Si deux personnes modifient la même chose, la saisie la plus récente gagne.
+- **Ce qui n'est jamais partagé** : la sauvegarde complète, l'écran ouvert, et tout ce qui concerne vos autres tabacs. Un employé qui n'a pas scanné votre QR code ne voit rien. Les fiches supprimées à la main restent supprimées seulement sur le téléphone où vous l'avez fait.
+- **Confidentialité** : les données d'un tabac sont **chiffrées de bout en bout**. Elles sont chiffrées sur le téléphone avant d'être envoyées, avec une clé qui ne se trouve que sur les téléphones du tabac (elle voyage uniquement dans le QR code). **Personne ne peut lire les données d'un tabac** : ni le relais, ni Cloudflare qui l'héberge, ni GitHub, ni les autres tabacs, ni l'auteur de l'app.
+- **Sans réseau**, tout fonctionne comme d'habitude. Les modifications partent au retour du réseau. Un petit point en haut indique l'état : vert, à jour ; laiton, envoi en attente ; gris, hors ligne ; rouge, problème (le détail est dans Réglages).
+- **Retirer un employé** : il n'y a pas encore de retrait individuel. Pour écarter quelqu'un, créez un nouveau tabac et réinvitez les autres.
+
+Pour que tout cela fonctionne, l'administrateur de l'app doit mettre en service le relais une fois (voir ci-dessous).
 
 ## Mise en ligne (à faire une fois par le propriétaire du dépôt)
 
@@ -56,6 +71,8 @@ Le partage permet aux téléphones d'un même tabac de voir les mêmes comptages
 
 C'est terminé : **il n'y a rien à recopier**. Le workflow crée la base de données, installe le relais et donne son adresse à l'app, qui est republiée aussitôt. L'adresse est affichée pour information dans le résumé du job `relay`.
 
+Si le relais n'est pas mis en service, **l'app fonctionne exactement comme avant** : tout reste sur le téléphone, et les options de partage (« Inviter un employé », synchronisation) affichent « Bientôt disponible ».
+
 Ensuite :
 
 - chaque publication de l'app met aussi le relais à jour, automatiquement ;
@@ -64,7 +81,7 @@ Ensuite :
 
 ## Partage des codes-barres (liste commune)
 
-Les codes-barres rattachés à un produit officiel (et les codes de jeux FDJ appris) peuvent être partagés automatiquement entre vos téléphones, et avec tous les buralistes qui utilisent l'app :
+Les codes-barres rattachés à un produit officiel (et les codes de jeux FDJ appris) sont partagés automatiquement avec tous les tabacs qui utilisent l'app.
 
 Aucun compte et aucune clé sur les téléphones : l'app envoie les codes au relais, qui détient la clé GitHub (secret `RELAY_GITHUB_TOKEN`, voir plus haut). Tout est automatique :
 
@@ -75,7 +92,9 @@ Aucun compte et aucune clé sur les téléphones : l'app envoie les codes au rel
 
 Sans relais configuré, les codes restent en attente sur le téléphone et Réglages affiche « Partage entre téléphones : bientôt disponible ».
 
-Ne partent **que** les liens « code-barres → produit officiel ». Les comptages, stocks, prix, ruptures et le nom du tabac ne partent jamais, et aucune clé n'est enregistrée sur le téléphone.
+Ne partent **que** les liens « code-barres → produit officiel ». Ils sont publics, sans nom de tabac. Les comptages, stocks, prix, ruptures et le nom du tabac ne partent jamais dans cette liste, et aucune clé n'est enregistrée sur le téléphone.
+
+Résumé de ce qui quitte le téléphone : les données du tabac, **chiffrées**, vers le relais (illisibles pour lui) ; les liens « code-barres → produit officiel », vers la liste publique, par le relais ; les fichiers que vous partagez vous-même (export .jpg, sauvegarde). Rien d'autre.
 
 ## Liste de contrôle du premier test au comptoir
 
@@ -97,4 +116,4 @@ npm run fdj:update   # récupère la gamme des jeux de grattage (fdj.fr)
 npm run relay:mock   # faux relais de partage sur http://localhost:8787 (tests de bout en bout)
 ```
 
-Conception : `docs/superpowers/specs/2026-10-16-la-carotte-design.md` · Plan : `docs/superpowers/plans/2026-10-16-la-carotte.md`
+Conception : `docs/superpowers/specs/2026-10-16-la-carotte-design.md` et `docs/superpowers/specs/2026-10-16-tabacs-multiples-design.md` · Plan : `docs/superpowers/plans/2026-10-16-la-carotte.md`
