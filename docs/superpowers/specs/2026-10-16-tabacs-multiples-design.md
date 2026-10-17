@@ -103,8 +103,11 @@ type Op = {
 - **Fusion** : chaque enregistrement garde l'horodatage de chacun de ses champs partagés (`_clock`). Une opération reçue ne remplace un champ que si son horodatage est **plus récent**. Le résultat est le même sur tous les téléphones, quel que soit l'ordre d'arrivée.
 - **Suppression d'une ligne** : `deleted: true` avec son horodatage. La ligne disparaît de l'écran, et une modification plus ancienne arrivée en retard ne la fait pas réapparaître.
 - **Seuls les champs modifiés partent** : un formulaire (comptage, fiche) part d'un état de départ, et seuls les champs que l'utilisateur a réellement changés produisent une opération. Un champ qu'il n'a pas touché ne peut donc pas écraser la saisie plus récente d'un collègue. Les jeux masqués passent par des gestes dédiés (masquer, afficher) qui lisent l'état courant ; deux masquages simultanés de jeux différents dans la même fenêtre de synchronisation peuvent encore s'écraser (liste complète, le plus récent gagne) : risque accepté.
+- **Produit encore inconnu ici** : les téléphones d'un tabac n'ont pas toujours la même version des listes publiques (pendant plusieurs jours parfois). Une opération reçue pour un produit officiel que ce téléphone n'a pas encore n'est donc pas perdue : elle est **mise en attente** (table `parkedOps`), puis rejouée après chaque mise à jour des listes Douane et FDJ, même sans nouvelle version. Les ids des opérations en attente suivent la normalisation des ids et les renommages de la liste Douane (`previousRef`). Au plus 5 000 opérations en attente (les plus anciennes partent), et 60 jours au plus.
+- **Jeu de départ et jeu FDJ** : `depart:<nom comparable>` et `f:fdj|<code>` désignent le même jeu quand la liste FDJ le reprend ; ils ne se déduisent pas l'un de l'autre, seul le nom du jeu les relie. Une opération qui vise l'un, absent ici, va à l'autre s'il est présent.
 - **Données entrantes non fiables** : une opération n'écrit que les champs listés ci-dessus (et `user.*` seulement pour un produit), et une opération datée de plus de 24 h dans le futur est ignorée, pour qu'une horloge détraquée ne gagne pas pour toujours.
 - **Prise en compte** : toutes les écritures existantes (`upsertCountLine`, `deleteCountLine`, `patchUserFields`, `setOutOfStock`, `setPinned`, `putProduct`, `saveSettings`, `clearUserField`) passent par une couche unique. Elle applique la modification localement et la met dans la file d'envoi du canal.
+- **R29 : une version sans adresse du relais ne perd rien.** Si une version de l'app est construite sans l'adresse du relais alors que ce tabac a déjà été synchronisé (numéro du dernier message reçu connu), les opérations continuent d'être mises en file ; elles partent dès qu'une version avec l'adresse revient.
 
 ### 3.4 Synchronisation
 
@@ -119,6 +122,7 @@ type Op = {
   - **rattrapage** : un téléphone dont la dernière réception date de plus de 25 jours applique d'abord la dernière photographie, avant de lister les messages (le ménage de 30 jours a pu en supprimer) ;
   - une photographie appliquée fusionne champ par champ, avec l'horodatage de chaque champ ;
   - le relais refuse (409) une photographie plus ancienne que celle qu'il garde ; le téléphone comprend alors qu'un autre en a publié une et continue.
+- **Relais remis à zéro** (base effacée, canal changé) : si le relais annonce un dernier numéro plus petit que celui déjà reçu ici, ou numérote un envoi sans dépasser ce numéro, le téléphone oublie sa position dans le canal et le rejoint comme au premier contact. Il republie donc son état fusionné, au lieu d'attendre pour toujours avec un point vert.
 - **Indicateur dans l'en-tête** : un petit point.
   - Vert : synchronisé.
   - Laiton : envoi en attente.
@@ -128,6 +132,7 @@ type Op = {
 ### 3.5 Codes-barres de la liste commune
 
 - La file de contributions déjà en place (« code → produit officiel ») est désormais envoyée **au relais**, sans clé. Le relais crée l'issue `[codes-barres]` sur GitHub avec la clé du propriétaire, et le robot actuel la traite.
+- **R28 : les contributions sont anonymes.** L'issue est toujours ouverte par le compte du propriétaire : son auteur ne dit rien de l'expéditeur. Le robot n'applique donc que les liens **nouveaux et sans conflit**. Une contribution qui changerait un lien publié (code-barres déjà attribué à un autre produit, code de jeu différent pour un jeu, code de jeu déjà pris par un autre jeu) n'est jamais appliquée : le robot répond en la listant, et le message reste ouvert avec l'étiquette « à vérifier ». Le propriétaire décide. Les messages « à vérifier » ne sont plus traités par le robot.
 - L'activation par clé GitHub sur le téléphone (Réglages, version précédente) est **retirée**, ainsi que le jumelage par QR code `LACAROTTE1`. Le partage des codes est automatique dès que le relais est en service. Une clé déjà saisie est ignorée, puis effacée.
 - Dans Réglages, il n'y a aucun bouton « Activer le partage » : la clé de chaque tabac naît toujours automatiquement, et l'envoi se met en route dès que le relais est en service.
 
@@ -151,7 +156,10 @@ type Op = {
   - 64 Ko par requête, sauf pour la photographie : 1 Mo (un état complet d'un tabac très actif dépasse 64 Ko ; D1 accepte jusqu'à environ 2 Mo par valeur) ;
   - 200 messages par envoi ;
   - 120 requêtes par minute et par canal ;
-  - `/v1/codes` : 20 requêtes par heure et par adresse IP, et 200 codes par requête.
+  - écritures (messages, photographie) : 300 par minute et par adresse IP ;
+  - création de canal (nouveau tabac) : 20 par heure et par adresse IP, compteur commun à toutes les instances du relais (D1) ;
+  - `/v1/codes` : en-tête `Origin` obligatoire et autorisé (403 sinon), 20 requêtes par heure et par adresse IP, 200 codes par requête, et **10 issues par heure au total** (R28, compteur D1) : au-delà, 429 et les codes restent en file sur le téléphone ;
+  - une photographie ne peut pas couvrir des messages qui n'existent pas : `jusqua` au-delà du dernier numéro du canal → 400.
 - **Ménage** : les messages couverts par une photographie de plus de 30 jours sont supprimés.
 - **CORS** : seule l'origine `https://wongmichel2048.github.io` est autorisée.
 
@@ -162,7 +170,10 @@ CREATE TABLE canaux (canal TEXT PRIMARY KEY, ecriture_hash TEXT NOT NULL, cree I
 CREATE TABLE messages (n INTEGER PRIMARY KEY AUTOINCREMENT, canal TEXT NOT NULL, iv TEXT NOT NULL, data TEXT NOT NULL, recu INTEGER NOT NULL);
 CREATE INDEX messages_canal ON messages (canal, n);
 CREATE TABLE photos (canal TEXT PRIMARY KEY, jusqua INTEGER NOT NULL, iv TEXT NOT NULL, data TEXT NOT NULL, recu INTEGER NOT NULL);
+CREATE TABLE quotas (cle TEXT PRIMARY KEY, n INTEGER NOT NULL, fenetre INTEGER NOT NULL);
 ```
+
+`quotas` : compteurs partagés par toutes les instances du relais, sur une fenêtre fixe (`fenetre` = début de l'heure, en ms) : issues ouvertes par heure, canaux créés par adresse IP. Les compteurs de plus d'un jour sont supprimés au passage.
 
 `canaux.dernier` est le numéro du dernier message du canal. Il ne recule jamais, même quand le ménage supprime des messages : un téléphone qui demande « les messages après N » ne reçoit donc jamais un numéro déjà vu. Les numéros sont partagés entre tous les canaux (compteur unique) et ne se suivent donc pas : un téléphone ne doit jamais raisonner sur des numéros consécutifs.
 
@@ -187,6 +198,8 @@ Quotas gratuits de Cloudflare D1, à titre indicatif : 5 millions de lectures et
   - il crée la base D1 `la-carotte` si elle manque, et injecte son identifiant dans `relay/wrangler.toml` au moment du déploiement (le fichier du dépôt garde un repère, aucun identifiant de compte n'est publié) ;
   - il rejoue le schéma (`relay/schema.sql`, sans effet si les tables existent).
 - **L'adresse du relais n'est pas à recopier** : le workflow la lit dans le résultat du déploiement et la transmet à la construction de l'app (`VITE_RELAY_URL`). Une variable de dépôt `RELAY_URL` reste possible comme solution de repli. La CSP n'autorise que cette adresse en plus.
+- **R29 : une construction ne perd jamais le relais.** Ordre : relais tout juste déployé, variable `RELAY_URL`, adresse `workers.dev` du compte (API Cloudflare), puis, si les secrets Cloudflare existent mais que rien n'a répondu, l'adresse du relais de la version en ligne, lue dans sa CSP (`connect-src`). Sinon, avertissement ; la publication n'est jamais bloquée.
+- Le relais est déployé à chaque publication et **chaque lundi** (planification) : une modification du relais sautée par la file d'attente du workflow part au plus tard la semaine suivante.
 - Le Worker connaît le dépôt cible (`wongmichel2048/Buraliste`) en dur : un seul dépôt est servi.
 - **`/v1/codes`** : le relais reconstruit chaque contribution avec des longueurs plafonnées avant de l'envoyer à GitHub.
 - **Tant que le relais n'est pas configuré**, l'app fonctionne exactement comme aujourd'hui, et les options de partage affichent « Bientôt disponible ».
@@ -244,6 +257,9 @@ Ce qui a changé en cours de développement, pour mémoire (le texte ci-dessus e
 - Seuls les champs modifiés partent ; la suppression d'une fiche n'est pas partagée (§3.3).
 - Publication d'une photographie au premier contact, rattrapage après 25 jours, 409 sur une photographie plus ancienne (§3.4, §5).
 - Invitation : « Rejoindre « <nom> » ? » (§3.2). Aucun bouton « Activer le partage » (§3.5).
+- R28 : contributions de codes anonymes ; seuls les liens nouveaux sont appliqués, les conflits restent « à vérifier » ; plafond global de 10 issues par heure, limites par adresse IP, `Origin` obligatoire sur `/v1/codes` (§3.5, §4.1, §4.2).
+- R29 : file d'envoi gardée sans adresse du relais pour un tabac déjà synchronisé ; adresse reprise de la version en ligne au déploiement (§3.3, §4.4).
+- Opérations en attente pour un produit encore inconnu, rejoin du canal quand le relais est remis à zéro (§3.3, §3.4).
 
 ## 9. Hors périmètre
 

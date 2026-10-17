@@ -76,7 +76,7 @@ Si le relais n'est pas mis en service, **l'app fonctionne exactement comme avant
 
 Ensuite :
 
-- chaque publication de l'app met aussi le relais à jour, automatiquement ;
+- chaque publication de l'app (et chaque lundi) met aussi le relais à jour, automatiquement ;
 - quand la clé GitHub arrive à expiration, en créer une nouvelle (étape 3.2), remplacer le secret `RELAY_GITHUB_TOKEN`, puis relancer le workflow ;
 - pour **retirer au relais la clé GitHub** (clé divulguée, ou arrêt de l'envoi des codes) : la révoquer sur GitHub (**Settings** → **Developer settings** → **Fine-grained tokens** → la clé → **Delete**), puis, soit la supprimer du relais (dans le dossier `relay/` : `npx wrangler secret delete GITHUB_TOKEN`) et supprimer le secret `RELAY_GITHUB_TOKEN` du dépôt, soit remplacer ce secret par une nouvelle clé et relancer le workflow « Déploiement » ;
 - tant que ces secrets ne sont pas renseignés, l'app fonctionne comme avant et les options de partage affichent « Bientôt disponible ».
