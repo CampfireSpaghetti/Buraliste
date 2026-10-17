@@ -27,7 +27,7 @@ export async function syncReferences(fetchFn: typeof fetch = fetch): Promise<{ u
   // Liste publique : jamais d'opération (chaque téléphone la reçoit lui-même). `opsOut` est dans la transaction
   // parce que saveSettings passe par la couche partagée (les versions ne sont pas partagées : rien n'est mis en file).
   // Une fiche renommée (previousRef) passe ensuite à son nouvel id stable, avec ses lignes et opérations (R20).
-  const map = await db.transaction('rw', [db.products, db.countLines, db.settings, db.opsOut], async () => {
+  const map = await db.transaction('rw', [db.products, db.countLines, db.settings, db.opsOut, db.syncState], async () => {
     const existing = await db.products.toArray();
     const ops = mergeReferences(existing, file, departSeed.items as DepartItem[], Date.now());
     await db.products.bulkPut(ops.put);
@@ -45,7 +45,7 @@ export async function syncFdjGames(fetchFn: typeof fetch = fetch): Promise<{ upd
   if (!res.ok) throw new Error(`Liste des jeux FDJ indisponible (HTTP ${res.status})`);
   const file = (await res.json()) as FdjGamesFile;
   if ((await getSettings()).fdjVersion === file.version) return { updated: false, version: file.version };
-  const map = await db.transaction('rw', [db.products, db.countLines, db.settings, db.opsOut], async () => {
+  const map = await db.transaction('rw', [db.products, db.countLines, db.settings, db.opsOut, db.syncState], async () => {
     const ops = mergeFdjGames(await db.products.toArray(), file, Date.now());
     await db.products.bulkPut(ops.put);
     // Un jeu de l'ancienne liste de départ repris par la liste FDJ passe à son id stable `f:<clé>`.

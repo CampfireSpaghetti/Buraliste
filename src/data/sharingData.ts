@@ -87,7 +87,7 @@ export async function syncSharedCodes(fetchFn: typeof fetch = fetch, force = fal
   if (!res.ok) throw new Error(`Liste des codes partagés indisponible (HTTP ${res.status})`);
   const file = (await res.json()) as SharedCodesFile;
   if (!force && (await getSettings()).sharedCodesVersion === file.version) return { updated: false, version: file.version };
-  await db.transaction('rw', db.products, db.settings, db.opsOut, async () => {
+  await db.transaction('rw', db.products, db.settings, db.opsOut, db.syncState, async () => {
     await db.products.bulkPut(applySharedCodes(await db.products.toArray(), file));
     await saveSettings({ sharedCodesVersion: file.version });
   });

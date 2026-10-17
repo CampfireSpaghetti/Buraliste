@@ -21,7 +21,7 @@ export async function restoreFromText(text: string): Promise<{ ok: true } | { ok
   const parsed = parseBackup(text);
   if (!parsed.ok) return parsed;
   const { products, countLines, settings } = withStableIds(parsed.data);
-  await db.transaction('rw', db.products, db.countLines, db.settings, db.opsOut, async () => {
+  await db.transaction('rw', db.products, db.countLines, db.settings, db.opsOut, db.syncState, async () => {
     // Produits : pas de suppression partagée ; ceux qui manquent à la sauvegarde ne sont retirés que d'ici.
     const keepProducts = new Set(products.map((p) => p.id));
     await db.products.bulkDelete((await db.products.toCollection().primaryKeys()).filter((id) => !keepProducts.has(id)));

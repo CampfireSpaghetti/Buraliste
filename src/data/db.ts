@@ -130,7 +130,7 @@ export async function getSettings(): Promise<Settings> {
 
 /** Réglages : `shopName`, `sortCount`, `hiddenGames` sont partagés ; le reste reste sur ce téléphone. */
 export async function saveSettings(patch: Partial<Settings>): Promise<Settings> {
-  const next = await db.transaction('rw', db.settings, db.opsOut, async () => {
+  const next = await db.transaction('rw', db.settings, db.opsOut, db.syncState, async () => {
     const merged = { ...(await getSettings()), ...patch };
     await writeShared('settings', 'main', merged);
     return merged;
@@ -141,7 +141,7 @@ export async function saveSettings(patch: Partial<Settings>): Promise<Settings> 
 
 /** Jeux enlevés de la liste : lus dans la transaction, jamais reconstruits depuis une copie de l'écran (R21). */
 async function updateHiddenGames(fn: (ids: string[]) => string[]): Promise<Settings> {
-  return db.transaction('rw', db.settings, db.opsOut, async () => {
+  return db.transaction('rw', db.settings, db.opsOut, db.syncState, async () => {
     const current = await getSettings();
     const before = current.hiddenGames ?? [];
     const after = fn(before);
@@ -180,7 +180,7 @@ export async function putProduct(p: Product, base?: Product): Promise<Product> {
 }
 
 async function update(id: string, fn: (p: Product) => Product): Promise<Product> {
-  return db.transaction('rw', db.products, db.opsOut, async () => {
+  return db.transaction('rw', db.products, db.opsOut, db.syncState, async () => {
     const p = await db.products.get(id);
     if (!p) throw new Error(`Produit introuvable : ${id}`);
     return putProduct(fn(withoutClock<Product>(p)));
@@ -212,7 +212,7 @@ export async function upsertCountLine(line: CountLine, base?: CountLine): Promis
 
 /** Marque la ligne supprimée (partagé) et la renvoie telle qu'elle était, pour l'annulation. */
 export async function deleteCountLine(id: string): Promise<CountLine> {
-  return db.transaction('rw', db.countLines, db.opsOut, async () => {
+  return db.transaction('rw', db.countLines, db.opsOut, db.syncState, async () => {
     const stored = await db.countLines.get(id);
     if (!stored || stored.deleted === true) throw new Error(`Ligne introuvable : ${id}`);
     const line = withoutClock<CountLine>(stored);
@@ -227,7 +227,7 @@ export async function deleteCountLine(id: string): Promise<CountLine> {
  * partagé) : `missingGameLines` ne la propose que si le jeu n'est pas enlevé de la liste.
  */
 export async function addCountLines(lines: CountLine[]): Promise<void> {
-  await db.transaction('rw', db.countLines, db.opsOut, async () => {
+  await db.transaction('rw', db.countLines, db.opsOut, db.syncState, async () => {
     for (const l of lines) {
       const current = await db.countLines.get(l.id);
       if (!current) await db.countLines.put(l);

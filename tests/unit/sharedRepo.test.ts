@@ -77,6 +77,19 @@ describe('écritures locales → opérations', () => {
     expect(Object.keys((stored as { _clock?: object })._clock ?? {})).toContain('linearQty');
   });
 
+  it('R29 : relais absent de cette version mais tabac déjà synchronisé : les opérations restent mises en file', async () => {
+    await db.syncState.put({ key: 'lastN', value: 42 });
+    vi.stubEnv('VITE_RELAY_URL', '');
+    await upsertCountLine(line());
+    await saveSettings({ shopName: 'Le Balto' });
+    await hideGame('g1');
+    await db.products.put(product());
+    await setOutOfStock('p1', true);
+    await deleteCountLine('l1');
+    await addCountLines([line({ id: 'game:g2', gameId: 'g2' })]);
+    expect((await queued()).map((o) => o.e)).toEqual(['line', 'settings', 'settings', 'product', 'line']);
+  });
+
   it('une opération mise en file déclenche carotte:ops-queued', async () => {
     const events = vi.fn();
     window.addEventListener('carotte:ops-queued', events);

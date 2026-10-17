@@ -1,7 +1,8 @@
 /**
  * Couche d'écriture partagée (spec §3.3). Toute écriture des données d'un tabac passe par ici :
  * - `writeShared` applique la modification localement, horodate chaque champ partagé modifié (`_clock`)
- *   et, si le relais est configuré, met l'opération `{e, id, f, t}` dans la file `opsOut` ;
+ *   et, si le relais est configuré (ou si ce tabac a déjà été synchronisé, R29), met l'opération `{e, id, f, t}` dans
+ *   la file `opsOut` ;
  * - `applyRemoteOps` applique les opérations venues des autres téléphones (le plus récent gagne).
  * Les champs non partagés (versions des listes publiques, état de sauvegarde, jeton…) sont écrits tels quels,
  * sans horodatage ni opération.
@@ -35,6 +36,9 @@ export function sharedKeysFor(e: Entity, record: unknown): string[] {
 }
 
 export const OPS_QUEUED_EVENT = 'carotte:ops-queued';
+
+/** Clé de `syncState` écrite par le moteur de synchronisation à la première réception (numéro du dernier message). */
+const SYNCED_KEY = 'lastN';
 
 type Row = Clocked<Record<string, unknown>>;
 
@@ -80,11 +84,12 @@ function sharedValues(before: Record<string, unknown>, keys: string[], f: Record
  *
  * Une ligne jamais horodatée (ligne de jeu créée d'office, ancienne donnée) est partagée en entier à sa première
  * écriture, pour qu'un autre téléphone qui ne la connaît pas la reçoive complète.
- * Peut être appelée dans une transaction englobante, à condition qu'elle inclue la table de l'entité et `opsOut`.
+ * Peut être appelée dans une transaction englobante, à condition qu'elle inclue la table de l'entité, `opsOut` et
+ * `syncState`.
  */
 export async function writeShared<T extends object>(e: Entity, id: string, next: T, base?: T): Promise<T> {
   const table = tableFor(e);
-  const [stored, queued] = await db.transaction('rw', table, db.opsOut, async (): Promise<[Row, boolean]> => {
+  const [stored, queued] = await db.transaction('rw', table, db.opsOut, db.syncState, async (): Promise<[Row, boolean]> => {
     const current = await table.get(id);
     const clock = current?._clock ?? {};
     // L'horloge ne doit jamais être en retard sur un horodatage déjà stocké (stockage local effacé…).
@@ -113,7 +118,9 @@ export async function writeShared<T extends object>(e: Entity, id: string, next:
     const t = tick();
     const applied = applyFields(current ? { _clock: clock } : undefined, f, t).record;
     await table.put({ ...out, _clock: applied._clock });
-    if (!relayUrl()) return [out, false];
+    // Sans relais dans cette version de l'app : rien en file, sauf si ce tabac a déjà été synchronisé (R29). Une
+    // version construite sans l'adresse du relais ne doit rien perdre : la file partira quand l'adresse reviendra.
+    if (!relayUrl() && (await db.syncState.get(SYNCED_KEY)) === undefined) return [out, false];
     await db.opsOut.add({ op: { e, id, f, t } });
     return [out, true];
   });
