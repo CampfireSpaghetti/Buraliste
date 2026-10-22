@@ -1,7 +1,7 @@
 # Composition du tabac, lots des jeux de grattage, codes-barres rattachés (conception)
 
 - **Date** : 22/10/2026
-- **Statut** : validée par le propriétaire (« Fais le nécessaire »), sans accord écrit de la FDJ ni de l'ANSES
+- **Statut** : développée le 22/10/2026 (validée par le propriétaire, « Fais le nécessaire »), sans accord écrit de la FDJ ni de l'ANSES. Les passages « Réalisé » ci-dessous indiquent ce qui diffère de la conception initiale.
 - **S'appuie sur** : rapport `reports/Composition tabac et lots grattage.md` (recherche du 22/10/2026), spec `2026-10-16-tabacs-multiples-design.md`
 
 ## 1. Objectifs
@@ -24,6 +24,7 @@
   - `winningTables`, des lignes [nombre de lots, montant] ;
   - `winningDescription`, du type « 1 chance sur X … Y % » ;
   - le prix (`bet`).
+- **Réalisé** : la source est bien les pages de jeux de fdj.fr (et non les règlements PDF) ; robot `scripts/fdj/updateLots.ts`, mis à jour chaque semaine.
 - **Fiabilité** : les tableaux sont identiques à ceux des règlements des tickets papier, vérifié sur 5 jeux. C'est la même méthode que la liste des jeux déjà utilisée par l'app.
 - **Contrôles** :
   - somme des lots = total publié quand il existe ;
@@ -49,28 +50,31 @@
   - comparaison sur la marque, la variante, le nombre de cigarettes ou le poids, et le paquet ;
   - un produit n'est rattaché que si la correspondance est sûre (score ≥ seuil, une seule candidate) ;
   - le taux de rapprochement est affiché dans le journal du workflow.
-- **Codes-barres** : les EAN valides du fichier ANSES (de 3 à 28 % selon le type de produit) sont ajoutés aux codes officiels des références rapprochées.
+- **Codes-barres** : les EAN valides du fichier ANSES sont ajoutés aux codes officiels des références rapprochées.
+  - **Réalisé** : seuls les numéros déclarés comme EAN, GTIN ou UPC sont gardés ; un numéro de type SKU ou interne qui passe la clé EAN est exclu. Un EAN déclaré pour deux produits ANSES différents est écarté partout. Un UPC-A (12 chiffres) et un GTIN-14 en « 0… » sont rangés en EAN-13 ; au scan, un UPC-A et son EAN-13 « 0… » sont le même code. Résultat sur les fichiers de juillet 2026 : 108 EAN sur 88 références.
 - **Fichier** : `public/data/composition.json`
   ```
   { version, fetchedAt, source, produits: { [douaneRef]: { nicotine?, goudron?, co?, ingredients: [{ nom, fonction, brule }], ean: [] } } }
   ```
   Le fichier est chargé seulement quand une fiche s'ouvre : il est trop gros pour le démarrage.
+  - **Réalisé** : si deux déclarations du même jour sont en désaccord sur les émissions, aucune émission n'est affichée (les ingrédients restent). La liste des ingrédients est limitée (« 60 premiers sur N », champ `ingredientsTotal`). Robot : `npm run anses:update`, étape du workflow hebdomadaire ; en cas d'échec ou de fichier illisible, le dernier fichier valide est gardé et le robot Douane continue.
 - **Juridique** : données publiques sans licence indiquée. L'app cite la source : « Déclaration du fabricant à l'ANSES, <date> ».
 
 ### 2.3 Codes-barres des tickets FDJ
 
 - **Ce que dit le règlement général FDJ** : le numéro d'un ticket commence par 5 chiffres, le code du jeu (3) puis l'émission (2). Exemple : 87105 = CASH, émission 05.
 - **Ce qui n'est pas prouvé** : que le code-barres reprenne ce numéro.
-- **Catalogue** : `fdj-games.json` reçoit `codes: string[]`, les préfixes à 5 chiffres connus pour chaque jeu. Ils viennent des avis FDJ et de `Forclos.pdf`, ou à défaut d'une table dans le script.
+- **Catalogue** : `fdj-games.json` reçoit `codes: string[]`, les préfixes à 5 chiffres connus pour chaque jeu. **Réalisé** : ils viennent de la table `scripts/fdj/gameCodes.ts`, **tenue à la main** par le propriétaire (avis FDJ mensuels et `Forclos.pdf`) ; rien n'est lu automatiquement.
 - **Reconnaissance d'un ticket** :
   1. code connu exactement, ou commence par un préfixe déjà confirmé → le jeu ;
   2. commence par un préfixe du catalogue jamais confirmé sur ce téléphone → « Ce ticket est-il un CASH ? » avec [Oui] et [Autre jeu]. « Oui » confirme ce préfixe : la reconnaissance est ensuite directe et partagée avec les autres téléphones du tabac ;
   3. sinon → « Quel jeu ? », avec la liste des jeux existants et une recherche.
+  - **Réalisé** : un numéro du catalogue FDJ d'un autre jeu bloque les préfixes appris ou reçus des autres téléphones (le ticket garde son jeu du catalogue) ; l'app et le robot refusent un préfixe qui empiète sur le numéro d'un autre jeu (message « à vérifier » côté robot).
 - **Rattachement** :
   - le choix ajoute le code complet à la référence ;
   - l'app apprend un préfixe comme aujourd'hui (préfixe commun d'au moins 4 caractères, sans collision) ;
   - un produit peut avoir **plusieurs préfixes** (`fdjPrefixes`), un par émission ou par carnet.
-- **Code de traçabilité** : un code qui commence par `KPL2F`, ou lu en DataMatrix, est refusé avec le message « Ce code change à chaque paquet : scannez le code-barres classique (EAN) du paquet. »
+- **Code de traçabilité** : un code qui commence par `KPL2F`, ou lu en DataMatrix non numérique, est refusé avec le message « Ce code change à chaque paquet : scannez le code-barres classique (EAN) du paquet. »
 
 ### 2.4 Codes-barres du tabac
 
@@ -79,6 +83,7 @@
   - officiels, partagés et ajoutés ici ;
   - chacun avec « Retirer » s'il a été ajouté ici ;
   - un bouton « Ajouter un code » qui ouvre le scanner pour ce produit.
+- **Réalisé** : « Retirer » efface aussi la contribution encore en attente d'envoi, mais pas un code déjà publié dans la liste commune (il reste à corriger à la main dans `public/data/codes-barres.json`). La fiche le précise dans une note.
 
 ## 3. Partage
 
