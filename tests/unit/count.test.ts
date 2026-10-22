@@ -35,6 +35,10 @@ describe('tous les jeux listés dans le comptage', () => {
     const lines = missingGameLines([game('A', 'Astro', { user: { fdjPrefix: '0520' } }), game('B', 'Banco'), cig], [l('Banco', 3, 9)].map((x) => ({ ...x, gameId: 'B' })), []);
     expect(lines).toEqual([{ id: 'game:A', gameId: 'A', code: '0520', name: 'Astro', linearQty: 0, stockQty: 0, updatedAt: 0 }]);
   });
+  it('colonne Code : le premier code de jeu (fdjPrefixes)', () => {
+    const lines = missingGameLines([game('A', 'Astro', { user: { fdjPrefixes: ['84701', '84702'] } })], [], []);
+    expect(lines[0].code).toBe('84701');
+  });
   it('ignore les jeux retirés et ceux que le buraliste a enlevés de sa liste', () => {
     const retired = game('R', 'Ancien', { base: { kind: 'jeu-fdj', name: 'Ancien', status: 'retrait' } });
     expect(missingGameLines([retired, game('H', 'Caché')], [], ['H'])).toEqual([]);

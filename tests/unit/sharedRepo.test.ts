@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   db, addCountLines, clearUserField, deleteCountLine, getSettings, hideGame, listCountLines, listProducts, patchUserFields,
-  putProduct, restoreCountLine, saveSettings, setOutOfStock, setPinned, unhideGame, upsertCountLine,
+  putProduct, removeUserCode, restoreCountLine, saveSettings, setOutOfStock, setPinned, unhideGame, upsertCountLine,
 } from '../../src/data/db';
 import { SHARED_KEYS, applyRemoteOps, writeShared } from '../../src/data/sharedRepo';
 import { resetClockForTests } from '../../src/sync/clock';
@@ -454,6 +454,48 @@ describe('types des valeurs reçues', () => {
     expect(s.hiddenGames).toBeUndefined();
     expect(s.shopName).toBe('Mon tabac');
     expect((await db.products.get('p1'))!).toMatchObject({ outOfStock: false, pinnedSubstitutes: [] });
+  });
+});
+
+describe('codes-barres rattachés (user.barcodes, user.fdjPrefixes)', () => {
+  it('user.fdjPrefixes reçu : liste de textes seulement', async () => {
+    await db.products.put(product({ id: 'g', base: { kind: 'jeu-fdj', name: 'CASH' } }));
+    await applyRemoteOps([{ e: 'product', id: 'g', f: { 'user.fdjPrefixes': '87105' }, t: hlcAt(Date.now()) }]);
+    expect((await db.products.get('g'))!.user).not.toHaveProperty('fdjPrefixes');
+    await applyRemoteOps([{ e: 'product', id: 'g', f: { 'user.fdjPrefixes': ['87105', 87104] }, t: hlcAt(Date.now() + 1) }]);
+    expect((await db.products.get('g'))!.user).not.toHaveProperty('fdjPrefixes');
+    await applyRemoteOps([{ e: 'product', id: 'g', f: { 'user.fdjPrefixes': ['87105'] }, t: hlcAt(Date.now() + 2) }]);
+    expect((await db.products.get('g'))!.user.fdjPrefixes).toEqual(['87105']);
+  });
+  it('retirer un code passe par la couche partagée : l’autre téléphone du tabac ne le reconnaît plus', async () => {
+    await db.products.put(product({ id: 'g', base: { kind: 'jeu-fdj', name: 'CASH' } }));
+    await patchUserFields('g', { barcodes: ['871050010001'], fdjPrefixes: ['87105', '87104'] });
+    await db.opsOut.clear();
+    await removeUserCode('g', '87105');
+    await removeUserCode('g', '871050010001');
+    expect((await db.products.get('g'))!.user).toEqual({ fdjPrefixes: ['87104'] });
+    const ops = await queued();
+    expect(ops.map((o) => o.f)).toEqual([{ 'user.fdjPrefixes': ['87104'] }, { 'user.barcodes': null }]);
+  });
+});
+
+describe('retirer un code : la contribution pas encore envoyée est annulée (R3)', () => {
+  it('removeUserCode efface de la file d’envoi le code ou le préfixe de cette référence, rien d’autre', async () => {
+    await db.products.put(product({ id: 'g', source: 'fdj', douaneRef: undefined, fdjRef: 'fdj|ITGC9K', base: { kind: 'jeu-fdj', name: 'CASH' } }));
+    await patchUserFields('g', { barcodes: ['871050010001'], fdjPrefixes: ['87105'] });
+    await db.outbox.bulkAdd([
+      { kind: 'barcode', code: '871050010001', ref: 'fdj|ITGC9K', createdAt: 1 },
+      { kind: 'fdjPrefix', prefix: '87105', ref: 'fdj|ITGC9K', createdAt: 1 },
+      { kind: 'fdjPrefix', prefix: '87105', ref: 'fdj|AUTRE', createdAt: 1 },
+      { kind: 'barcode', code: '3017620422003', ref: 'fdj|ITGC9K', createdAt: 1 },
+    ]);
+    await removeUserCode('g', '87105');
+    await removeUserCode('g', '871050010001');
+    const left = (await db.outbox.toArray()).map(({ id: _id, createdAt: _c, ...c }) => c);
+    expect(left).toEqual([
+      { kind: 'fdjPrefix', prefix: '87105', ref: 'fdj|AUTRE' },
+      { kind: 'barcode', code: '3017620422003', ref: 'fdj|ITGC9K' },
+    ]);
   });
 });
 

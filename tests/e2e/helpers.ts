@@ -13,7 +13,7 @@ export async function seed(page: Page, data: unknown) {
   await page.evaluate((d) => (window as any).__carotteSeed(d), data);
 }
 
-export async function scan(page: Page, code: string) {
+export async function scan(page: Page, code: string, format?: string) {
   await page.waitForFunction(() => typeof (window as any).__carotteScan === 'function');
-  await page.evaluate((c) => (window as any).__carotteScan(c), code);
+  await page.evaluate(([c, f]) => (window as any).__carotteScan(c, f), [code, format] as const);
 }

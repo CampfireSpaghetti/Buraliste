@@ -32,6 +32,16 @@ export default defineConfig(({ mode }) => ({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,woff2,wasm,json,png,svg}'],
+        // Composition ANSES : trop grosse pour le précache (téléchargée à la première fiche de tabac ouverte), gardée
+        // ensuite par le service worker pour le hors-ligne, et rafraîchie en arrière-plan.
+        globIgnores: ['**/data/composition.json'],
+        runtimeCaching: [
+          {
+            urlPattern: ({ url }) => url.pathname.endsWith('/data/composition.json'),
+            handler: 'StaleWhileRevalidate',
+            options: { cacheName: 'composition-anses', cacheableResponse: { statuses: [200] }, expiration: { maxEntries: 1 } },
+          },
+        ],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
       },
     }),

@@ -4,7 +4,11 @@ import { gameKey, stableProductId } from './productId';
 import type { Product, ProductFields } from './types';
 
 /** Un jeu de grattage vendu en point de vente, d'après la page des jeux de fdj.fr. */
-export type FdjItem = { ref: string; fdjId: string; name: string; ticketPrice: number; maxPrize?: number; isNew: boolean };
+export type FdjItem = {
+  ref: string; fdjId: string; name: string; ticketPrice: number; maxPrize?: number; isNew: boolean;
+  codes?: string[]; // numéros FDJ en vente (code jeu + émission, 5 chiffres) : à confirmer au premier scan
+  page?: string; // page du jeu sur fdj.fr (« /jeux-illiko/cash ») : tableau des lots (scripts/fdj/lots.ts)
+};
 export type FdjGamesFile = { version: string; fetchedAt: string; source: string; items: FdjItem[] };
 
 export { gameKey };
@@ -18,6 +22,8 @@ function baseFor(item: FdjItem): Partial<ProductFields> {
   const base: Partial<ProductFields> = { kind: 'jeu-fdj', name: item.name, ticketPrice: item.ticketPrice, gameType: gameTypeFor(item), status: 'inchange' };
   if (item.maxPrize !== undefined) base.maxPrize = item.maxPrize;
   if (item.isNew) base.isNew = true;
+  const codes = Array.isArray(item.codes) ? item.codes.filter((c) => typeof c === 'string' && /^\d{5}$/.test(c)) : [];
+  if (codes.length) base.fdjCodes = codes;
   return base;
 }
 
@@ -60,10 +66,12 @@ export function mergeFdjGames(existing: Product[], file: FdjGamesFile, now: numb
     put.push({ id: stableProductId({ id: '', source: 'fdj', fdjRef: item.ref }), source: 'fdj', fdjRef: item.ref, base, user: {}, outOfStock: false, pinnedSubstitutes: [], updatedAt: now });
   }
 
+  // Un jeu retiré perd ses numéros du catalogue : il n'est plus proposé au scan d'un ticket (« Ce ticket est-il un … ? »).
   for (const p of byRef.values()) {
     if (seen.has(p.id)) continue;
-    if (p.base.status === 'retrait') unchanged++;
-    else put.push({ ...p, base: { ...p.base, status: 'retrait', isNew: undefined }, updatedAt: now });
+    if (p.base.status === 'retrait' && p.base.fdjCodes === undefined) { unchanged++; continue; }
+    const { fdjCodes: _codes, ...base } = p.base;
+    put.push({ ...p, base: { ...base, status: 'retrait', isNew: undefined }, updatedAt: now });
   }
   return { put, unchanged };
 }

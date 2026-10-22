@@ -2,9 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 
 export type ScannerState = 'idle' | 'starting' | 'running' | 'denied' | 'unsupported';
 
-type Detector = { detect(source: CanvasImageSource): Promise<{ rawValue: string }[]> };
+type Detector = { detect(source: CanvasImageSource): Promise<{ rawValue: string; format?: string }[]> };
 
-const FORMATS = ['ean_13', 'ean_8', 'upc_a', 'code_128', 'itf', 'code_39', 'qr_code'] as const;
+// data_matrix : seulement pour reconnaître le code de traçabilité d'un paquet et demander l'EAN à la place.
+const FORMATS = ['ean_13', 'ean_8', 'upc_a', 'code_128', 'itf', 'code_39', 'qr_code', 'data_matrix'] as const;
 const FRAME_MS = 150;
 
 let detectorPromise: Promise<Detector> | undefined;
@@ -33,7 +34,7 @@ function getDetector(): Promise<Detector> {
   return detectorPromise;
 }
 
-export function useBarcodeScanner(opts: { active: boolean; onCode: (code: string) => void }) {
+export function useBarcodeScanner(opts: { active: boolean; onCode: (code: string, format?: string) => void }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const onCodeRef = useRef(opts.onCode);
   onCodeRef.current = opts.onCode;
@@ -85,8 +86,10 @@ export function useBarcodeScanner(opts: { active: boolean; onCode: (code: string
         if (busy || video.readyState < 2) return;
         busy = true;
         try {
-          const codes = await detector.detect(video);
-          if (codes[0]?.rawValue) onCodeRef.current(codes[0].rawValue);
+          const codes = (await detector.detect(video)).filter((c) => c.rawValue);
+          // Paquet de tabac : l'EAN et le DataMatrix de traçabilité sont souvent vus ensemble ; l'EAN passe d'abord.
+          const code = codes.find((c) => c.format !== 'data_matrix') ?? codes[0];
+          if (code) onCodeRef.current(code.rawValue, code.format);
         } catch {
           /* image illisible : on réessaie à la frame suivante */
         } finally {

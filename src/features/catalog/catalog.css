@@ -33,3 +33,26 @@
 .compare-table td.diff { background: var(--highlight); font-weight: 700; }
 .table-scroll { overflow-x: auto; }
 .sub-why { font-size: 14px; color: var(--muted); line-height: 1.3; }
+.codes { display: flex; flex-direction: column; gap: 8px; }
+.codes h3 { margin: 0; font-size: 17px; }
+.codes .muted { font-size: 13.5px; margin: 0; }
+.code-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.code-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 4px 0; border-bottom: 1px solid var(--line); min-width: 0; }
+.code-row > span { min-width: 0; overflow-wrap: anywhere; }
+.code-row .btn { flex: none; padding: 0 12px; }
+.codes > .btn { align-self: flex-start; }
+.lots { display: flex; flex-direction: column; gap: 8px; }
+.lots h3 { margin: 0; font-size: 17px; }
+.lots .muted { font-size: 13.5px; margin: 0; }
+.lots-facts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.lots-table { width: 100%; border-collapse: collapse; font-size: 15px; }
+.lots-table caption { text-align: left; font-size: 13.5px; color: var(--muted); padding-bottom: 4px; }
+.lots-table th, .lots-table td { padding: 5px 6px; border-bottom: 1px solid var(--line); text-align: left; }
+.lots-table th { font-size: 14px; color: var(--muted); font-weight: 600; }
+.lots-table th:last-child, .lots-table td:last-child { text-align: right; }
+.composition { display: flex; flex-direction: column; gap: 6px; }
+.composition h3 { margin: 0; font-size: 17px; }
+.composition p { margin: 0; }
+.composition .muted { font-size: 13.5px; }
+.composition summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; font-weight: 600; }
+.composition .ingredients { margin: 0; padding-left: 18px; font-size: 14.5px; display: flex; flex-direction: column; gap: 3px; overflow-wrap: anywhere; }

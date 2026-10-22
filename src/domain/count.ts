@@ -35,7 +35,7 @@ export function missingGameLines(products: Product[], lines: CountLine[], hidden
   for (const p of products) {
     const f = effectiveFields(p);
     if (f.kind !== 'jeu-fdj' || counted.has(p.id) || hidden.has(p.id) || officialState(f, today) === 'retire') continue;
-    out.push({ id: gameLineId(p.id), gameId: p.id, code: f.fdjPrefix ?? f.barcodes?.[0] ?? '', name: f.name, linearQty: 0, stockQty: 0, updatedAt: 0 });
+    out.push({ id: gameLineId(p.id), gameId: p.id, code: f.fdjPrefixes?.[0] ?? f.barcodes?.[0] ?? '', name: f.name, linearQty: 0, stockQty: 0, updatedAt: 0 });
   }
   return out;
 }

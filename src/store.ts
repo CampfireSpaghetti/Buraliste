@@ -57,6 +57,8 @@ export const actions = {
   putProduct: withNotify((p: Product, base?: Product) => shareAfter(p.id, () => repo.putProduct(p, base))),
   patchUserFields: withNotify((id: string, patch: Partial<ProductFields>) => shareAfter(id, () => repo.patchUserFields(id, patch))),
   clearUserField: withNotify((id: string, key: keyof ProductFields) => repo.clearUserField(id, key)),
+  // Retirer ne retire pas une contribution déjà envoyée à la liste commune : seulement ce tabac.
+  removeUserCode: withNotify((id: string, code: string) => repo.removeUserCode(id, code)),
   setOutOfStock: withNotify((id: string, v: boolean) => repo.setOutOfStock(id, v)),
   setPinned: withNotify((id: string, ids: string[]) => repo.setPinned(id, ids)),
   upsertCountLine: withNotify((l: CountLine, base?: CountLine) => repo.upsertCountLine(l, base)),
@@ -66,6 +68,9 @@ export const actions = {
   hideGame: withNotify((gameId: string) => repo.hideGame(gameId)),
   unhideGame: withNotify((gameId: string) => repo.unhideGame(gameId)),
 };
+
+/** État enregistré d'une fiche (la copie d'un écran peut dater d'avant une modification venue d'un autre téléphone). */
+export const currentProduct = async (p: Product): Promise<Product> => (await repo.getProduct(p.id)) ?? p;
 
 /** Nouveau produit saisi par le buraliste (couche user uniquement). */
 export function newUserProduct(fields: Partial<ProductFields>): Product {

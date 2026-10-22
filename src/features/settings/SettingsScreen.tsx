@@ -121,6 +121,10 @@ export function SettingsScreen() {
         </p>
       )}
 
+      <p className="muted hint">
+        Lots des jeux : règlements FDJ (fdj.fr). Composition : déclarations des fabricants à l’ANSES (data.gouv.fr). Prix : Douane.
+      </p>
+
       {backup && <BackupPanel onClose={() => setBackup(false)} />}
       {install && <InstallGuide onClose={() => setInstall(false)} />}
       {pending && (

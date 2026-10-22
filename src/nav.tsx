@@ -7,6 +7,7 @@ export type View =
   | { type: 'create'; code?: string; kind?: Kind; then?: 'count' }
   | { type: 'edit'; id: string }
   | { type: 'attach'; code: string }
+  | { type: 'add-code'; id: string }
   | { type: 'compare'; ids: string[] };
 
 type Nav = {
