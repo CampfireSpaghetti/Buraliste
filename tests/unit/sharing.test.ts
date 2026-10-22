@@ -20,10 +20,18 @@ describe('contributionsFor : ce qui part du téléphone', () => {
   });
   it('plusieurs préfixes de jeu (user.fdjPrefixes) : seuls les nouveaux partent', () => {
     const game = p({ source: 'fdj', douaneRef: undefined, fdjRef: 'fdj|ITGC9K', base: { kind: 'jeu-fdj', name: 'CASH' }, user: { fdjPrefixes: ['87104'] }, sharedFdjPrefixes: ['87103'] });
-    expect(contributionsFor(game, { ...game, user: { fdjPrefixes: ['87104', '87105', '87103'], barcodes: ['871050010001'] } })).toEqual([
-      { kind: 'barcode', code: '871050010001', ref: 'fdj|ITGC9K' },
+    expect(contributionsFor(game, { ...game, user: { fdjPrefixes: ['87104', '87105', '87103'] } })).toEqual([
       { kind: 'fdjPrefix', prefix: '87105', ref: 'fdj|ITGC9K' },
     ]);
+  });
+  it('R6 : le code complet d\'un ticket de jeu ne part jamais (seulement le code de jeu) ; le tabac, si', () => {
+    const game = p({ source: 'fdj', douaneRef: undefined, fdjRef: 'fdj|ITGC9K', base: { kind: 'jeu-fdj', name: 'CASH' } });
+    expect(contributionsFor(game, { ...game, user: { barcodes: ['871050010001'], fdjPrefixes: ['87105'] } })).toEqual([
+      { kind: 'fdjPrefix', prefix: '87105', ref: 'fdj|ITGC9K' },
+    ]);
+    expect(contributionsFor(game, { ...game, user: { barcodes: ['871050010001'] } })).toEqual([]);
+    const cig = p({});
+    expect(contributionsFor(cig, { ...cig, user: { barcodes: ['3017620422003'] } })).toEqual([{ kind: 'barcode', code: '3017620422003', ref: 'pmi|marlboro' }]);
   });
   it('rien pour une fiche créée à la main ni pour un code déjà connu', () => {
     const mine = p({ source: 'utilisateur', douaneRef: undefined, base: {}, user: { kind: 'cigare', name: 'Maison' } });

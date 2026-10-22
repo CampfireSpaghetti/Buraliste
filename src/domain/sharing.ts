@@ -30,13 +30,17 @@ export function officialRef(p: Product): string | undefined {
   return undefined;
 }
 
-/** Contributions nées d'une modification : nouveaux codes et nouveau code de jeu d'un produit officiel, rien d'autre. */
+/**
+ * Contributions nées d'une modification : nouveaux codes et nouveau code de jeu d'un produit officiel, rien d'autre.
+ * Jeu FDJ : seulement les codes de jeu (R6) ; le code complet d'un ticket lui est propre et reste dans ce tabac.
+ */
 export function contributionsFor(before: Product, after: Product): Contribution[] {
   const ref = officialRef(after);
   if (!ref) return [];
   const known = new Set([...(effectiveFields(before).barcodes ?? []), ...(after.base.barcodes ?? [])]);
   const out: Contribution[] = [];
-  for (const code of after.user.barcodes ?? []) if (!known.has(code)) out.push({ kind: 'barcode', code, ref });
+  const game = effectiveFields(after).kind === 'jeu-fdj';
+  if (!game) for (const code of after.user.barcodes ?? []) if (!known.has(code)) out.push({ kind: 'barcode', code, ref });
   const knownPrefixes = new Set([
     ...layerPrefixes(before.user), ...layerPrefixes(after.base), ...(after.sharedFdjPrefixes ?? []), ...(after.sharedFdjPrefix ? [after.sharedFdjPrefix] : []),
   ]);
