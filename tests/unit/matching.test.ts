@@ -24,6 +24,16 @@ describe('resolveScan', () => {
   it('correspondance exacte en couche user', () => {
     expect(resolveScan('9638 5074', [cig, cigUser])).toMatchObject({ type: 'product', product: { id: 'cig2' } });
   });
+  it('UPC-A : 12 chiffres (upc_a) et EAN-13 « 0… » désignent le même paquet', () => {
+    const cigar = p('cigar', { kind: 'cigare', name: 'Cigare', barcodes: ['0012345678905'] });
+    expect(resolveScan('012345678905', [cigar], { format: 'upc_a' })).toEqual({ type: 'product', product: cigar });
+    const old = p('old', { kind: 'cigare', name: 'Ancien' }, { barcodes: ['012345678905'] });
+    expect(resolveScan('0012345678905', [old], { format: 'ean_13' })).toEqual({ type: 'product', product: old });
+    // Inconnu : proposé comme un EAN, sous sa forme EAN-13.
+    expect(resolveScan('012345678905', [cig], { format: 'upc_a' })).toEqual({ type: 'unknown-ean', code: '0012345678905' });
+    // Lu en ITF (ticket) : jamais pris pour un UPC.
+    expect(resolveScan('012345678905', [cigar], { format: 'itf' }).type).not.toBe('product');
+  });
   it('EAN valide inconnu', () => {
     expect(resolveScan('4006381333931', [cig])).toEqual({ type: 'unknown-ean', code: '4006381333931' });
   });

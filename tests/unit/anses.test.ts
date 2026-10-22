@@ -39,10 +39,10 @@ describe('lecture des fichiers ANSES', () => {
     expect(num('abc')).toBeUndefined();
   });
   it('cigarettes : marque, sous-type, paquet, numéro, émissions, date du dossier', () => {
-    expect(cigarettes).toHaveLength(26);
+    expect(cigarettes).toHaveLength(27);
     expect(cigarettes.find((p) => p.code === '1637 ORIGINE [4A27B949A67924C5]')).toEqual({
       code: '1637 ORIGINE [4A27B949A67924C5]', categorie: 'cigarette', marque: '1637', sousType: 'Origine',
-      unites: 20, conditionnement: 'Boîte à couvercle supérieur rabattable, bord droit', numero: '3258170830010',
+      unites: 20, conditionnement: 'Boîte à couvercle supérieur rabattable, bord droit', typeNumero: 'EAN', numero: '3258170830010',
       majLe: '2026-01-13T13:10:25', goudron: 8.23, nicotine: 0.56, co: 9.92,
     });
   });
@@ -167,6 +167,48 @@ describe('buildComposition', () => {
     expect(file.produits[refs[1].ref].ean).toEqual([]);
     expect(file.produits[twin.ref].ean).toEqual([]);
     expect(file.produits[twin.ref].goudron).toBe(8.23);
+  });
+
+  it('EAN : seulement les numéros déclarés EAN / GTIN / UPC (un SKU à clé juste n\'en est pas un) ; UPC-A en EAN-13', () => {
+    const glamour = ref('Glamour Fresh, en 20 unités');
+    const aroma = ref('Aroma de Nicaragua Father & Son large chilcagre, en 20 cigares', 'cigare');
+    const { file } = build({ refs: [glamour, aroma] });
+    // « SKU 16431416 » passe la clé EAN-8 par hasard : pas publié comme code-barres.
+    expect(file.produits[glamour.ref]).toMatchObject({ nicotine: 0.6, ean: [] });
+    // « UPC 822520300008 » (12 chiffres) : rangé sous sa forme EAN-13, celle que lit le scanner.
+    expect(file.produits[aroma.ref].ean).toEqual(['0822520300008']);
+  });
+
+  it('un EAN déclaré pour deux produits ANSES différents est écarté', () => {
+    const origine = all.find((p) => p.code === '1637 ORIGINE [4A27B949A67924C5]')!;
+    const autre: AnsesProduct = { ...origine, code: '1637 AUTRE [X]', sousType: 'Autre' };
+    const { file } = build({ products: [...all, autre] });
+    expect(file.produits[refs[1].ref].ean).toEqual([]);
+    expect(file.produits[refs[1].ref].goudron).toBe(8.23);
+  });
+
+  it('déclarations du même jour en désaccord sur les émissions : pas d\'émissions, ingrédients gardés (R5)', () => {
+    const gold = all.find((p) => p.code === 'MARLBORO GOLD HARD PACK - 20 CIGARETTES [0B58B531C99F18D9]')!;
+    const twin: AnsesProduct = { ...gold, code: 'MARLBORO GOLD HARD PACK - 20 CIGARETTES [0B58X]', nicotine: (gold.nicotine ?? 0) + 0.1 };
+    const { file, emissionsDropped } = build({ products: [...all, twin] });
+    const entry = file.produits[refs[0].ref];
+    expect(entry.nicotine).toBeUndefined();
+    expect(entry.goudron).toBeUndefined();
+    expect(entry.co).toBeUndefined();
+    expect(entry.ingredients.length).toBeGreaterThan(0);
+    expect(emissionsDropped).toBe(1);
+    // Une déclaration plus ancienne différente ne compte pas : la plus récente fait foi.
+    const older: AnsesProduct = { ...twin, majLe: '2020-01-01T00:00:00' };
+    expect(build({ products: [...all, older] }).file.produits[refs[0].ref].nicotine).toBe(gold.nicotine);
+  });
+
+  it('liste d\'ingrédients limitée : le total déclaré est gardé (ingredientsTotal)', () => {
+    const gold = 'MARLBORO GOLD HARD PACK - 20 CIGARETTES [0B58B531C99F18D9]';
+    const many = Array.from({ length: 65 }, (_, i) => ({ code: gold, nom: `INGREDIENT ${i}`, fonction: 'Humectant', brule: true }));
+    const entry = build({ composition: [...composition.filter((r) => r.code !== gold), ...many] }).file.produits[refs[0].ref];
+    expect(entry.ingredients).toHaveLength(60);
+    expect(entry.ingredientsTotal).toBe(65);
+    expect(build().file.produits[refs[0].ref].ingredientsTotal).toBeUndefined();
   });
 
   it('même contenu : même version (rien à publier)', () => {

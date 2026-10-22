@@ -1,4 +1,4 @@
-import { commonPrefix, isValidEan, normalizeCode } from './barcode.ts';
+import { barcodeVariants, commonPrefix, isValidEan, normalizeCode, retailCode } from './barcode.ts';
 import type { Product, ProductFields } from './types';
 
 const uniq = (list: string[]) => [...new Set(list)];
@@ -64,10 +64,14 @@ export function resolveScan(raw: string, products: Product[], opts: { format?: s
   if (isTraceabilityCode(code, opts.format)) return { type: 'traceability', code };
   const fields = products.map((p) => ({ p, f: effectiveFields(p) }));
 
-  const exact = fields.find(({ f }) => f.barcodes?.includes(code));
+  // Un UPC-A (12 chiffres) et son EAN-13 « 0… » sont le même paquet, sauf pour un format qui n'est jamais un EAN (ticket).
+  const notEan = !!opts.format && NOT_EAN.has(opts.format);
+  const variants = notEan ? [code] : barcodeVariants(code);
+  const exact = fields.find(({ f }) => f.barcodes?.some((b) => variants.includes(b)));
   if (exact) return { type: 'product', product: exact.p };
 
-  if (isValidEan(code) && !(opts.format && NOT_EAN.has(opts.format))) return { type: 'unknown-ean', code };
+  if (isValidEan(code) && !notEan) return { type: 'unknown-ean', code };
+  if (opts.format === 'upc_a' && isValidEan(retailCode(code))) return { type: 'unknown-ean', code: retailCode(code) };
 
   const games = fields.filter(({ f }) => f.kind === 'jeu-fdj');
   const longest = (pick: (f: ProductFields) => string[] | undefined) => {

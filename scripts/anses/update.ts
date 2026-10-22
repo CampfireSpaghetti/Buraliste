@@ -25,8 +25,10 @@ const FILES = {
 };
 // En dessous, le format des fichiers a probablement changé : on garde l'ancien fichier.
 const MIN_CIGARETTES = 1000;
+const MIN_AUTRES = 1000; // cigares, tabac à rouler… (liste-fr-autres-produits.csv)
 const MIN_INGREDIENT_ROWS = 10000;
-const MIN_MATCHED = 50;
+const MIN_MATCHED_CIGARETTES = 100;
+const MIN_MATCHED_AUTRES = 200; // tabac à rouler + cigares : un changement de format ne doit pas les effacer en silence
 const headers = { 'User-Agent': 'Mozilla/5.0 (La Carotte; mise a jour hebdomadaire)' };
 
 const arg = (name: string) => {
@@ -45,7 +47,15 @@ async function fetchCsv(f: { url: string; name: string }): Promise<{ text: strin
   return { text: await res.text(), date: m ? `${m[1]}-${m[2]}-${m[3]}` : undefined };
 }
 
-const readJson = <T>(path: string): T | undefined => (existsSync(path) ? (JSON.parse(readFileSync(path, 'utf8')) as T) : undefined);
+/** Fichier JSON ; absent ou illisible : undefined (signalé). */
+function readJson<T>(path: string): T | undefined {
+  try {
+    return existsSync(path) ? (JSON.parse(readFileSync(path, 'utf8')) as T) : undefined;
+  } catch (e) {
+    console.warn(`::warning::${path} illisible : ${e instanceof Error ? e.message : String(e)}`);
+    return undefined;
+  }
+}
 const LABELS: Record<StatKey, string> = { cigarette: 'cigarettes', 'tabac-rouler': 'tabac à rouler', cigare: 'cigares et cigarillos' };
 
 let failed = false;
@@ -57,6 +67,7 @@ try {
   const autres = parseAutres(aut.text);
   const composition = parseComposition(comp.text);
   if (cigarettes.length < MIN_CIGARETTES) throw new Error(`Seulement ${cigarettes.length} cigarettes lues : le format a peut-être changé.`);
+  if (autres.length < MIN_AUTRES) throw new Error(`Seulement ${autres.length} autres produits lus : le format a peut-être changé.`);
   if (composition.length < MIN_INGREDIENT_ROWS) throw new Error(`Seulement ${composition.length} lignes d'ingrédients lues : le format a peut-être changé.`);
   const products = [...cigarettes, ...autres];
   // Date du fichier ANSES : celle de l'adresse publiée ; hors réseau, --date, sinon le dossier le plus récent.
@@ -66,16 +77,19 @@ try {
   const previous = readJson<CompositionFile>(OUT);
   const today = new Date().toISOString().slice(0, 10);
   const r = buildComposition({ products, composition, refs: refs.items, date, source: DATASET, fetchedAt: today, previous });
-  const matched = Object.values(r.stats).reduce((s, x) => s + x.matched, 0);
   for (const k of Object.keys(r.stats) as StatKey[]) {
     const { total, matched: m } = r.stats[k];
     console.log(`Rapprochement ${LABELS[k]} : ${m}/${total} (${total ? Math.round((100 * m) / total) : 0} %)`);
   }
   const withEan = Object.values(r.file.produits).filter((e) => e.ean.length).length;
   console.log(`${r.ambiguous.length} référence(s) ambiguë(s) laissée(s) sans composition ; ${withEan} référence(s) avec EAN`
-    + `${r.eanDropped ? ` (${r.eanDropped} EAN partagé(s) par deux références, écarté(s))` : ''}`
+    + `${r.eanDropped ? ` (${r.eanDropped} EAN partagé(s) par deux produits ou deux références, écarté(s))` : ''}`
+    + `${r.emissionsDropped ? ` ; ${r.emissionsDropped} référence(s) sans émissions (déclarations du même jour en désaccord)` : ''}`
     + `${r.capped ? ` ; ${r.capped} liste(s) d'ingrédients limitée(s)` : ''}.`);
-  if (matched < MIN_MATCHED) throw new Error(`Seulement ${matched} références rapprochées : fichier gardé tel quel.`);
+  const matchedAutres = r.stats['tabac-rouler'].matched + r.stats.cigare.matched;
+  if (r.stats.cigarette.matched < MIN_MATCHED_CIGARETTES || matchedAutres < MIN_MATCHED_AUTRES) {
+    throw new Error(`Seulement ${r.stats.cigarette.matched} cigarettes et ${matchedAutres} tabacs à rouler ou cigares rapprochés : fichier gardé tel quel.`);
+  }
   if (r.changed) {
     const json = JSON.stringify(r.file);
     writeFileSync(OUT, json);

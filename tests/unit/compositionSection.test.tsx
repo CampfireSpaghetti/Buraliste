@@ -63,6 +63,14 @@ describe('CompositionSection (fiche tabac)', () => {
     expect(text).toContain("Déclaration du fabricant à l'ANSES, juillet 2026");
   });
 
+  it('liste limitée : « (60 premiers sur N) »', async () => {
+    const ingredients = Array.from({ length: 60 }, (_, i) => ({ nom: `Ingrédient ${i}`, fonction: 'Humectant', brule: true }));
+    stubFetch({ ...file, produits: { 'fab|long': { ingredients, ingredientsTotal: 72, ean: [] } } });
+    render(<CompositionSection douaneRef="fab|long" />);
+    const section = await screen.findByRole('region', { name: 'Composition' });
+    expect(plain(within(section).getByText(/Ingrédients déclarés/).textContent)).toBe('Ingrédients déclarés (60 premiers sur 72)');
+  });
+
   it('tabac à rouler : ingrédients seulement (pas de ligne d’émissions)', async () => {
     stubFetch(file);
     render(<CompositionSection douaneRef="seita|drum bleu (blague), en 30 g" />);

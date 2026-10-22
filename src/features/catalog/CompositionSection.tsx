@@ -7,13 +7,14 @@ export function CompositionView({ entry, date }: { entry: CompositionEntry; date
   const ingredients = Array.isArray(entry.ingredients) ? entry.ingredients.filter((i) => i && typeof i.nom === 'string') : [];
   if (!emissions && !ingredients.length) return null;
   const when = monthYearFr(date);
+  const total = typeof entry.ingredientsTotal === 'number' && entry.ingredientsTotal > ingredients.length ? entry.ingredientsTotal : undefined;
   return (
     <section className="composition" aria-label="Composition">
       <h3>Composition (déclaration ANSES)</h3>
       {emissions && <p>{emissions} <span className="muted">(par cigarette)</span></p>}
       {ingredients.length > 0 && (
         <details>
-          <summary>Ingrédients déclarés ({ingredients.length})</summary>
+          <summary>Ingrédients déclarés ({total ? `${ingredients.length} premiers sur ${total}` : ingredients.length})</summary>
           <ul className="ingredients">
             {ingredients.map((i, k) => (
               <li key={k}>

@@ -19,7 +19,8 @@ export type AnsesProduct = {
   unites?: number;
   poids?: number; // g (tabac à rouler)
   conditionnement: string;
-  numero: string; // Numéro_Produit (interne, SKU, EAN…)
+  typeNumero: string; // Type_Numéro_Produit : « EAN », « GTIN », « UPC », « SKU » ou « - » (interne)
+  numero: string; // Numéro_Produit
   majLe: string; // date de dernière mise à jour du dossier (AAAA-MM-JJTHH:MM:SS)
   goudron?: number;
   nicotine?: number;
@@ -140,20 +141,35 @@ function nameScore(d: string[], a: string[]): number {
 
 type Prepared = { p: AnsesProduct; tokens: string[]; pack: Pack; wrap?: Wrap; key: string; format: number };
 
+/** Produit comparable (mots, paquet, clé du produit) ; undefined s'il n'est jamais rapproché (Duty Free, autre type…). */
+function describe(p: AnsesProduct): Prepared | undefined {
+  if (p.categorie === 'autre' || /duty\s*free/i.test(`${p.marque} ${p.sousType} ${p.code}`)) return undefined;
+  const format = p.categorie === 'tabac-rouler' ? p.poids : p.unites;
+  if (!format) return undefined;
+  const tokens = nameTokens(`${p.marque} ${p.sousType}`, format);
+  if (!tokens.length) return undefined;
+  const pack = ansesPack(p);
+  const wrap = ansesWrap(p);
+  const key = [p.categorie, [...tokens].sort().join(' '), format, pack, p.categorie === 'tabac-rouler' ? wrap ?? '' : ''].join('|');
+  return { p, tokens, pack, wrap, key, format };
+}
+
+/**
+ * Clé d'un produit : deux déclarations de même clé sont le même produit (mêmes mots, format, paquet). Pour un produit
+ * jamais rapproché, une clé brute (catégorie, nom, unités, poids, paquet) : sert à repérer un EAN partagé par deux produits.
+ */
+export function groupKey(p: AnsesProduct): string {
+  return describe(p)?.key ?? ['brut', p.categorie, fold(`${p.marque} ${p.sousType}`).replace(/\s+/g, ' ').trim(), p.unites ?? '', p.poids ?? '', fold(p.conditionnement)].join('|');
+}
+
 function prepare(products: AnsesProduct[]): Map<string, Prepared[]> {
   const index = new Map<string, Prepared[]>();
   for (const p of products) {
-    if (p.categorie === 'autre' || /duty\s*free/i.test(`${p.marque} ${p.sousType} ${p.code}`)) continue;
-    const format = p.categorie === 'tabac-rouler' ? p.poids : p.unites;
-    if (!format) continue;
-    const tokens = nameTokens(`${p.marque} ${p.sousType}`, format);
-    if (!tokens.length) continue;
-    const pack = ansesPack(p);
-    const wrap = ansesWrap(p);
-    const key = [p.categorie, [...tokens].sort().join(' '), format, pack, p.categorie === 'tabac-rouler' ? wrap ?? '' : ''].join('|');
-    const k = `${p.categorie}|${format}`;
+    const d = describe(p);
+    if (!d) continue;
+    const k = `${p.categorie}|${d.format}`;
     const list = index.get(k) ?? [];
-    list.push({ p, tokens, pack, wrap, key, format });
+    list.push(d);
     index.set(k, list);
   }
   return index;

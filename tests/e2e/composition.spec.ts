@@ -1,11 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { test, expect } from '@playwright/test';
+import { monthYearFr } from '../../src/domain/composition';
 import { scan, seed, testMode } from './helpers';
 
 // Composition lue dans le fichier publié public/data/composition.json (robot hebdomadaire, ANSES) : on vérifie la
 // présentation et le chargement à l'ouverture de la fiche, pas les chiffres, qui suivent les déclarations des fabricants.
 type Entry = { nicotine?: number; ingredients: unknown[]; ean: string[] };
-const comp = JSON.parse(readFileSync('public/data/composition.json', 'utf8')) as { produits: Record<string, Entry> };
+const comp = JSON.parse(readFileSync('public/data/composition.json', 'utf8')) as { date: string; produits: Record<string, Entry> };
 const refs = JSON.parse(readFileSync('public/data/references.json', 'utf8')).items as { ref: string; kind: string; name: string }[];
 const sample = refs.find((r) => r.kind === 'cigarette' && comp.produits[r.ref]?.nicotine !== undefined && comp.produits[r.ref].ingredients.length > 0)!;
 const unmatched = refs.find((r) => r.kind === 'cigarette' && !comp.produits[r.ref])!;
@@ -32,8 +33,8 @@ test('fiche d’un tabac rapproché : composition ANSES (émissions par cigarett
   const section = fiche.getByRole('region', { name: 'Composition' });
   await expect(section).toContainText('Composition (déclaration ANSES)');
   await expect(section).toContainText(/Nicotine \d+(,\d+)?\smg · Goudron \d+(,\d+)?\smg · Monoxyde de carbone \d+(,\d+)?\smg \(par cigarette\)/);
-  await expect(section).toContainText("Déclaration du fabricant à l'ANSES, juillet 2026");
-  const summary = section.getByText(/^Ingrédients déclarés \(\d+\)$/);
+  await expect(section).toContainText(`Déclaration du fabricant à l'ANSES, ${monthYearFr(comp.date)}`);
+  const summary = section.getByText(/^Ingrédients déclarés \((\d+|\d+ premiers sur \d+)\)$/);
   await expect(summary).toBeVisible();
   const first = section.getByRole('listitem').first();
   await expect(first).toBeHidden();

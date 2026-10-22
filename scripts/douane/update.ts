@@ -25,7 +25,16 @@ const parsed = parseNomenclature(readOdsRows(buf), odsUrl);
 if (parsed.items.length < MIN_ITEMS) {
   throw new Error(`Seulement ${parsed.items.length} références lues : le format du fichier a peut-être changé.`);
 }
-const composition = existsSync(COMPOSITION) ? (JSON.parse(readFileSync(COMPOSITION, 'utf8')) as CompositionFile) : undefined;
+/** Dernière composition ANSES ; illisible ou absente : la liste est écrite sans codes ANSES (jamais d'échec ici). */
+function readComposition(): CompositionFile | undefined {
+  try {
+    return existsSync(COMPOSITION) ? (JSON.parse(readFileSync(COMPOSITION, 'utf8')) as CompositionFile) : undefined;
+  } catch (e) {
+    console.warn(`::warning::${COMPOSITION} illisible, codes-barres ANSES non repris : ${e instanceof Error ? e.message : e}`);
+    return undefined;
+  }
+}
+const composition = readComposition();
 const file = applyAnsesBarcodes(parsed, composition);
 mkdirSync('public/data', { recursive: true });
 writeFileSync(OUT, JSON.stringify(file));

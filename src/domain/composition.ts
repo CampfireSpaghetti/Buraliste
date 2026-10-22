@@ -3,14 +3,16 @@ export type Ingredient = { nom: string; fonction: string; brule?: boolean };
 
 /**
  * Composition déclarée par le fabricant à l'ANSES pour une référence Douane rapprochée.
- * Émissions en mg par cigarette (cigarettes seulement) ; ingrédients sans doublon (au plus MAX_INGREDIENTS) ;
- * `ean` : codes-barres EAN-8/13 valides du fichier ANSES, aussi ajoutés aux codes officiels de la référence.
+ * Émissions en mg par cigarette (cigarettes seulement ; absentes si les déclarations les plus récentes, du même jour, ne
+ * sont pas d'accord) ; ingrédients sans doublon (au plus MAX_INGREDIENTS, `ingredientsTotal` = total déclaré si limité) ;
+ * `ean` : codes déclarés EAN / GTIN / UPC à clé valide (forme EAN-8/13), aussi ajoutés aux codes officiels de la référence.
  */
 export type CompositionEntry = {
   nicotine?: number;
   goudron?: number;
   co?: number;
   ingredients: Ingredient[];
+  ingredientsTotal?: number; // nombre d'ingrédients déclarés quand la liste est limitée à MAX_INGREDIENTS
   ean: string[];
 };
 
