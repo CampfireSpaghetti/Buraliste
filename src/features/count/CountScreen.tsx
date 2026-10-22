@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { countLineId, missingGameLines, sortLines } from '../../domain/count';
-import { effectiveFields, learnFdjCode, resolveScan, type ScanResult } from '../../domain/matching';
+import { effectiveFields, gameCandidates, learnFdjCode, resolveScan, TRACEABILITY_MESSAGE, type ScanResult } from '../../domain/matching';
 import { fold } from '../../domain/search';
 import { formatEuro } from '../../domain/format';
 import { normalizeCode } from '../../domain/barcode';
@@ -13,6 +13,7 @@ import { ScannerView } from '../scanner/ScannerView';
 import { CountTable, type QtyField } from './CountTable';
 import { NumericKeypad } from './NumericKeypad';
 import { WhichGameDialog } from './WhichGameDialog';
+import { ConfirmGameDialog } from './ConfirmGameDialog';
 import { ExportPanel } from './ExportPanel';
 import { BackupReminder } from './BackupReminder';
 import './count.css';
@@ -34,6 +35,7 @@ export function CountScreen() {
   const [keypad, setKeypad] = useState<KeypadTarget | null>(null);
   const [lineForm, setLineForm] = useState<LineForm | null>(null);
   const [ask, setAsk] = useState<{ code: string; candidates: Product[] } | null>(null);
+  const [confirm, setConfirm] = useState<{ code: string; game: Product; prefix: string } | null>(null);
   const [newGame, setNewGame] = useState<{ code: string } | null>(null);
   const [hitId, setHitId] = useState<string>();
   const [last, setLast] = useState<{ name: string; linear: number; stock: number } | null>(null);
@@ -56,7 +58,7 @@ export function CountScreen() {
   /** Colonne Code : le code qui identifie le jeu (préfixe appris, sinon premier code connu, sinon le code scanné). */
   const openForGame = (game: Product, scanned: string) => {
     const f = effectiveFields(game);
-    const code = f.fdjPrefix ?? f.barcodes?.[0] ?? scanned;
+    const code = f.fdjPrefixes?.[0] ?? f.barcodes?.[0] ?? scanned;
     const existing = (rawLines ?? []).find((l) => l.gameId === game.id);
     if (existing) setHitId(existing.id);
     setKeypad({
@@ -70,7 +72,9 @@ export function CountScreen() {
       const f = effectiveFields(r.product);
       if (f.kind !== 'jeu-fdj') setToast({ message: `Ce n'est pas un jeu de grattage : ${f.name}` });
       else openForGame(r.product, '');
-    } else if (r.type === 'ask-game') setAsk({ code: r.code, candidates: r.candidates });
+    } else if (r.type === 'confirm-game') setConfirm({ code: r.code, game: r.product, prefix: r.prefix });
+    else if (r.type === 'ask-game') setAsk({ code: r.code, candidates: r.candidates });
+    else if (r.type === 'traceability') setToast({ message: TRACEABILITY_MESSAGE });
     else setNewGame({ code: r.code });
   };
 
@@ -104,7 +108,7 @@ export function CountScreen() {
   };
 
   const closeToast = useCallback(() => setToast(null), []);
-  const paused = !!(keypad || ask || newGame || lineForm);
+  const paused = !!(keypad || ask || confirm || newGame || lineForm);
 
   const table = (
     <CountTable
@@ -172,6 +176,20 @@ export function CountScreen() {
           products={products ?? []}
           onClose={() => setLineForm(null)}
           onDelete={remove}
+        />
+      )}
+      {confirm && (
+        <ConfirmGameDialog
+          game={confirm.game}
+          code={confirm.code}
+          onClose={() => setConfirm(null)}
+          onOther={() => { setConfirm(null); setAsk({ code: confirm.code, candidates: gameCandidates(confirm.code, products ?? []) }); }}
+          onYes={async () => {
+            const { code, game, prefix } = confirm;
+            setConfirm(null);
+            const updated = await actions.patchUserFields(game.id, learnFdjCode(game, code, products ?? [], { confirmedPrefix: prefix }));
+            openForGame(updated, code);
+          }}
         />
       )}
       {ask && (

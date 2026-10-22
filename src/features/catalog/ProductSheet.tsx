@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { currentPrice, officialState } from '../../domain/catalog';
-import { effectiveFields } from '../../domain/matching';
+import { codeRows, effectiveFields } from '../../domain/matching';
 import { formatEuro, formatIsoDateFr } from '../../domain/format';
 import { KIND_LABELS } from '../../domain/types';
 import { useNav } from '../../nav';
@@ -8,6 +8,7 @@ import { actions, useProducts } from '../../store';
 import { Panel } from '../../ui/Panel';
 import { SubstitutesList } from './SubstitutesList';
 import { rangeProfile } from '../../domain/rangeProfile';
+import type { Product } from '../../domain/types';
 import './catalog.css';
 
 export function ProductSheet({ id }: { id: string }) {
@@ -80,9 +81,9 @@ export function ProductSheet({ id }: { id: string }) {
             {f.format && (<><dt>Format</dt><dd>{f.format}</dd></>)}
           </>
         )}
-        {f.barcodes?.length ? (<><dt>Codes</dt><dd className="num">{f.barcodes.join(', ')}</dd></>) : null}
         {f.notes && (<><dt>Notes</dt><dd>{f.notes}</dd></>)}
       </dl>
+      <CodesSection id={id} product={product} />
       {estimated && <p className="estimate">Force et goût : estimations de départ, modifiables.</p>}
       <div className="row">
         <button type="button" className="btn" onClick={() => nav.open({ type: 'edit', id })}>Modifier</button>
@@ -91,5 +92,42 @@ export function ProductSheet({ id }: { id: string }) {
         </button>
       </div>
     </Panel>
+  );
+}
+
+const ORIGIN: Record<string, string> = { officiel: 'officiel', partagé: 'liste commune', 'ajouté ici': 'ajouté ici' };
+
+/** Codes-barres de la fiche : officiels et partagés (lecture seule), ajoutés ici (avec « Retirer »), et « Ajouter un code ». */
+function CodesSection({ id, product }: { id: string; product: Product }) {
+  const nav = useNav();
+  const rows = codeRows(product);
+  const catalog = product.base.fdjCodes ?? [];
+  return (
+    <section className="codes" aria-label="Codes-barres">
+      <h3>Codes-barres</h3>
+      {rows.length === 0 && <p className="muted">Aucun code pour l'instant.</p>}
+      {rows.length > 0 && (
+        <ul className="code-list">
+          {rows.map((r) => (
+            <li key={r.type + r.code} className="code-row">
+              <span>
+                <span className="num">{r.type === 'prefix' ? `Tickets ${r.code}…` : r.code}</span>
+                <span className="muted"> · {ORIGIN[r.origin]}</span>
+              </span>
+              {r.removable && (
+                <button type="button" className="btn" aria-label={`Retirer ${r.code}`} onClick={() => actions.removeUserCode(id, r.code)}>Retirer</button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      {catalog.length > 0 && (
+        <p className="muted">Numéros FDJ en vente : <span className="num">{catalog.join(', ')}</span> (demandé au premier ticket scanné).</p>
+      )}
+      {rows.some((r) => r.removable) && (
+        <p className="muted">« Retirer » l'enlève sur les téléphones de ce tabac. Un code déjà envoyé à la liste commune y reste.</p>
+      )}
+      <button type="button" className="btn" onClick={() => nav.open({ type: 'add-code', id })}>Ajouter un code</button>
+    </section>
   );
 }

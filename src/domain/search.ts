@@ -12,7 +12,7 @@ export function searchProducts(products: Product[], query: string, opts: { kinds
   for (const p of products) {
     const f = effectiveFields(p);
     if (opts.kinds && !opts.kinds.includes(f.kind)) continue;
-    const hay = fold([f.name, f.brand ?? '', ...(f.barcodes ?? []), f.fdjPrefix ?? ''].join(' '));
+    const hay = fold([f.name, f.brand ?? '', ...(f.barcodes ?? []), ...(f.fdjPrefixes ?? [])].join(' '));
     if (words.every((w) => hay.includes(w))) out.push({ p, name: f.name });
   }
   out.sort((a, b) => a.name.localeCompare(b.name, 'fr'));

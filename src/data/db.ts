@@ -3,6 +3,7 @@ import type { CountLine, Product, ProductFields, Settings } from '../domain/type
 import type { Contribution } from '../domain/sharing';
 import { productIdMap, remapIdList, remapOp, remapProductIds, type IdMap } from '../domain/productId';
 import { withoutClock, type Clocked, type Op } from '../sync/merge';
+import { withoutUserCode } from '../domain/matching';
 import { currentTabac, DEFAULT_TABAC_NAME, dbNameFor, ensureRegistry, listTabacs, syncRegistryName } from '../tabacs/registry';
 // Import circulaire voulu avec sharedRepo.ts : chacun n'utilise l'autre que dans des fonctions (voir sharedRepo.ts).
 import { writeShared } from './sharedRepo';
@@ -209,6 +210,10 @@ async function update(id: string, fn: (p: Product) => Product): Promise<Product>
 
 export const patchUserFields = (id: string, patch: Partial<ProductFields>) =>
   update(id, (p) => ({ ...p, user: { ...p.user, ...patch } }));
+
+/** Retire un code-barres ou un préfixe de jeu ajouté ici (couche user, partagée dans le tabac). */
+export const removeUserCode = (id: string, code: string) =>
+  update(id, (p) => ({ ...p, user: withoutUserCode(p.user, code) }));
 
 export const clearUserField = (id: string, key: keyof ProductFields) =>
   update(id, (p) => {

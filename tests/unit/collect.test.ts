@@ -3,7 +3,7 @@ import { collectFromIssue } from '../../scripts/codes/collectFromIssue';
 import { buildIssue, type SharedCodesFile } from '../../src/domain/sharing';
 
 const refs = { items: [{ ref: 'pmi|marlboro' }] };
-const fdj = { items: [{ ref: 'fdj|ITGC9K' }] };
+const fdj = { items: [{ ref: 'fdj|ITGC9K' }, { ref: 'fdj|AUTRE' }] };
 const empty: SharedCodesFile = { version: '0', updatedAt: '', barcodes: {}, fdjPrefixes: {} };
 const issue = (items: Parameters<typeof buildIssue>[0], login = 'wongmichel2048') => ({ issue: { number: 7, user: { login }, ...buildIssue(items) }, repository: { owner: { login: 'wongmichel2048' } } });
 
@@ -31,7 +31,7 @@ describe('collectFromIssue (robot)', () => {
     const current: SharedCodesFile = { ...empty, barcodes: { '3017620422003': 'pmi|marlboro' }, fdjPrefixes: { 'fdj|ITGC9K': '0417' } };
     const r = collectFromIssue(issue([
       { kind: 'barcode', code: '3017620422003', ref: 'fdj|ITGC9K' },
-      { kind: 'fdjPrefix', prefix: '9999', ref: 'fdj|ITGC9K' },
+      { kind: 'fdjPrefix', prefix: '0417', ref: 'fdj|AUTRE' },
       { kind: 'barcode', code: '4006381333931', ref: 'pmi|marlboro' },
     ]), refs, fdj, current, '2026-10-16');
     expect(r.review).toBe(true);
@@ -40,13 +40,19 @@ describe('collectFromIssue (robot)', () => {
     expect(r.summary).toContain('1 code ajouté');
     expect(r.summary).toContain('À vérifier');
     expect(r.summary).toContain('3017620422003 → fdj|ITGC9K : code déjà attribué à pmi|marlboro');
-    expect(r.summary).toContain('9999 → fdj|ITGC9K : code de jeu déjà connu pour ce jeu : 0417');
+    expect(r.summary).toContain('0417 → fdj|AUTRE : code de jeu déjà attribué à fdj|ITGC9K');
     expect(r.summary).toContain('à vérifier');
   });
   it('seulement des conflits : rien n’est écrit, le message reste à vérifier', () => {
     const current: SharedCodesFile = { ...empty, fdjPrefixes: { 'fdj|ITGC9K': '0417' } };
-    const r = collectFromIssue(issue([{ kind: 'fdjPrefix', prefix: '9999', ref: 'fdj|ITGC9K' }]), refs, fdj, current, '2026-10-16');
+    const r = collectFromIssue(issue([{ kind: 'fdjPrefix', prefix: '04179', ref: 'fdj|AUTRE' }]), refs, fdj, current, '2026-10-16');
     expect(r.file).toBeUndefined();
     expect(r.review).toBe(true);
+  });
+  it('un deuxième code de jeu pour le même jeu (nouvelle émission) est ajouté, sans « à vérifier »', () => {
+    const current: SharedCodesFile = { ...empty, fdjPrefixes: { 'fdj|ITGC9K': '87104' } };
+    const r = collectFromIssue(issue([{ kind: 'fdjPrefix', prefix: '87105', ref: 'fdj|ITGC9K' }]), refs, fdj, current, '2026-10-22');
+    expect(r.review).toBe(false);
+    expect(r.file?.fdjPrefixes).toEqual({ 'fdj|ITGC9K': ['87104', '87105'] });
   });
 });

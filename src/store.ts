@@ -57,6 +57,8 @@ export const actions = {
   putProduct: withNotify((p: Product, base?: Product) => shareAfter(p.id, () => repo.putProduct(p, base))),
   patchUserFields: withNotify((id: string, patch: Partial<ProductFields>) => shareAfter(id, () => repo.patchUserFields(id, patch))),
   clearUserField: withNotify((id: string, key: keyof ProductFields) => repo.clearUserField(id, key)),
+  // Retirer ne retire pas une contribution déjà envoyée à la liste commune : seulement ce tabac.
+  removeUserCode: withNotify((id: string, code: string) => repo.removeUserCode(id, code)),
   setOutOfStock: withNotify((id: string, v: boolean) => repo.setOutOfStock(id, v)),
   setPinned: withNotify((id: string, ids: string[]) => repo.setPinned(id, ids)),
   upsertCountLine: withNotify((l: CountLine, base?: CountLine) => repo.upsertCountLine(l, base)),

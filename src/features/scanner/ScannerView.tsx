@@ -1,5 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { createScanDebouncer, resolveScan, type ScanResult } from '../../domain/matching';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createScanDebouncer, resolveScan, TRACEABILITY_MESSAGE, type ScanResult } from '../../domain/matching';
+import { normalizeCode } from '../../domain/barcode';
+import { Toast } from '../../ui/Toast';
 import { useProducts } from '../../store';
 import { Sheet } from '../../ui/Panel';
 import { signalScanOk, TEST_SCAN_EVENT } from './feedback';
@@ -10,8 +12,9 @@ import { scannedInvite } from '../../tabacs/invite';
 import './scanner.css';
 
 type Props = {
-  mode: 'lookup' | 'count';
-  onResult: (r: ScanResult) => void;
+  mode: 'lookup' | 'count' | 'add-code';
+  /** `code` : le code lu (normalisé). Un code de traçabilité n'arrive jamais ici : la vue l'explique elle-même. */
+  onResult: (r: ScanResult, code: string) => void;
   paused?: boolean;
   footer?: React.ReactNode;
 };
@@ -22,10 +25,11 @@ export function ScannerView({ mode, onResult, paused = false, footer }: Props) {
   productsRef.current = products;
   const accept = useMemo(() => createScanDebouncer(), []);
   const [manual, setManual] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   const pausedRef = useRef(paused);
   pausedRef.current = paused || manual;
 
-  const handle = (raw: string, bypassDebounce = false) => {
+  const handle = (raw: string, bypassDebounce = false, format?: string) => {
     // QR codes de La Carotte : ce ne sont pas des produits. Invitation à un tabac (« Rejoindre le … ? ») ou ancien
     // Ancien QR code à clé GitHub (supprimé : on explique quoi faire).
     const invite = scannedInvite(raw);
@@ -41,22 +45,33 @@ export function ScannerView({ mode, onResult, paused = false, footer }: Props) {
       const fresh = accept(raw, Date.now());
       if (pausedRef.current || !fresh) return;
     }
+    const result = resolveScan(raw, productsRef.current ?? [], { format });
+    // Code de traçabilité d'un paquet (KPL2F…, DataMatrix) : rien n'est créé ni demandé, on explique quoi scanner.
+    if (result.type === 'traceability') {
+      setNotice(TRACEABILITY_MESSAGE);
+      return;
+    }
     signalScanOk();
-    onResult(resolveScan(raw, productsRef.current ?? []));
+    onResult(result, normalizeCode(raw));
   };
   const handleRef = useRef(handle);
   handleRef.current = handle;
 
   // La caméra reste allumée pendant les pauses (pavé, fiche) : un ticket resté devant l'objectif est vu en continu
   // et l'anti-doublon l'ignore à la reprise. Cela évite aussi de redemander l'autorisation caméra à chaque ticket.
-  const { videoRef, state, torch, retry } = useBarcodeScanner({ active: !manual, onCode: (c) => handleRef.current(c) });
+  const { videoRef, state, torch, retry } = useBarcodeScanner({ active: !manual, onCode: (c, format) => handleRef.current(c, false, format) });
 
   useEffect(() => {
-    const onTest = (e: Event) => handleRef.current((e as CustomEvent<string>).detail);
+    const onTest = (e: Event) => {
+      const d = (e as CustomEvent<string | { code: string; format?: string }>).detail;
+      if (typeof d === 'string') handleRef.current(d);
+      else handleRef.current(d.code, false, d.format);
+    };
     window.addEventListener(TEST_SCAN_EVENT, onTest);
     return () => window.removeEventListener(TEST_SCAN_EVENT, onTest);
   }, []);
 
+  const closeNotice = useCallback(() => setNotice(null), []);
   const blocked = state === 'denied' || state === 'unsupported';
   return (
     <div className={'scanner ' + mode}>
@@ -97,6 +112,7 @@ export function ScannerView({ mode, onResult, paused = false, footer }: Props) {
           )}
         </div>
       </div>
+      {notice && <Toast message={notice} onDone={closeNotice} ms={6000} />}
       {manual && <ManualEntry onClose={() => setManual(false)} onSubmit={(c) => { setManual(false); handle(c, true); }} />}
     </div>
   );

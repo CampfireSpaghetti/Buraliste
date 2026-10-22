@@ -15,7 +15,7 @@ export function testModeEnabled(): boolean {
 /** Points d'entrée pour les tests de bout en bout (jamais actifs pour un utilisateur normal). */
 export function installTestHooks() {
   const w = window as unknown as Record<string, unknown>;
-  w.__carotteScan = (code: string) => window.dispatchEvent(new CustomEvent(TEST_SCAN_EVENT, { detail: code }));
+  w.__carotteScan = (code: string, format?: string) => window.dispatchEvent(new CustomEvent(TEST_SCAN_EVENT, { detail: format ? { code, format } : code }));
   w.__carotteSeed = async (data: { products?: Product[]; countLines?: CountLine[]; settings?: Partial<Settings> }) => {
     await db.transaction('rw', db.products, db.countLines, db.settings, async () => {
       await Promise.all([db.products.clear(), db.countLines.clear(), db.settings.clear()]);

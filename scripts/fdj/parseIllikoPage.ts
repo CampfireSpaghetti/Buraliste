@@ -30,7 +30,8 @@ function objectAt(text: string, start: number): string | undefined {
   return undefined;
 }
 
-export function parseIllikoPage(html: string, sourceUrl: string, fetchedAt: string): FdjGamesFile {
+/** `codesFor` : numéros FDJ connus d'un jeu (scripts/fdj/gameCodes.ts), ajoutés avant l'empreinte de version. */
+export function parseIllikoPage(html: string, sourceUrl: string, fetchedAt: string, codesFor?: (name: string) => string[] | undefined): FdjGamesFile {
   const text = payload(html);
   const items = new Map<string, FdjItem>();
   for (const m of text.matchAll(/\{"title":"[^"]*","id":"ITG[A-Z0-9]+"/g)) {
@@ -46,6 +47,8 @@ export function parseIllikoPage(html: string, sourceUrl: string, fetchedAt: stri
     if (!g.isGrattage || g.isExclusWeb || !g.bet || items.has(g.id)) continue;
     const item: FdjItem = { ref: `fdj|${g.id}`, fdjId: g.id, name: g.title.trim(), ticketPrice: g.bet / 100, isNew: !!g.new };
     if (g.prize && /^jusqu/i.test((g.prizeType ?? '').trim())) item.maxPrize = g.prize;
+    const codes = codesFor?.(item.name);
+    if (codes?.length) item.codes = [...codes];
     items.set(g.id, item);
   }
   if (items.size === 0) throw new Error('Aucun jeu de grattage trouvé : la page fdj.fr a peut-être changé de format.');

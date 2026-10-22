@@ -4,7 +4,10 @@ import { gameKey, stableProductId } from './productId';
 import type { Product, ProductFields } from './types';
 
 /** Un jeu de grattage vendu en point de vente, d'après la page des jeux de fdj.fr. */
-export type FdjItem = { ref: string; fdjId: string; name: string; ticketPrice: number; maxPrize?: number; isNew: boolean };
+export type FdjItem = {
+  ref: string; fdjId: string; name: string; ticketPrice: number; maxPrize?: number; isNew: boolean;
+  codes?: string[]; // numéros FDJ en vente (code jeu + émission, 5 chiffres) : à confirmer au premier scan
+};
 export type FdjGamesFile = { version: string; fetchedAt: string; source: string; items: FdjItem[] };
 
 export { gameKey };
@@ -18,6 +21,8 @@ function baseFor(item: FdjItem): Partial<ProductFields> {
   const base: Partial<ProductFields> = { kind: 'jeu-fdj', name: item.name, ticketPrice: item.ticketPrice, gameType: gameTypeFor(item), status: 'inchange' };
   if (item.maxPrize !== undefined) base.maxPrize = item.maxPrize;
   if (item.isNew) base.isNew = true;
+  const codes = Array.isArray(item.codes) ? item.codes.filter((c) => typeof c === 'string' && /^\d{5}$/.test(c)) : [];
+  if (codes.length) base.fdjCodes = codes;
   return base;
 }
 

@@ -15,7 +15,9 @@ export interface ProductFields {
   brand?: string;
   format?: string;
   barcodes?: string[];
-  fdjPrefix?: string;
+  fdjPrefixes?: string[]; // débuts de code qui désignent ce jeu (confirmés ou appris), un par émission ou par carnet
+  fdjPrefix?: string; // ancien préfixe unique : encore lu (repris dans fdjPrefixes), plus écrit
+  fdjCodes?: string[]; // numéros FDJ du catalogue (code jeu + émission, 5 chiffres) : à confirmer au premier scan
   origin?: string;
   nicotineMg?: number;
   strength?: 1 | 2 | 3 | 4 | 5;
@@ -41,7 +43,8 @@ export interface Product {
   outOfStock: boolean;
   pinnedSubstitutes: string[];
   sharedBarcodes?: string[]; // codes partagés par les téléphones de tous les tabacs (liste publique)
-  sharedFdjPrefix?: string; // code de jeu partagé
+  sharedFdjPrefixes?: string[]; // codes de jeu partagés (liste publique)
+  sharedFdjPrefix?: string; // ancien code de jeu partagé unique : encore lu
   updatedAt: number;
 }
 

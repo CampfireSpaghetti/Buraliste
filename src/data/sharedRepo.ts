@@ -155,7 +155,7 @@ const VALUE_TYPES: Record<string, Check> = {
   'user.nicotineMg': isNum, 'user.strength': isNum, 'user.price': isNum, 'user.previousPrice': isNum,
   'user.ticketPrice': isNum, 'user.maxPrize': isNum,
   'user.isNew': isBool,
-  'user.barcodes': isStrList, 'user.tasteTags': isStrList,
+  'user.barcodes': isStrList, 'user.fdjPrefixes': isStrList, 'user.tasteTags': isStrList,
 };
 
 /** Champs facultatifs : `null` (effacé) n'est accepté que pour eux, jamais pour un champ obligatoire (ligne, produit). */

@@ -7,6 +7,7 @@ import { ScannerScreen } from './features/scanner/ScannerScreen';
 import { ProductSheet } from './features/catalog/ProductSheet';
 import { ProductForm } from './features/catalog/ProductForm';
 import { AttachToReference } from './features/catalog/AttachToReference';
+import { AddCodeScanner } from './features/catalog/AddCodeScanner';
 import { CatalogScreen } from './features/catalog/CatalogScreen';
 import { CompareView } from './features/catalog/CompareView';
 import { CountScreen } from './features/count/CountScreen';
@@ -56,6 +57,7 @@ function ViewLayer({ view }: { view: View }) {
     case 'create': return <ProductForm initialCode={view.code} initialKind={view.kind} />;
     case 'edit': return <ProductForm id={view.id} />;
     case 'attach': return <AttachToReference code={view.code} />;
+    case 'add-code': return <AddCodeScanner id={view.id} />;
     case 'compare': return <CompareView ids={view.ids} />;
   }
 }

@@ -33,6 +33,7 @@ export function WhichGameDialog({ code, candidates, games, onPick, onNewGame, on
           </button>
         );
       })}
+      {q.trim() && list.length === 0 && <p className="muted">Aucun jeu trouvé.</p>}
       <button type="button" className="btn" onClick={onNewGame}>+ Nouveau jeu</button>
     </Sheet>
   );

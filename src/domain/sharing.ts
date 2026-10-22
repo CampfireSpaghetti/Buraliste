@@ -1,5 +1,5 @@
 import { normalizeCode } from './barcode.ts';
-import { effectiveFields } from './matching.ts';
+import { effectiveFields, layerPrefixes } from './matching.ts';
 import type { Product } from './types';
 
 /** Ce qu'un téléphone partage (par le relais, anonymement) : uniquement « code → produit officiel ». */
@@ -7,8 +7,18 @@ export type Contribution =
   | { kind: 'barcode'; code: string; ref: string }
   | { kind: 'fdjPrefix'; prefix: string; ref: string };
 
-/** Liste publique des codes partagés (public/data/codes-barres.json). */
-export type SharedCodesFile = { version: string; updatedAt: string; barcodes: Record<string, string>; fdjPrefixes: Record<string, string> };
+/**
+ * Liste publique des codes partagés (public/data/codes-barres.json). Un jeu peut avoir plusieurs codes de jeu (une
+ * émission chacun) : liste, ou texte seul quand il n'y en a qu'un (forme des anciens fichiers, lue par les anciennes
+ * versions de l'app).
+ */
+export type SharedCodesFile = { version: string; updatedAt: string; barcodes: Record<string, string>; fdjPrefixes: Record<string, string | string[]> };
+
+/** Codes de jeu d'une entrée de la liste publique (texte ou liste). */
+export function prefixList(v: string | string[] | undefined): string[] {
+  if (typeof v === 'string') return v ? [v] : [];
+  return Array.isArray(v) ? v.filter((x) => typeof x === 'string' && x !== '') : [];
+}
 
 export const ISSUE_PREFIX = '[codes-barres]';
 const PAIRING_PREFIX = 'LACAROTTE1:'; // ancien QR code à clé GitHub, supprimé
@@ -27,8 +37,10 @@ export function contributionsFor(before: Product, after: Product): Contribution[
   const known = new Set([...(effectiveFields(before).barcodes ?? []), ...(after.base.barcodes ?? [])]);
   const out: Contribution[] = [];
   for (const code of after.user.barcodes ?? []) if (!known.has(code)) out.push({ kind: 'barcode', code, ref });
-  const prefix = after.user.fdjPrefix;
-  if (prefix && prefix !== before.user.fdjPrefix && prefix !== after.sharedFdjPrefix) out.push({ kind: 'fdjPrefix', prefix, ref });
+  const knownPrefixes = new Set([
+    ...layerPrefixes(before.user), ...layerPrefixes(after.base), ...(after.sharedFdjPrefixes ?? []), ...(after.sharedFdjPrefix ? [after.sharedFdjPrefix] : []),
+  ]);
+  for (const prefix of layerPrefixes(after.user)) if (!knownPrefixes.has(prefix)) out.push({ kind: 'fdjPrefix', prefix, ref });
   return out;
 }
 
@@ -77,10 +89,21 @@ function fingerprint(text: string): string {
  */
 export function mergeContributions(current: SharedCodesFile, items: Contribution[], knownRefs: Set<string>, today: string) {
   const barcodes = { ...current.barcodes };
-  const fdjPrefixes = { ...current.fdjPrefixes };
+  const prefixes = new Map<string, string[]>(Object.entries(current.fdjPrefixes ?? {}).map(([ref, v]) => [ref, prefixList(v)]));
   const rejected: { item: Contribution; reason: string }[] = [];
   const held: { item: Contribution; reason: string }[] = [];
   let accepted = 0;
+  /** Code de jeu ou code-barres d'un autre produit que l'un engloberait ou qui engloberait l'autre (R28). */
+  const conflict = (prefix: string, ref: string): string | undefined => {
+    for (const [other, list] of prefixes) {
+      if (other === ref) continue;
+      if (list.includes(prefix)) return `code de jeu déjà attribué à ${other}`;
+      const hit = list.find((k) => k.startsWith(prefix) || prefix.startsWith(k));
+      if (hit) return `code de jeu en conflit avec ${hit} (${other})`;
+    }
+    const code = Object.keys(barcodes).find((c) => barcodes[c] !== ref && c.startsWith(prefix));
+    return code ? `code de jeu en conflit avec ${code} (${barcodes[code]})` : undefined;
+  };
   for (const item of items) {
     if (item.kind === 'barcode') {
       const code = normalizeCode(item.code);
@@ -90,14 +113,17 @@ export function mergeContributions(current: SharedCodesFile, items: Contribution
       else if (!barcodes[code]) { barcodes[code] = item.ref; accepted++; }
     } else {
       const prefix = normalizeCode(item.prefix);
-      const owner = Object.keys(fdjPrefixes).find((ref) => ref !== item.ref && fdjPrefixes[ref] === prefix);
+      const own = prefixes.get(item.ref) ?? [];
+      const reason = /^\d{4,24}$/.test(prefix) ? conflict(prefix, item.ref) : undefined;
       if (!/^\d{4,24}$/.test(prefix)) rejected.push({ item, reason: 'code de jeu trop court' });
       else if (!knownRefs.has(item.ref)) rejected.push({ item, reason: 'référence inconnue' });
-      else if (fdjPrefixes[item.ref] && fdjPrefixes[item.ref] !== prefix) held.push({ item, reason: `code de jeu déjà connu pour ce jeu : ${fdjPrefixes[item.ref]}` });
-      else if (owner) held.push({ item, reason: `code de jeu déjà attribué à ${owner}` });
-      else if (!fdjPrefixes[item.ref]) { fdjPrefixes[item.ref] = prefix; accepted++; }
+      else if (reason) held.push({ item, reason });
+      // Déjà connu, ou déjà couvert par un code de jeu plus court de ce jeu : sans effet.
+      else if (!own.some((k) => prefix.startsWith(k))) { prefixes.set(item.ref, [...own, prefix]); accepted++; }
     }
   }
+  const fdjPrefixes: Record<string, string | string[]> = {};
+  for (const [ref, list] of prefixes) if (list.length) fdjPrefixes[ref] = list.length === 1 ? list[0] : list;
   const content = JSON.stringify({ barcodes, fdjPrefixes });
   const file: SharedCodesFile = { version: `${today}-${fingerprint(content)}`, updatedAt: today, barcodes, fdjPrefixes };
   return { file, accepted, rejected, held };
@@ -112,12 +138,14 @@ export function applySharedCodes(products: Product[], file: SharedCodesFile): Pr
     const ref = officialRef(p);
     if (!ref) continue;
     const codes = (codesByRef.get(ref) ?? []).sort();
-    const prefix = file.fdjPrefixes[ref];
-    const same = JSON.stringify(p.sharedBarcodes ?? []) === JSON.stringify(codes) && p.sharedFdjPrefix === prefix;
+    const prefixes = prefixList(file.fdjPrefixes?.[ref]);
+    const same = JSON.stringify(p.sharedBarcodes ?? []) === JSON.stringify(codes)
+      && JSON.stringify(p.sharedFdjPrefixes ?? []) === JSON.stringify(prefixes) && p.sharedFdjPrefix === undefined;
     if (same) continue;
-    const next: Product = { ...p, sharedBarcodes: codes.length ? codes : undefined, sharedFdjPrefix: prefix };
-    if (!next.sharedBarcodes) delete next.sharedBarcodes;
-    if (!next.sharedFdjPrefix) delete next.sharedFdjPrefix;
+    const next: Product = { ...p, sharedBarcodes: codes, sharedFdjPrefixes: prefixes };
+    if (!codes.length) delete next.sharedBarcodes;
+    if (!prefixes.length) delete next.sharedFdjPrefixes;
+    delete next.sharedFdjPrefix; // ancien champ unique : remplacé par la liste
     changed.push(next);
   }
   return changed;

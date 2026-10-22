@@ -18,4 +18,10 @@ describe('routeScan (mode consultation)', () => {
   it('aucun jeu connu : création d’un jeu', () => {
     expect(routeScan({ type: 'new-game', code: '0417' }, 'lookup')).toEqual({ to: 'create', code: '0417', kind: 'jeu-fdj' });
   });
+  it('préfixe du catalogue à confirmer : « Ce ticket est-il un … ? »', () => {
+    expect(routeScan({ type: 'confirm-game', code: '871050010001', product: game, prefix: '87105' }, 'lookup')).toEqual({ to: 'confirm-game', code: '871050010001', id: 'g1', prefix: '87105' });
+  });
+  it('code de traçabilité : refusé avec un message, rien n’est ouvert', () => {
+    expect(routeScan({ type: 'traceability', code: 'KPL2F01' }, 'lookup')).toEqual({ to: 'refuse', message: 'Ce code change à chaque paquet : scannez le code-barres classique (EAN) du paquet.' });
+  });
 });

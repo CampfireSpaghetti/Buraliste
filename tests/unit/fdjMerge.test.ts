@@ -46,4 +46,9 @@ describe('mergeFdjGames', () => {
     expect(second.put).toHaveLength(0);
     expect(second.unchanged).toBe(2);
   });
+  it('les numéros de jeu du catalogue (codes) vont dans base.fdjCodes', () => {
+    const ops = mergeFdjGames([], file([item('ITGC9K', 'CASH', { codes: ['87104', '87105'] })]), 1);
+    expect(ops.put[0].base.fdjCodes).toEqual(['87104', '87105']);
+    expect(ops.put[0].user).toEqual({});
+  });
 });

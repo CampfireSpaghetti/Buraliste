@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { effectiveFields } from '../../domain/matching';
+import { effectiveFields, withUserBarcode } from '../../domain/matching';
 import { currentPrice } from '../../domain/catalog';
 import { searchProducts } from '../../domain/search';
 import { formatEuro } from '../../domain/format';
@@ -19,7 +19,7 @@ export function AttachToReference({ code }: { code: string }) {
   const attach = async (id: string) => {
     const p = (products ?? []).find((x) => x.id === id);
     if (!p) return;
-    await actions.patchUserFields(id, { barcodes: [...new Set([...(p.user.barcodes ?? []), code])] });
+    await actions.patchUserFields(id, withUserBarcode(p.user, code));
     nav.replace({ type: 'product', id });
   };
 
