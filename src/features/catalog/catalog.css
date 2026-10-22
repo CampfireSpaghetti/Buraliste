@@ -41,3 +41,12 @@
 .code-row > span { min-width: 0; overflow-wrap: anywhere; }
 .code-row .btn { flex: none; padding: 0 12px; }
 .codes > .btn { align-self: flex-start; }
+.lots { display: flex; flex-direction: column; gap: 8px; }
+.lots h3 { margin: 0; font-size: 17px; }
+.lots .muted { font-size: 13.5px; margin: 0; }
+.lots-facts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.lots-table { width: 100%; border-collapse: collapse; font-size: 15px; }
+.lots-table caption { text-align: left; font-size: 13.5px; color: var(--muted); padding-bottom: 4px; }
+.lots-table th, .lots-table td { padding: 5px 6px; border-bottom: 1px solid var(--line); text-align: left; }
+.lots-table th { font-size: 14px; color: var(--muted); font-weight: 600; }
+.lots-table th:last-child, .lots-table td:last-child { text-align: right; }

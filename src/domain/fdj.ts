@@ -7,6 +7,7 @@ import type { Product, ProductFields } from './types';
 export type FdjItem = {
   ref: string; fdjId: string; name: string; ticketPrice: number; maxPrize?: number; isNew: boolean;
   codes?: string[]; // numéros FDJ en vente (code jeu + émission, 5 chiffres) : à confirmer au premier scan
+  page?: string; // page du jeu sur fdj.fr (« /jeux-illiko/cash ») : tableau des lots (scripts/fdj/lots.ts)
 };
 export type FdjGamesFile = { version: string; fetchedAt: string; source: string; items: FdjItem[] };
 

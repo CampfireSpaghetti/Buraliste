@@ -186,6 +186,12 @@ jobs:
         if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         continue-on-error: true
         run: npm run fdj:update
+      - name: Mise à jour des lots des jeux FDJ
+        id: lots
+        # Après la liste des jeux (page de chaque jeu). Un jeu illisible garde son ancien tableau.
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        continue-on-error: true
+        run: npm run fdj:lots
       - name: Codes-barres reçus des téléphones (par le relais)
         id: codes
         if: github.event_name != 'push'
@@ -279,7 +285,7 @@ jobs:
             fi
           done
       - name: Signaler une source qui n'a pas pu être lue
-        if: steps.refs.outcome == 'failure' || steps.fdj.outcome == 'failure'
+        if: steps.refs.outcome == 'failure' || steps.fdj.outcome == 'failure' || steps.lots.outcome == 'failure'
         run: |
-          echo "::error::Liste Douane : ${{ steps.refs.outcome }} · Liste FDJ : ${{ steps.fdj.outcome }}. L'app garde la dernière liste connue."
+          echo "::error::Liste Douane : ${{ steps.refs.outcome }} · Liste FDJ : ${{ steps.fdj.outcome }} · Lots FDJ : ${{ steps.lots.outcome }}. L'app garde la dernière liste connue."
           exit 1

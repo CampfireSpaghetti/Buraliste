@@ -12,6 +12,7 @@
     "refs:update": "node scripts/douane/update.ts",
     "postinstall": "node scripts/copy-zxing.mjs",
     "fdj:update": "node scripts/fdj/update.ts",
+    "fdj:lots": "node scripts/fdj/lots.ts",
     "relay:mock": "node scripts/mock-relay.ts"
   },
   "dependencies": {

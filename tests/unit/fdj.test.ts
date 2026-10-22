@@ -20,6 +20,10 @@ describe('parseIllikoPage', () => {
     expect(byName('Méga Goal')).toMatchObject({ ticketPrice: 10, maxPrize: 750000 });
     expect(byName('Goal')).toMatchObject({ ticketPrice: 1, maxPrize: 4000, isNew: true });
   });
+  it('adresse de la page du jeu (tableau des lots), telle que donnée par fdj.fr', () => {
+    expect(byName('CASH')?.page).toBe('/jeux-illiko/cash');
+    expect(byName('Numéro Fétiche')?.page).toBe('/jeux-illiko/fdjnumerofetiche2025');
+  });
   it('un « maximum de lots » n’est pas un gain maximum', () => {
     expect(byName('Mythic Jungle')?.maxPrize).toBeUndefined();
   });
