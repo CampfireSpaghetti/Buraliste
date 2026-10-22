@@ -87,7 +87,11 @@ function fingerprint(text: string): string {
  * Une contribution qui changerait ce qui est déjà publié (code-barres attribué à un autre produit, code de jeu changé,
  * code de jeu déjà pris par un autre jeu) n'est jamais appliquée : elle est mise de côté (`held`) pour le propriétaire.
  */
-export function mergeContributions(current: SharedCodesFile, items: Contribution[], knownRefs: Set<string>, today: string) {
+/**
+ * `catalog` : numéros FDJ du catalogue par jeu (fdj-games.json, `codes`). Un code de jeu contribué qui empiète sur le
+ * numéro d'un autre jeu (dans un sens ou dans l'autre) est mis de côté : il prendrait ses tickets sans confirmation.
+ */
+export function mergeContributions(current: SharedCodesFile, items: Contribution[], knownRefs: Set<string>, today: string, catalog: Record<string, string[]> = {}) {
   const barcodes = { ...current.barcodes };
   const prefixes = new Map<string, string[]>(Object.entries(current.fdjPrefixes ?? {}).map(([ref, v]) => [ref, prefixList(v)]));
   const rejected: { item: Contribution; reason: string }[] = [];
@@ -100,6 +104,11 @@ export function mergeContributions(current: SharedCodesFile, items: Contribution
       if (list.includes(prefix)) return `code de jeu déjà attribué à ${other}`;
       const hit = list.find((k) => k.startsWith(prefix) || prefix.startsWith(k));
       if (hit) return `code de jeu en conflit avec ${hit} (${other})`;
+    }
+    for (const [other, codes] of Object.entries(catalog)) {
+      if (other === ref) continue;
+      const hit = (codes ?? []).find((k) => k.startsWith(prefix) || prefix.startsWith(k));
+      if (hit) return `code de jeu en conflit avec le numéro FDJ ${hit} (${other})`;
     }
     const code = Object.keys(barcodes).find((c) => barcodes[c] !== ref && c.startsWith(prefix));
     return code ? `code de jeu en conflit avec ${code} (${barcodes[code]})` : undefined;

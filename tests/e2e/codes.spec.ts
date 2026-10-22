@@ -68,9 +68,10 @@ test('fiche CASH : codes listés, « Retirer » → le ticket n’est plus recon
   await expect(codes).toContainText('Tickets 87105…');
   await expect(codes).toContainText('871050010001');
   await expect(codes).toContainText('87103, 87104, 87105');
-  await codes.getByRole('button', { name: 'Retirer 87105', exact: true }).click();
-  await expect(codes).not.toContainText('Tickets 87105…');
   await codes.getByRole('button', { name: 'Retirer 871050010001' }).click();
+  await expect(page.getByText('Ce ticket reste reconnu par « Tickets 87105… ».')).toBeVisible();
+  await expect(codes).not.toContainText('871050010001');
+  await codes.getByRole('button', { name: 'Retirer 87105', exact: true }).click();
   await expect(codes).toContainText("Aucun code pour l'instant.");
   await fiche.getByRole('button', { name: 'Fermer' }).click();
   await page.waitForTimeout(1600);

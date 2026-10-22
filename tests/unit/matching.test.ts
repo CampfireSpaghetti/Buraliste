@@ -91,7 +91,9 @@ describe('codes de jeu : plusieurs préfixes, catalogue FDJ, traçabilité', () 
   it('code de traçabilité refusé (KPL2F ou DataMatrix) : ni produit, ni jeu demandé', () => {
     expect(resolveScan('KPL2F0123456789ABCDEFGHIJ', [cash, astro])).toEqual({ type: 'traceability', code: 'KPL2F0123456789ABCDEFGHIJ' });
     expect(resolveScan('kpl2f-0123', [cash])).toMatchObject({ type: 'traceability' });
-    expect(resolveScan('0123456789', [cash], { format: 'data_matrix' })).toMatchObject({ type: 'traceability' });
+    expect(resolveScan('01234567AB89', [cash], { format: 'data_matrix' })).toMatchObject({ type: 'traceability' });
+    // R4 : un DataMatrix fait seulement de chiffres n'est pas un code de traçabilité.
+    expect(resolveScan('0123456789', [cash], { format: 'data_matrix' }).type).not.toBe('traceability');
     expect(resolveScan('KPL2F0123', [])).toMatchObject({ type: 'traceability' });
     expect(TRACEABILITY_MESSAGE).toBe('Ce code change à chaque paquet : scannez le code-barres classique (EAN) du paquet.');
   });
@@ -123,8 +125,33 @@ describe('codes de jeu : plusieurs préfixes, catalogue FDJ, traçabilité', () 
     expect(resolveScan('04170012345678', [a, b])).toMatchObject({ product: { id: 'B' } });
     expect(resolveScan('04179912345678', [a, b])).toMatchObject({ product: { id: 'A' } });
     expect(resolveScan('99990000', [a, b])).toMatchObject({ product: { id: 'A' } });
-    const learned = p('X', { kind: 'jeu-fdj', name: 'X' }, { fdjPrefixes: ['8710500'] });
-    expect(resolveScan(ticket, [cash, learned])).toMatchObject({ type: 'product', product: { id: 'X' } });
+    const other = p('X', { kind: 'jeu-fdj', name: 'X' }, { fdjPrefixes: ['99887'] });
+    expect(resolveScan('998870000001', [cash, other])).toMatchObject({ type: 'product', product: { id: 'X' } });
+  });
+  it('un préfixe d’un autre jeu qui empiète sur un numéro du catalogue ne l’emporte pas : on demande pour le jeu du catalogue', () => {
+    const learned: Product = { ...p('X', { kind: 'jeu-fdj', name: 'X' }, { fdjPrefixes: ['8710500'] }), sharedFdjPrefixes: ['87104000'] };
+    expect(resolveScan(ticket, [cash, learned])).toEqual({ type: 'confirm-game', code: ticket, product: cash, prefix: '87105' });
+    expect(resolveScan('871040000123', [cash, learned])).toMatchObject({ type: 'confirm-game', product: { id: 'Cash' }, prefix: '87104' });
+    // Le jeu du catalogue a son numéro confirmé dans ce tabac : reconnu directement.
+    const confirmedCash = { ...cash, user: { fdjPrefixes: ['87105'] } };
+    expect(resolveScan(ticket, [confirmedCash, learned])).toMatchObject({ type: 'product', product: { id: 'Cash' } });
+    // Un code exact rattaché à X reste à X.
+    const exact = { ...learned, user: { ...learned.user, barcodes: [ticket] } };
+    expect(resolveScan(ticket, [cash, exact])).toMatchObject({ type: 'product', product: { id: 'X' } });
+  });
+  it('learnFdjCode n’apprend pas un préfixe qui empiète sur un numéro du catalogue d’un autre jeu', () => {
+    const x = p('X', { kind: 'jeu-fdj', name: 'X' }, { barcodes: ['871040000001'] });
+    expect(learnFdjCode(x, '871040000099', [cash, x])).toEqual({ barcodes: ['871040000001', '871040000099'] });
+  });
+  it('« C’est quel jeu ? » → choix du jeu → préfixe appris : le ticket suivant du carnet est reconnu directement', () => {
+    const astroKnown = game('Astro2', { barcodes: ['05201234000001'] });
+    const first = resolveScan('05201234000077', [cash, astroKnown]);
+    expect(first).toMatchObject({ type: 'ask-game' });
+    if (first.type !== 'ask-game') return;
+    expect(first.candidates[0].id).toBe('Astro2');
+    const learned = { ...astroKnown, user: learnFdjCode(astroKnown, first.code, [cash, astroKnown]) };
+    expect(learned.user.fdjPrefixes).toEqual(['052012340000']);
+    expect(resolveScan('05201234000045', [cash, learned])).toMatchObject({ type: 'product', product: { id: 'Astro2' } });
   });
   it('candidats de « C’est quel jeu ? » : le jeu du catalogue en tête', () => {
     expect(gameCandidates('871040000001', [astro, cash]).map((g) => g.id)).toEqual(['Cash', 'Astro']);
@@ -141,6 +168,13 @@ describe('codes de jeu : plusieurs préfixes, catalogue FDJ, traçabilité', () 
     expect(resolveScan(ticket, [none])).toMatchObject({ type: 'confirm-game' });
     // ancien préfixe unique
     expect(withoutUserCode({ fdjPrefix: '0417', fdjPrefixes: ['0417', '0520'] }, '0417')).toEqual({ fdjPrefixes: ['0520'] });
+  });
+  it('un même code ajouté comme code-barres et comme préfixe : une seule ligne, un seul « Retirer »', () => {
+    const g = p('G', { kind: 'jeu-fdj', name: 'G' }, { barcodes: ['87105', '871050010001'], fdjPrefixes: ['87105'] });
+    expect(codeRows(g)).toEqual([
+      { code: '87105', type: 'prefix', origin: 'ajouté ici', removable: true },
+      { code: '871050010001', type: 'code', origin: 'ajouté ici', removable: true },
+    ]);
   });
   it('ajouter un code-barres à une référence : plusieurs codes, sans doublon', () => {
     expect(withUserBarcode({}, '3017620422003')).toEqual({ barcodes: ['3017620422003'] });

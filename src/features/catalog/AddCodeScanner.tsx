@@ -1,10 +1,10 @@
 import { useCallback, useState } from 'react';
-import { effectiveFields, learnFdjCode, withUserBarcode, type ScanResult } from '../../domain/matching';
+import { effectiveFields, learnFdjCode, withUserBarcode } from '../../domain/matching';
 import { useNav } from '../../nav';
-import { actions, useProducts } from '../../store';
+import { actions, currentProduct, useProducts } from '../../store';
 import { Panel } from '../../ui/Panel';
 import { Toast } from '../../ui/Toast';
-import { ScannerView } from '../scanner/ScannerView';
+import { ScannerView, type ScannedResult } from '../scanner/ScannerView';
 
 /**
  * « Ajouter un code » d'une fiche : le prochain code lu (ticket ou EAN) est rattaché à cette fiche. Un code déjà
@@ -21,18 +21,26 @@ export function AddCodeScanner({ id }: { id: string }) {
   if (!product) return <Panel title="Fiche introuvable" onClose={nav.close}><p>Cette fiche n'existe plus.</p></Panel>;
   const f = effectiveFields(product);
 
-  const onResult = async (r: ScanResult, code: string) => {
+  const onResult = async (r: ScannedResult, code: string) => {
     if (r.type === 'product') {
       setNotice(r.product.id === id ? 'Ce code est déjà sur cette fiche.' : `Ce code est déjà rattaché à : ${effectiveFields(r.product).name}`);
       return;
     }
     setBusy(true);
-    const patch = f.kind === 'jeu-fdj'
-      // Ticket : comme au comptage (code complet + préfixe appris) ; le numéro du catalogue de CE jeu est confirmé.
-      ? learnFdjCode(product, code, products, r.type === 'confirm-game' && r.product.id === id ? { confirmedPrefix: r.prefix } : {})
-      : withUserBarcode(product.user, code);
-    await actions.patchUserFields(id, patch);
-    nav.close();
+    try {
+      const current = await currentProduct(product);
+      const patch = f.kind === 'jeu-fdj'
+        // Ticket : comme au comptage (code complet + préfixe appris) ; le numéro du catalogue de CE jeu est confirmé.
+        ? learnFdjCode(current, code, products, r.type === 'confirm-game' && r.product.id === id ? { confirmedPrefix: r.prefix } : {})
+        : withUserBarcode(current.user, code);
+      await actions.patchUserFields(id, patch);
+      nav.close();
+    } catch (e) {
+      console.error('Ajout du code', e);
+      setNotice("Le code n'a pas pu être ajouté. Réessayez.");
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (

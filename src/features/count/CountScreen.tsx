@@ -1,15 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { countLineId, missingGameLines, sortLines } from '../../domain/count';
-import { effectiveFields, gameCandidates, learnFdjCode, resolveScan, TRACEABILITY_MESSAGE, type ScanResult } from '../../domain/matching';
+import { effectiveFields, gameCandidates, learnFdjCode, resolveScan } from '../../domain/matching';
 import { fold } from '../../domain/search';
 import { formatEuro } from '../../domain/format';
 import { normalizeCode } from '../../domain/barcode';
 import type { CountLine, Product } from '../../domain/types';
 import { addCountLines, newId } from '../../data/db';
-import { actions, newUserProduct, notifyDataChanged, useCountLines, useProducts, useSettings } from '../../store';
+import { actions, currentProduct, newUserProduct, notifyDataChanged, useCountLines, useProducts, useSettings } from '../../store';
 import { Sheet } from '../../ui/Panel';
 import { Toast } from '../../ui/Toast';
-import { ScannerView } from '../scanner/ScannerView';
+import { ScannerView, type ScannedResult } from '../scanner/ScannerView';
 import { CountTable, type QtyField } from './CountTable';
 import { NumericKeypad } from './NumericKeypad';
 import { WhichGameDialog } from './WhichGameDialog';
@@ -67,14 +67,14 @@ export function CountScreen() {
     });
   };
 
-  const onScan = (r: ScanResult) => {
+  // Un code de traçabilité n'arrive jamais ici : ScannerView l'explique lui-même.
+  const onScan = (r: ScannedResult) => {
     if (r.type === 'product') {
       const f = effectiveFields(r.product);
       if (f.kind !== 'jeu-fdj') setToast({ message: `Ce n'est pas un jeu de grattage : ${f.name}` });
       else openForGame(r.product, '');
     } else if (r.type === 'confirm-game') setConfirm({ code: r.code, game: r.product, prefix: r.prefix });
     else if (r.type === 'ask-game') setAsk({ code: r.code, candidates: r.candidates });
-    else if (r.type === 'traceability') setToast({ message: TRACEABILITY_MESSAGE });
     else setNewGame({ code: r.code });
   };
 
@@ -187,7 +187,8 @@ export function CountScreen() {
           onYes={async () => {
             const { code, game, prefix } = confirm;
             setConfirm(null);
-            const updated = await actions.patchUserFields(game.id, learnFdjCode(game, code, products ?? [], { confirmedPrefix: prefix }));
+            const current = await currentProduct(game);
+            const updated = await actions.patchUserFields(game.id, learnFdjCode(current, code, products ?? [], { confirmedPrefix: prefix }));
             openForGame(updated, code);
           }}
         />
@@ -202,7 +203,7 @@ export function CountScreen() {
           onPick={async (g) => {
             const code = ask.code;
             setAsk(null);
-            const updated = await actions.patchUserFields(g.id, learnFdjCode(g, code, products ?? []));
+            const updated = await actions.patchUserFields(g.id, learnFdjCode(await currentProduct(g), code, products ?? []));
             openForGame(updated, code);
           }}
         />

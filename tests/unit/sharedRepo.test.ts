@@ -479,6 +479,26 @@ describe('codes-barres rattachés (user.barcodes, user.fdjPrefixes)', () => {
   });
 });
 
+describe('retirer un code : la contribution pas encore envoyée est annulée (R3)', () => {
+  it('removeUserCode efface de la file d’envoi le code ou le préfixe de cette référence, rien d’autre', async () => {
+    await db.products.put(product({ id: 'g', source: 'fdj', douaneRef: undefined, fdjRef: 'fdj|ITGC9K', base: { kind: 'jeu-fdj', name: 'CASH' } }));
+    await patchUserFields('g', { barcodes: ['871050010001'], fdjPrefixes: ['87105'] });
+    await db.outbox.bulkAdd([
+      { kind: 'barcode', code: '871050010001', ref: 'fdj|ITGC9K', createdAt: 1 },
+      { kind: 'fdjPrefix', prefix: '87105', ref: 'fdj|ITGC9K', createdAt: 1 },
+      { kind: 'fdjPrefix', prefix: '87105', ref: 'fdj|AUTRE', createdAt: 1 },
+      { kind: 'barcode', code: '3017620422003', ref: 'fdj|ITGC9K', createdAt: 1 },
+    ]);
+    await removeUserCode('g', '87105');
+    await removeUserCode('g', '871050010001');
+    const left = (await db.outbox.toArray()).map(({ id: _id, createdAt: _c, ...c }) => c);
+    expect(left).toEqual([
+      { kind: 'fdjPrefix', prefix: '87105', ref: 'fdj|AUTRE' },
+      { kind: 'barcode', code: '3017620422003', ref: 'fdj|ITGC9K' },
+    ]);
+  });
+});
+
 describe('applyRemoteOps : jeu de départ repris par la liste FDJ (depart:<nom comparable> ↔ f:<référence FDJ>)', () => {
   // Ids réels : un jeu de la liste FDJ a l'id « f:fdj|<code> » ; le même jeu de l'ancienne liste de départ,
   // « depart:<nom comparable> » (gameKey du nom). Ils ne se déduisent pas l'un de l'autre : seul le nom les relie.

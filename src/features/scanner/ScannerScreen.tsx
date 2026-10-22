@@ -1,30 +1,32 @@
-import { useCallback, useState } from 'react';
-import { effectiveFields, gameCandidates, learnFdjCode, type ScanResult } from '../../domain/matching';
+import { useState } from 'react';
+import { effectiveFields, gameCandidates, learnFdjCode } from '../../domain/matching';
 import type { Product } from '../../domain/types';
 import { useNav } from '../../nav';
-import { actions, useProducts } from '../../store';
-import { Toast } from '../../ui/Toast';
+import { actions, currentProduct, useProducts } from '../../store';
 import { ConfirmGameDialog } from '../count/ConfirmGameDialog';
 import { WhichGameDialog } from '../count/WhichGameDialog';
 import { routeScan } from './scanRouter';
-import { ScannerView } from './ScannerView';
+import { ScannerView, type ScannedResult } from './ScannerView';
 
 export function ScannerScreen() {
   const nav = useNav();
   const products = useProducts();
   const [ask, setAsk] = useState<{ code: string; candidates: Product[] } | null>(null);
   const [confirm, setConfirm] = useState<{ code: string; game: Product; prefix: string } | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
-  const closeNotice = useCallback(() => setNotice(null), []);
+  const byId = (id: string) => (products ?? []).find((p) => p.id === id);
 
-  const onResult = (r: ScanResult) => {
+  // Un code de traçabilité n'arrive jamais ici (ScannerView l'explique) : pas de cas « refuse ».
+  const onResult = (r: ScannedResult) => {
     const to = routeScan(r, 'lookup');
     if (to.to === 'product') nav.open({ type: 'product', id: to.id });
     else if (to.to === 'attach') nav.open({ type: 'attach', code: to.code });
     else if (to.to === 'create') nav.open({ type: 'create', code: to.code, kind: to.kind });
-    else if (to.to === 'refuse') setNotice(to.message);
-    else if (r.type === 'confirm-game') setConfirm({ code: r.code, game: r.product, prefix: r.prefix });
-    else if (r.type === 'ask-game') setAsk({ code: r.code, candidates: r.candidates });
+    else if (to.to === 'confirm-game') {
+      const game = byId(to.id);
+      if (game) setConfirm({ code: to.code, game, prefix: to.prefix });
+    } else if (to.to === 'which-game') {
+      setAsk({ code: to.code, candidates: to.candidateIds.map(byId).filter((p): p is Product => !!p) });
+    }
   };
 
   const games = (products ?? []).filter((p) => effectiveFields(p).kind === 'jeu-fdj');
@@ -42,7 +44,7 @@ export function ScannerScreen() {
           onYes={async () => {
             const { code, game, prefix } = confirm;
             setConfirm(null);
-            await actions.patchUserFields(game.id, learnFdjCode(game, code, products ?? [], { confirmedPrefix: prefix }));
+            await actions.patchUserFields(game.id, learnFdjCode(await currentProduct(game), code, products ?? [], { confirmedPrefix: prefix }));
             nav.open({ type: 'product', id: game.id });
           }}
         />
@@ -55,13 +57,12 @@ export function ScannerScreen() {
           onClose={() => setAsk(null)}
           onNewGame={() => { nav.open({ type: 'create', code: ask.code, kind: 'jeu-fdj' }); setAsk(null); }}
           onPick={async (g) => {
-            await actions.patchUserFields(g.id, learnFdjCode(g, ask.code, products ?? []));
+            await actions.patchUserFields(g.id, learnFdjCode(await currentProduct(g), ask.code, products ?? []));
             nav.open({ type: 'product', id: g.id });
             setAsk(null);
           }}
         />
       )}
-      {notice && <Toast message={notice} onDone={closeNotice} />}
     </>
   );
 }

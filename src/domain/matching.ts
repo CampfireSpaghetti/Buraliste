@@ -37,9 +37,12 @@ export type ScanResult =
 
 export const TRACEABILITY_MESSAGE = 'Ce code change à chaque paquet : scannez le code-barres classique (EAN) du paquet.';
 
-/** Identifiant de traçabilité d'un paquet (UE, en France « KPL2F… », en DataMatrix) : unique par paquet. */
+/**
+ * Identifiant de traçabilité d'un paquet (UE, en France « KPL2F… », en DataMatrix) : unique par paquet. Un DataMatrix
+ * fait seulement de chiffres n'en est pas un (R4).
+ */
 export function isTraceabilityCode(code: string, format?: string): boolean {
-  return /^KPL2F/i.test(code) || format === 'data_matrix';
+  return /^KPL2F/i.test(code) || (format === 'data_matrix' && !/^\d+$/.test(code));
 }
 
 /** Formats lus par la caméra qui ne sont jamais des EAN (un code ITF de 8 chiffres peut avoir une « clé » juste). */
@@ -77,9 +80,15 @@ export function resolveScan(raw: string, products: Product[], opts: { format?: s
     return best;
   };
   const confirmed = longest((f) => f.fdjPrefixes);
-  if (confirmed) return { type: 'product', product: confirmed.p };
-
   const catalog = longest((f) => f.fdjCodes);
+  // Un préfixe appris ou partagé d'un autre jeu ne prend jamais un ticket à un numéro du catalogue FDJ : on demande
+  // pour le jeu du catalogue, sauf si ce numéro y est déjà confirmé dans ce tabac.
+  if (confirmed && catalog && catalog.p.id !== confirmed.p.id) {
+    const owner = fields.find(({ p }) => p.id === catalog.p.id)!.f;
+    const ownerConfirmed = (owner.fdjPrefixes ?? []).some((k) => code.startsWith(k));
+    return ownerConfirmed ? { type: 'product', product: catalog.p } : { type: 'confirm-game', code, product: catalog.p, prefix: catalog.prefix };
+  }
+  if (confirmed) return { type: 'product', product: confirmed.p };
   if (catalog) return { type: 'confirm-game', code, product: catalog.p, prefix: catalog.prefix };
 
   if (games.length === 0) return { type: 'new-game', code };
@@ -113,8 +122,13 @@ export function learnFdjCode(game: Product, code: string, products: Product[], o
     prefixes = uniq([...prefixes, opts.confirmedPrefix]);
   } else {
     const f = effectiveFields(game);
+    // Codes, préfixes et numéros du catalogue FDJ des autres produits : un préfixe qui en touche un n'est pas appris.
     const clash = (prefix: string) =>
-      products.some((other) => other.id !== game.id && knownCodes(effectiveFields(other)).some((k) => k.startsWith(prefix) || prefix.startsWith(k)));
+      products.some((other) => {
+        if (other.id === game.id) return false;
+        const of = effectiveFields(other);
+        return [...knownCodes(of), ...(of.fdjCodes ?? [])].some((k) => k.startsWith(prefix) || prefix.startsWith(k));
+      });
     let best = '';
     for (const k of knownCodes(f)) {
       if (k === code) continue;
@@ -160,7 +174,10 @@ export function codeRows(p: Product): CodeRow[] {
       const key = type + ':' + code;
       if (seen.has(key)) continue;
       seen.add(key);
-      rows.push({ code, type, origin, removable: origin === 'ajouté ici' });
+      // Code ajouté ici à la fois comme code-barres et comme préfixe : une seule ligne (« Retirer » enlève les deux).
+      const twin = origin === 'ajouté ici' && type === 'prefix' && rows.find((r) => r.origin === origin && r.type === 'code' && r.code === code);
+      if (twin) twin.type = 'prefix';
+      else rows.push({ code, type, origin, removable: origin === 'ajouté ici' });
     }
   };
   add(p.base.barcodes ?? [], 'code', 'officiel');

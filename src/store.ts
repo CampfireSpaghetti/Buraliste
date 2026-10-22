@@ -69,6 +69,9 @@ export const actions = {
   unhideGame: withNotify((gameId: string) => repo.unhideGame(gameId)),
 };
 
+/** État enregistré d'une fiche (la copie d'un écran peut dater d'avant une modification venue d'un autre téléphone). */
+export const currentProduct = async (p: Product): Promise<Product> => (await repo.getProduct(p.id)) ?? p;
+
 /** Nouveau produit saisi par le buraliste (couche user uniquement). */
 export function newUserProduct(fields: Partial<ProductFields>): Product {
   return { id: repo.newId(), source: 'utilisateur', base: {}, user: fields, outOfStock: false, pinnedSubstitutes: [], updatedAt: Date.now() };

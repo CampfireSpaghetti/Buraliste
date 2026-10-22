@@ -1,6 +1,6 @@
 import Dexie, { type Table } from 'dexie';
 import type { CountLine, Product, ProductFields, Settings } from '../domain/types';
-import type { Contribution } from '../domain/sharing';
+import { officialRef, type Contribution } from '../domain/sharing';
 import { productIdMap, remapIdList, remapOp, remapProductIds, type IdMap } from '../domain/productId';
 import { withoutClock, type Clocked, type Op } from '../sync/merge';
 import { withoutUserCode } from '../domain/matching';
@@ -211,9 +211,20 @@ async function update(id: string, fn: (p: Product) => Product): Promise<Product>
 export const patchUserFields = (id: string, patch: Partial<ProductFields>) =>
   update(id, (p) => ({ ...p, user: { ...p.user, ...patch } }));
 
-/** Retire un code-barres ou un préfixe de jeu ajouté ici (couche user, partagée dans le tabac). */
+/**
+ * Retire un code-barres ou un préfixe de jeu ajouté ici (couche user, partagée dans le tabac). Sa contribution à la liste
+ * commune, si elle n'est pas encore partie, est effacée de la file d'envoi (R3) ; une contribution déjà envoyée reste.
+ */
 export const removeUserCode = (id: string, code: string) =>
-  update(id, (p) => ({ ...p, user: withoutUserCode(p.user, code) }));
+  db.transaction('rw', db.products, db.opsOut, db.syncState, db.outbox, async () => {
+    const after = await update(id, (p) => ({ ...p, user: withoutUserCode(p.user, code) }));
+    const ref = officialRef(after);
+    if (ref) {
+      const stale = (await db.outbox.toArray()).filter((i) => i.ref === ref && (i.kind === 'barcode' ? i.code === code : i.prefix === code));
+      if (stale.length) await db.outbox.bulkDelete(stale.map((i) => i.id!));
+    }
+    return after;
+  });
 
 export const clearUserField = (id: string, key: keyof ProductFields) =>
   update(id, (p) => {

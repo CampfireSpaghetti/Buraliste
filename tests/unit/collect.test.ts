@@ -49,6 +49,13 @@ describe('collectFromIssue (robot)', () => {
     expect(r.file).toBeUndefined();
     expect(r.review).toBe(true);
   });
+  it('un code de jeu qui empiète sur un numéro du catalogue FDJ (fdj-games.json) d’un autre jeu : à vérifier', () => {
+    const withCodes = { items: [{ ref: 'fdj|ITGC9K', codes: ['87104', '87105'] }, { ref: 'fdj|AUTRE' }] };
+    const r = collectFromIssue(issue([{ kind: 'fdjPrefix', prefix: '8710', ref: 'fdj|AUTRE' }]), refs, withCodes, empty, '2026-10-22');
+    expect(r.review).toBe(true);
+    expect(r.file).toBeUndefined();
+    expect(r.summary).toContain('8710 → fdj|AUTRE : code de jeu en conflit avec le numéro FDJ 87104 (fdj|ITGC9K)');
+  });
   it('un deuxième code de jeu pour le même jeu (nouvelle émission) est ajouté, sans « à vérifier »', () => {
     const current: SharedCodesFile = { ...empty, fdjPrefixes: { 'fdj|ITGC9K': '87104' } };
     const r = collectFromIssue(issue([{ kind: 'fdjPrefix', prefix: '87105', ref: 'fdj|ITGC9K' }]), refs, fdj, current, '2026-10-22');

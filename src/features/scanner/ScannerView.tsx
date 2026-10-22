@@ -11,10 +11,13 @@ import { announcePairing } from '../../ui/PairingPrompt';
 import { scannedInvite } from '../../tabacs/invite';
 import './scanner.css';
 
+/** Résultats transmis à l'écran : tous sauf le code de traçabilité, refusé ici. */
+export type ScannedResult = Exclude<ScanResult, { type: 'traceability' }>;
+
 type Props = {
   mode: 'lookup' | 'count' | 'add-code';
   /** `code` : le code lu (normalisé). Un code de traçabilité n'arrive jamais ici : la vue l'explique elle-même. */
-  onResult: (r: ScanResult, code: string) => void;
+  onResult: (r: ScannedResult, code: string) => void;
   paused?: boolean;
   footer?: React.ReactNode;
 };

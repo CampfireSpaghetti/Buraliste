@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { currentPrice, officialState } from '../../domain/catalog';
 import { codeRows, effectiveFields } from '../../domain/matching';
+import { Toast } from '../../ui/Toast';
 import { formatEuro, formatIsoDateFr } from '../../domain/format';
 import { KIND_LABELS } from '../../domain/types';
 import { useNav } from '../../nav';
@@ -100,7 +101,15 @@ const ORIGIN: Record<string, string> = { officiel: 'officiel', partagé: 'liste 
 /** Codes-barres de la fiche : officiels et partagés (lecture seule), ajoutés ici (avec « Retirer »), et « Ajouter un code ». */
 function CodesSection({ id, product }: { id: string; product: Product }) {
   const nav = useNav();
+  const [notice, setNotice] = useState<string | null>(null);
+  const closeNotice = useCallback(() => setNotice(null), []);
   const rows = codeRows(product);
+  const remove = async (code: string) => {
+    const after = await actions.removeUserCode(id, code);
+    // Retiré, mais encore reconnu par un préfixe (plus court) de la fiche : on le dit.
+    const still = (effectiveFields(after).fdjPrefixes ?? []).find((k) => k !== code && code.startsWith(k));
+    if (still) setNotice(`Ce ticket reste reconnu par « Tickets ${still}… ».`);
+  };
   const catalog = product.base.fdjCodes ?? [];
   return (
     <section className="codes" aria-label="Codes-barres">
@@ -115,7 +124,7 @@ function CodesSection({ id, product }: { id: string; product: Product }) {
                 <span className="muted"> · {ORIGIN[r.origin]}</span>
               </span>
               {r.removable && (
-                <button type="button" className="btn" aria-label={`Retirer ${r.code}`} onClick={() => actions.removeUserCode(id, r.code)}>Retirer</button>
+                <button type="button" className="btn" aria-label={`Retirer ${r.code}`} onClick={() => void remove(r.code)}>Retirer</button>
               )}
             </li>
           ))}
@@ -125,9 +134,10 @@ function CodesSection({ id, product }: { id: string; product: Product }) {
         <p className="muted">Numéros FDJ en vente : <span className="num">{catalog.join(', ')}</span> (demandé au premier ticket scanné).</p>
       )}
       {rows.some((r) => r.removable) && (
-        <p className="muted">« Retirer » l'enlève sur les téléphones de ce tabac. Un code déjà envoyé à la liste commune y reste.</p>
+        <p className="muted">« Retirer » l'enlève sur les téléphones de ce tabac. Si ce code a déjà été envoyé à la liste commune, il y reste : prévenez l'administrateur.</p>
       )}
       <button type="button" className="btn" onClick={() => nav.open({ type: 'add-code', id })}>Ajouter un code</button>
+      {notice && <Toast message={notice} onDone={closeNotice} />}
     </section>
   );
 }

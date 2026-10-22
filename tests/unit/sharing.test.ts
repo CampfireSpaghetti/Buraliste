@@ -117,6 +117,20 @@ describe('robot : vérification et fusion', () => {
     const again = mergeContributions(r.file, [{ kind: 'fdjPrefix', prefix: '8710', ref: 'fdj|AUTRE' }], new Set([...known, 'fdj|AUTRE']), '2026-10-22');
     expect(again.held.map((h) => h.reason)).toEqual(['code de jeu en conflit avec 87103 (fdj|ITGC9K)']);
   });
+  it('un code de jeu qui empiète sur un numéro du catalogue FDJ d’un autre jeu : à vérifier (dans les deux sens)', () => {
+    const catalog = { 'fdj|ITGC9K': ['87104', '87105'], 'fdj|AUTRE': ['84701'] };
+    const r = mergeContributions(empty, [
+      { kind: 'fdjPrefix', prefix: '8710', ref: 'fdj|AUTRE' },
+      { kind: 'fdjPrefix', prefix: '87104000000', ref: 'fdj|AUTRE' },
+      { kind: 'fdjPrefix', prefix: '87105', ref: 'fdj|ITGC9K' },
+      { kind: 'fdjPrefix', prefix: '847012', ref: 'fdj|AUTRE' },
+    ], new Set([...known, 'fdj|AUTRE']), '2026-10-22', catalog);
+    expect(r.held.map((h) => h.reason)).toEqual([
+      'code de jeu en conflit avec le numéro FDJ 87104 (fdj|ITGC9K)',
+      'code de jeu en conflit avec le numéro FDJ 87104 (fdj|ITGC9K)',
+    ]);
+    expect(r.file.fdjPrefixes).toEqual({ 'fdj|ITGC9K': '87105', 'fdj|AUTRE': '847012' });
+  });
   it('un code de jeu qui engloberait un code-barres publié d’un autre produit : à vérifier', () => {
     const start = { ...empty, barcodes: { '87105001000123': 'fdj|AUTRE' } };
     const r = mergeContributions(start, [{ kind: 'fdjPrefix', prefix: '87105', ref: 'fdj|ITGC9K' }], new Set([...known, 'fdj|AUTRE']), '2026-10-22');
