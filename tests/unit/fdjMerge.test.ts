@@ -34,6 +34,19 @@ describe('mergeFdjGames', () => {
     expect(ops.put[0].user).toEqual({ fdjPrefix: '0512' });
     expect(officialState(effectiveFields(ops.put[0]), today)).toBe('retire');
   });
+  it('un jeu retiré perd ses numéros du catalogue FDJ : jamais proposé au scan d\'un ticket', () => {
+    const first = mergeFdjGames([], file([item('ITGJA2', 'Jackpot', { codes: ['05121'] })]), 1).put;
+    expect(first[0].base.fdjCodes).toEqual(['05121']);
+    const ops = mergeFdjGames(first, file([]), 2);
+    expect(ops.put[0].base.fdjCodes).toBeUndefined();
+    expect(ops.put[0].base.status).toBe('retrait');
+    // Déjà retiré avant cette règle, mais avec des numéros : ils sont enlevés ; ensuite, plus rien à écrire.
+    const stale: Product = { ...ops.put[0], base: { ...ops.put[0].base, fdjCodes: ['05121'] } };
+    const again = mergeFdjGames([stale], file([]), 3);
+    expect(again.put).toHaveLength(1);
+    expect(again.put[0].base.fdjCodes).toBeUndefined();
+    expect(mergeFdjGames(again.put, file([]), 4)).toMatchObject({ put: [], unchanged: 1 });
+  });
   it('ne touche pas aux jeux créés par le buraliste', () => {
     const mine: Product = { ...legacy, id: 'm', source: 'utilisateur', base: {}, user: { kind: 'jeu-fdj', name: 'Cash' } };
     expect(mergeFdjGames([mine], file([item('ITGC9K', 'CASH')]), 1).put.map((p) => p.id)).toEqual(['f:fdj|ITGC9K']);
