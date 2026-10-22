@@ -15,7 +15,7 @@ const label = (item: Contribution) => `${item.kind === 'barcode' ? item.code : i
  */
 export function collectFromIssue(
   event: IssueEvent,
-  refs: { items: { ref: string }[] },
+  refs: { items: { ref: string; barcodes?: string[] }[] },
   fdj: { items: { ref: string; codes?: string[] }[] },
   current: SharedCodesFile,
   today: string,
@@ -27,7 +27,8 @@ export function collectFromIssue(
   if (items.length === 0) return { summary: 'Message ignoré : aucun code lisible.', review: false };
   const known = new Set([...refs.items.map((i) => i.ref), ...fdj.items.map((i) => i.ref)]);
   const catalog = Object.fromEntries(fdj.items.filter((i) => Array.isArray(i.codes)).map((i) => [i.ref, i.codes!]));
-  const { file, accepted, rejected, held } = mergeContributions(current, items, known, today, catalog);
+  const official = Object.fromEntries(refs.items.filter((i) => Array.isArray(i.barcodes) && i.barcodes.length).map((i) => [i.ref, i.barcodes!]));
+  const { file, accepted, rejected, held } = mergeContributions(current, items, known, today, catalog, official);
   const lines = [`${accepted} code${accepted > 1 ? 's' : ''} ajouté${accepted > 1 ? 's' : ''} à la liste partagée.`];
   if (rejected.length) {
     lines.push('', 'Refusés :');

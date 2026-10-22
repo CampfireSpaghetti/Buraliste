@@ -50,6 +50,21 @@ const NOT_EAN = new Set(['itf', 'code_128', 'code_39', 'qr_code', 'data_matrix']
 
 const MIN_PREFIX = 4;
 
+/** Couches de codes-barres, de la plus sûre à la moins sûre (R7) : ajouté ici, officiel, liste partagée. */
+const BARCODE_LAYERS: ((p: Product) => string[] | undefined)[] = [(p) => p.user.barcodes, (p) => p.base.barcodes, (p) => p.sharedBarcodes];
+
+/**
+ * Fiche d'un code exact : un code présent sur plusieurs fiches va à celle de la couche la plus sûre (user > officiel >
+ * partagé), puis au plus petit identifiant (résultat stable, quel que soit l'ordre de la base).
+ */
+function exactMatch(products: Product[], variants: string[]): Product | undefined {
+  for (const layer of BARCODE_LAYERS) {
+    const hits = products.filter((p) => layer(p)?.some((b) => variants.includes(b)));
+    if (hits.length) return hits.reduce((a, b) => (b.id < a.id ? b : a));
+  }
+  return undefined;
+}
+
 /** Codes et préfixes établis d'une fiche (sans les numéros du catalogue FDJ, jamais confirmés d'office). */
 function knownCodes(f: ProductFields): string[] {
   return [...(f.barcodes ?? []), ...(f.fdjPrefixes ?? [])];
@@ -67,8 +82,8 @@ export function resolveScan(raw: string, products: Product[], opts: { format?: s
   // Un UPC-A (12 chiffres) et son EAN-13 « 0… » sont le même paquet, sauf pour un format qui n'est jamais un EAN (ticket).
   const notEan = !!opts.format && NOT_EAN.has(opts.format);
   const variants = notEan ? [code] : barcodeVariants(code);
-  const exact = fields.find(({ f }) => f.barcodes?.some((b) => variants.includes(b)));
-  if (exact) return { type: 'product', product: exact.p };
+  const exact = exactMatch(products, variants);
+  if (exact) return { type: 'product', product: exact };
 
   if (isValidEan(code) && !notEan) return { type: 'unknown-ean', code };
   if (opts.format === 'upc_a' && isValidEan(retailCode(code))) return { type: 'unknown-ean', code: retailCode(code) };

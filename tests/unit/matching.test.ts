@@ -34,6 +34,29 @@ describe('resolveScan', () => {
     // Lu en ITF (ticket) : jamais pris pour un UPC.
     expect(resolveScan('012345678905', [cigar], { format: 'itf' }).type).not.toBe('product');
   });
+  it('R7 : même code sur deux fiches : couche user > officiel (base) > liste partagée, quel que soit l\'ordre', () => {
+    const code = '3017620422003';
+    const official = p('b-official', { kind: 'cigarette', name: 'Officiel', barcodes: [code] });
+    const shared: Product = { ...p('a-shared', { kind: 'cigarette', name: 'Partagé' }), sharedBarcodes: [code] };
+    const mine = p('c-mine', { kind: 'cigarette', name: 'Ici' }, { barcodes: [code] });
+    for (const list of [[official, shared, mine], [mine, shared, official], [shared, mine, official]]) {
+      expect(resolveScan(code, list)).toMatchObject({ type: 'product', product: { id: 'c-mine' } });
+    }
+    for (const list of [[official, shared], [shared, official]]) {
+      expect(resolveScan(code, list)).toMatchObject({ type: 'product', product: { id: 'b-official' } });
+    }
+    // Même couche : résultat stable (identifiant le plus petit), pas l'ordre de la base.
+    const twin = p('a-official', { kind: 'cigarette', name: 'Officiel 2', barcodes: [code] });
+    expect(resolveScan(code, [official, twin])).toMatchObject({ product: { id: 'a-official' } });
+    expect(resolveScan(code, [twin, official])).toMatchObject({ product: { id: 'a-official' } });
+  });
+  it('EAN-8 lu par la caméra = GTIN-13/14 « 00000… » enregistré (et l\'inverse)', () => {
+    const padded = p('padded', { kind: 'cigare', name: 'Cigare', barcodes: ['0000096385074'] });
+    expect(resolveScan('96385074', [padded], { format: 'ean_8' })).toMatchObject({ type: 'product', product: { id: 'padded' } });
+    const short = p('short', { kind: 'cigare', name: 'Cigare' }, { barcodes: ['96385074'] });
+    expect(resolveScan('00000096385074', [short])).toMatchObject({ type: 'product', product: { id: 'short' } });
+    expect(resolveScan('0000096385074', [short], { format: 'ean_13' })).toMatchObject({ type: 'product', product: { id: 'short' } });
+  });
   it('EAN valide inconnu', () => {
     expect(resolveScan('4006381333931', [cig])).toEqual({ type: 'unknown-ean', code: '4006381333931' });
   });

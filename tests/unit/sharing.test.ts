@@ -65,6 +65,18 @@ describe('ancien QR code de jumelage', () => {
 describe('robot : vérification et fusion', () => {
   const empty: SharedCodesFile = { version: '0', updatedAt: '', barcodes: {}, fdjPrefixes: {} };
   const known = new Set(['pmi|marlboro', 'fdj|ITGC9K', 'seita|gitanes']);
+  it('R7 : un code-barres déjà officiel sur une autre référence (references.json) est mis de côté', () => {
+    const official = { 'seita|gitanes': ['3017620422003'], 'pmi|marlboro': ['0012345678905'] };
+    const r = mergeContributions(empty, [
+      { kind: 'barcode', code: '3017620422003', ref: 'pmi|marlboro' },
+      { kind: 'barcode', code: '012345678905', ref: 'seita|gitanes' }, // UPC-A du code officiel de Marlboro
+      { kind: 'barcode', code: '0012345678905', ref: 'pmi|marlboro' }, // déjà officiel pour cette référence : sans effet
+      { kind: 'barcode', code: '4006381333931', ref: 'pmi|marlboro' },
+    ], known, '2026-10-22', {}, official);
+    expect(r.file.barcodes).toEqual({ '4006381333931': 'pmi|marlboro' });
+    expect(r.accepted).toBe(1);
+    expect(r.held.map((h) => h.reason)).toEqual(['code-barres officiel de seita|gitanes', 'code-barres officiel de pmi|marlboro']);
+  });
   it('accepte les codes valides vers des références existantes', () => {
     const r = mergeContributions(empty, [{ kind: 'barcode', code: '3017620422003', ref: 'pmi|marlboro' }, { kind: 'fdjPrefix', prefix: '0417', ref: 'fdj|ITGC9K' }], known, '2026-10-16');
     expect(r.file.barcodes).toEqual({ '3017620422003': 'pmi|marlboro' });

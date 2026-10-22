@@ -56,6 +56,13 @@ describe('collectFromIssue (robot)', () => {
     expect(r.file).toBeUndefined();
     expect(r.summary).toContain('8710 → fdj|AUTRE : code de jeu en conflit avec le numéro FDJ 87104 (fdj|ITGC9K)');
   });
+  it('R7 : un code-barres déjà officiel sur une autre référence (references.json, barcodes) : à vérifier', () => {
+    const withBarcodes = { items: [{ ref: 'pmi|marlboro' }, { ref: 'seita|gitanes', barcodes: ['3017620422003'] }] };
+    const r = collectFromIssue(issue([{ kind: 'barcode', code: '3017620422003', ref: 'pmi|marlboro' }]), withBarcodes, fdj, empty, '2026-10-22');
+    expect(r.review).toBe(true);
+    expect(r.file).toBeUndefined();
+    expect(r.summary).toContain('3017620422003 → pmi|marlboro : code-barres officiel de seita|gitanes');
+  });
   it('un deuxième code de jeu pour le même jeu (nouvelle émission) est ajouté, sans « à vérifier »', () => {
     const current: SharedCodesFile = { ...empty, fdjPrefixes: { 'fdj|ITGC9K': '87104' } };
     const r = collectFromIssue(issue([{ kind: 'fdjPrefix', prefix: '87105', ref: 'fdj|ITGC9K' }]), refs, fdj, current, '2026-10-22');

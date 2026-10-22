@@ -1,4 +1,4 @@
-import { normalizeCode } from './barcode.ts';
+import { barcodeVariants, normalizeCode } from './barcode.ts';
 import { effectiveFields, layerPrefixes } from './matching.ts';
 import type { Product } from './types';
 
@@ -86,12 +86,19 @@ function fingerprint(text: string): string {
  * transmet sans savoir qui les envoie) : seules les correspondances nouvelles et sans conflit sont appliquées (R28).
  * Une contribution qui changerait ce qui est déjà publié (code-barres attribué à un autre produit, code de jeu changé,
  * code de jeu déjà pris par un autre jeu) n'est jamais appliquée : elle est mise de côté (`held`) pour le propriétaire.
- */
-/**
+ *
  * `catalog` : numéros FDJ du catalogue par jeu (fdj-games.json, `codes`). Un code de jeu contribué qui empiète sur le
  * numéro d'un autre jeu (dans un sens ou dans l'autre) est mis de côté : il prendrait ses tickets sans confirmation.
+ *
+ * `official` : codes-barres officiels par référence (references.json, `items[].barcodes`). Un code-barres contribué qui
+ * est déjà officiel sur une autre référence est mis de côté (R7) ; déjà officiel sur la même : sans effet.
  */
-export function mergeContributions(current: SharedCodesFile, items: Contribution[], knownRefs: Set<string>, today: string, catalog: Record<string, string[]> = {}) {
+export function mergeContributions(
+  current: SharedCodesFile, items: Contribution[], knownRefs: Set<string>, today: string,
+  catalog: Record<string, string[]> = {}, official: Record<string, string[]> = {},
+) {
+  const officialRef = new Map<string, string>();
+  for (const [ref, codes] of Object.entries(official)) for (const c of codes ?? []) if (typeof c === 'string' && !officialRef.has(c)) officialRef.set(c, ref);
   const barcodes = { ...current.barcodes };
   const prefixes = new Map<string, string[]>(Object.entries(current.fdjPrefixes ?? {}).map(([ref, v]) => [ref, prefixList(v)]));
   const rejected: { item: Contribution; reason: string }[] = [];
@@ -116,8 +123,12 @@ export function mergeContributions(current: SharedCodesFile, items: Contribution
   for (const item of items) {
     if (item.kind === 'barcode') {
       const code = normalizeCode(item.code);
+      const officialOwners = new Set(barcodeVariants(code).map((v) => officialRef.get(v)).filter((r): r is string => !!r));
+      const officialOther = [...officialOwners].find((r) => r !== item.ref);
       if (!/^[0-9A-Z]{6,24}$/.test(code)) rejected.push({ item, reason: 'code invalide' });
       else if (!knownRefs.has(item.ref)) rejected.push({ item, reason: 'référence inconnue' });
+      else if (officialOther) held.push({ item, reason: `code-barres officiel de ${officialOther}` });
+      else if (officialOwners.size) continue; // déjà officiel pour cette référence
       else if (barcodes[code] && barcodes[code] !== item.ref) held.push({ item, reason: `code déjà attribué à ${barcodes[code]}` });
       else if (!barcodes[code]) { barcodes[code] = item.ref; accepted++; }
     } else {

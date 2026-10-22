@@ -23,11 +23,19 @@ export function retailCode(code: string): string {
   return code;
 }
 
-/** Écritures d'un même code-barres : un UPC-A (12 chiffres) et son EAN-13 « 0… » (le scanner peut rendre l'une ou l'autre). */
+/**
+ * Écritures d'un même code-barres (le scanner peut rendre l'une ou l'autre) : un UPC-A (12 chiffres) et son EAN-13
+ * « 0… » ; un EAN-8 et sa forme complétée de zéros (GTIN-12 « 0000… », GTIN-13 « 00000… », GTIN-14 « 000000… »).
+ */
 export function barcodeVariants(code: string): string[] {
-  if (/^\d{12}$/.test(code) && isValidEan('0' + code)) return [code, '0' + code];
-  if (/^0\d{12}$/.test(code) && isValidEan(code)) return [code, code.slice(1)];
-  return [code];
+  const out = [code];
+  const add = (c: string) => { if (!out.includes(c)) out.push(c); };
+  if (/^\d{12}$/.test(code) && isValidEan('0' + code)) add('0' + code);
+  if (/^0\d{12}$/.test(code) && isValidEan(code)) add(code.slice(1));
+  // EAN-8 : lu en 8 chiffres par la caméra, déclaré parfois en GTIN-13 / GTIN-14 complété de zéros.
+  const ean8 = /^\d{8}$/.test(code) ? code : /^0{4,6}\d{8}$/.test(code) ? code.slice(-8) : undefined;
+  if (ean8 && isValidEan(ean8)) for (const c of [ean8, '0000' + ean8, '00000' + ean8, '000000' + ean8]) add(c);
+  return out;
 }
 
 export function commonPrefix(a: string, b: string): string {
