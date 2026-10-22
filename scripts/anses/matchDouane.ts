@@ -6,7 +6,11 @@
 //   seule tolérance : une faute de frappe d'une lettre dans un mot d'au moins 7 lettres (note 0,9 au lieu de 1) ;
 // - format et catégorie identiques ; paquet souple/rigide ou pochette/boîte : jamais contradictoires ;
 // - meilleure note ≥ MIN_SCORE, et au moins MARGIN de plus que tout produit différent : sinon, non rapproché ;
-// - plusieurs déclarations d'un même produit (mêmes mots, même format, même paquet) : la plus récente.
+// - filtre : une désignation Douane avec « filtre » ne prend qu'une déclaration « filtre », avec « sans filtre » qu'une
+//   déclaration « sans filtre » ; sans mention, seulement « sans filtre » si la liste Douane a aussi la variante « Filtre »
+//   (« Gitanes » / « Gitanes Filtre ») ; sinon filtre et sans filtre sont deux produits (ambigus s'ils ont le même nom).
+//   Hors tabac à rouler (le filtre n'y a pas de sens) ;
+// - plusieurs déclarations d'un même produit (mêmes mots, même format, même paquet, même filtre) : la plus récente.
 import type { RefItem } from '../../src/domain/catalog.ts';
 
 export type AnsesCategory = 'cigarette' | 'tabac-rouler' | 'cigare' | 'cigarillo' | 'autre';
@@ -16,6 +20,7 @@ export type AnsesProduct = {
   categorie: AnsesCategory;
   marque: string;
   sousType: string;
+  filtre?: boolean; // Filtre_Produit : true « filtre », false « sans filtre », absent si non précisé
   unites?: number;
   poids?: number; // g (tabac à rouler)
   conditionnement: string;
@@ -48,6 +53,7 @@ const fold = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCa
 /** Mots significatifs d'un nom (accents, casse, ponctuation, « by », pluriels et format retirés). */
 export function nameTokens(name: string, formatNumber?: number): string[] {
   const t = fold(name)
+    .replace(/\bsans\s+filtres?\b/g, ' ') // « sans filtre » est comparé à part (filtre)
     .replace(/\b100\s*['’`´]?\s*s\b/g, ' 100s ')
     .replace(/\b[ld]\s*['’`´]\s*/g, '') // élision : « L'Originale » = « Originale », « D'Oro » = « Oro »
     .replace(/['’`´]/g, ' ');
@@ -79,7 +85,7 @@ function ansesWrap(p: AnsesProduct): Wrap | undefined {
   return undefined;
 }
 
-type Side = { kind: RefItem['kind']; tokens: string[]; count?: number; weight?: number; pack?: Pack; wrap?: Wrap };
+type Side = { kind: RefItem['kind']; tokens: string[]; count?: number; weight?: number; pack?: Pack; wrap?: Wrap; filtre?: boolean };
 
 /** Ce que dit la désignation Douane : nom, nombre ou poids (« , en 20 unités », « en boîte de 42 cigares »), paquet. */
 export function douaneSide(item: Pick<RefItem, 'name' | 'kind'>): Side | undefined {
@@ -97,6 +103,10 @@ export function douaneSide(item: Pick<RefItem, 'name' | 'kind'>): Side | undefin
   else if (/paquet rigide|hard pack/.test(l)) side.pack = 'rigide';
   if (/\b(blague|pochette|pouch)\b/.test(l)) side.wrap = 'pochette';
   else if (/\b(pot|boite|tin)\b/.test(l)) side.wrap = 'boite';
+  if (item.kind !== 'tabac-rouler') {
+    if (/\bsans\s+filtres?\b/.test(l)) side.filtre = false;
+    else if (/\bfiltres?\b/.test(l)) side.filtre = true;
+  }
   side.tokens = nameTokens(label, side.weight ?? side.count);
   return side.tokens.length ? side : undefined;
 }
@@ -139,7 +149,11 @@ function nameScore(d: string[], a: string[]): number {
   return total / (d.length + a.length);
 }
 
-type Prepared = { p: AnsesProduct; tokens: string[]; pack: Pack; wrap?: Wrap; key: string; format: number };
+type Prepared = { p: AnsesProduct; tokens: string[]; pack: Pack; wrap?: Wrap; filtre?: boolean; key: string; format: number };
+
+/** Filtre d'une déclaration ; sans objet pour le tabac à rouler. */
+const ansesFiltre = (p: AnsesProduct) => (p.categorie === 'tabac-rouler' ? undefined : p.filtre);
+const filtreKey = (f: boolean | undefined) => (f === true ? 'filtre' : f === false ? 'sans-filtre' : '');
 
 /** Produit comparable (mots, paquet, clé du produit) ; undefined s'il n'est jamais rapproché (Duty Free, autre type…). */
 function describe(p: AnsesProduct): Prepared | undefined {
@@ -150,8 +164,9 @@ function describe(p: AnsesProduct): Prepared | undefined {
   if (!tokens.length) return undefined;
   const pack = ansesPack(p);
   const wrap = ansesWrap(p);
-  const key = [p.categorie, [...tokens].sort().join(' '), format, pack, p.categorie === 'tabac-rouler' ? wrap ?? '' : ''].join('|');
-  return { p, tokens, pack, wrap, key, format };
+  const filtre = ansesFiltre(p);
+  const key = [p.categorie, [...tokens].sort().join(' '), format, pack, p.categorie === 'tabac-rouler' ? wrap ?? '' : '', filtreKey(filtre)].join('|');
+  return { p, tokens, pack, wrap, filtre, key, format };
 }
 
 /**
@@ -159,7 +174,7 @@ function describe(p: AnsesProduct): Prepared | undefined {
  * jamais rapproché, une clé brute (catégorie, nom, unités, poids, paquet) : sert à repérer un EAN partagé par deux produits.
  */
 export function groupKey(p: AnsesProduct): string {
-  return describe(p)?.key ?? ['brut', p.categorie, fold(`${p.marque} ${p.sousType}`).replace(/\s+/g, ' ').trim(), p.unites ?? '', p.poids ?? '', fold(p.conditionnement)].join('|');
+  return describe(p)?.key ?? ['brut', p.categorie, fold(`${p.marque} ${p.sousType}`).replace(/\s+/g, ' ').trim(), p.unites ?? '', p.poids ?? '', fold(p.conditionnement), filtreKey(ansesFiltre(p))].join('|');
 }
 
 function prepare(products: AnsesProduct[]): Map<string, Prepared[]> {
@@ -178,6 +193,7 @@ function prepare(products: AnsesProduct[]): Map<string, Prepared[]> {
 function score(side: Side, c: Prepared): number {
   if (c.pack === 'multiple') return 0;
   if (side.pack && side.pack !== c.pack) return 0;
+  if (side.filtre !== undefined && c.p.categorie !== 'tabac-rouler' && c.filtre !== side.filtre) return 0;
   const tabac = c.p.categorie === 'tabac-rouler';
   if (tabac && side.wrap && c.wrap && side.wrap !== c.wrap) return 0;
   const s = nameScore(side.tokens, c.tokens);
@@ -199,11 +215,19 @@ export function matchDetailed(products: AnsesProduct[], refs: RefItem[]): MatchR
   const index = prepare(products);
   const matches = new Map<string, MatchResult>();
   const ambiguous: string[] = [];
+  // Noms qui ont une variante « Filtre » dans la liste Douane (« Gitanes Filtre ») : le nom seul est alors sans filtre.
+  const variantKey = (s: Side) => `${s.kind}|${s.tokens.filter((t) => t !== 'filtre').sort().join(' ')}`;
+  const sides = new Map<RefItem, Side>();
   for (const item of refs) {
-    if (typeof item.ref !== 'string' || !item.ref) continue;
+    const s = CATEGORIES[item.kind] && typeof item.ref === 'string' && item.ref ? douaneSide(item) : undefined;
+    if (s) sides.set(item, s);
+  }
+  const withFilterVariant = new Set([...sides.values()].filter((s) => s.filtre === true).map(variantKey));
+  for (const item of refs) {
     const cats = CATEGORIES[item.kind];
-    const side = cats && douaneSide(item);
+    const side = sides.get(item);
     if (!cats || !side) continue;
+    if (side.filtre === undefined && item.kind !== 'tabac-rouler' && withFilterVariant.has(variantKey(side))) side.filtre = false;
     const format = item.kind === 'tabac-rouler' ? side.weight : side.count;
     if (format === undefined) continue;
     const scored: { c: Prepared; s: number }[] = [];

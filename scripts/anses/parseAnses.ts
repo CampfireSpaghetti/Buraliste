@@ -62,7 +62,7 @@ function table(csv: string, required: string[]): Record<string, string>[] {
 }
 
 const COMMON = ['Code_Référence', 'Date_Dernière_Mise_A_Jour_Du_Dossier', 'Nom_Marque_Produit', 'Nom_Sous-type_Marque_Produit',
-  'Unités_Conditionnement_Produit', 'Type_Conditionnement_Produit', 'Type_Numéro_Produit', 'Numéro_Produit'];
+  'Filtre_Produit', 'Unités_Conditionnement_Produit', 'Type_Conditionnement_Produit', 'Type_Numéro_Produit', 'Numéro_Produit'];
 
 function product(r: Record<string, string>, categorie: AnsesCategory): AnsesProduct {
   const p: AnsesProduct = {
@@ -75,6 +75,10 @@ function product(r: Record<string, string>, categorie: AnsesCategory): AnsesProd
     numero: r['Numéro_Produit'],
     majLe: frDateTime(r['Date_Dernière_Mise_A_Jour_Du_Dossier']),
   };
+  // « filtre » / « sans filtre » ; vide ou autre valeur : non précisé.
+  const filtre = r['Filtre_Produit'].trim().toLowerCase();
+  if (filtre === 'filtre') p.filtre = true;
+  else if (filtre === 'sans filtre') p.filtre = false;
   const unites = num(r['Unités_Conditionnement_Produit']);
   if (unites) p.unites = unites;
   const poids = num(r['Poids_NET_Conditionnement_Produit']);
@@ -84,8 +88,8 @@ function product(r: Record<string, string>, categorie: AnsesCategory): AnsesProd
 
 /** Ordre des clés fixe (lisible dans les tests et les journaux). */
 function orderKeys(p: AnsesProduct): AnsesProduct {
-  const { code, categorie, marque, sousType, unites, poids, conditionnement, typeNumero, numero, majLe, ...rest } = p;
-  return { code, categorie, marque, sousType, ...(unites !== undefined ? { unites } : {}), ...(poids !== undefined ? { poids } : {}), conditionnement, typeNumero, numero, majLe, ...rest };
+  const { code, categorie, marque, sousType, filtre, unites, poids, conditionnement, typeNumero, numero, majLe, ...rest } = p;
+  return { code, categorie, marque, sousType, ...(filtre !== undefined ? { filtre } : {}), ...(unites !== undefined ? { unites } : {}), ...(poids !== undefined ? { poids } : {}), conditionnement, typeNumero, numero, majLe, ...rest };
 }
 
 /** liste-fr-cigarettes.csv : émissions de goudron, nicotine et CO (mg par cigarette, ISO). */

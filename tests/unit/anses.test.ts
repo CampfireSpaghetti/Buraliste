@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { frDateTime, num, parseAutres, parseCigarettes, parseComposition, parseCsv } from '../../scripts/anses/parseAnses';
-import { matchToDouane, type AnsesProduct } from '../../scripts/anses/matchDouane';
+import { groupKey, matchDetailed, matchToDouane, type AnsesProduct } from '../../scripts/anses/matchDouane';
 import { buildComposition } from '../../scripts/anses/buildComposition';
 import { applyAnsesBarcodes } from '../../scripts/anses/applyBarcodes';
 import { mergeReferences, type RefItem, type ReferenceFile } from '../../src/domain/catalog';
@@ -39,12 +39,19 @@ describe('lecture des fichiers ANSES', () => {
     expect(num('abc')).toBeUndefined();
   });
   it('cigarettes : marque, sous-type, paquet, numéro, émissions, date du dossier', () => {
-    expect(cigarettes).toHaveLength(27);
+    expect(cigarettes).toHaveLength(35);
     expect(cigarettes.find((p) => p.code === '1637 ORIGINE [4A27B949A67924C5]')).toEqual({
-      code: '1637 ORIGINE [4A27B949A67924C5]', categorie: 'cigarette', marque: '1637', sousType: 'Origine',
+      code: '1637 ORIGINE [4A27B949A67924C5]', categorie: 'cigarette', marque: '1637', sousType: 'Origine', filtre: true,
       unites: 20, conditionnement: 'Boîte à couvercle supérieur rabattable, bord droit', typeNumero: 'EAN', numero: '3258170830010',
       majLe: '2026-01-13T13:10:25', goudron: 8.23, nicotine: 0.56, co: 9.92,
     });
+  });
+  it('filtre : « filtre » / « sans filtre » lus (Filtre_Produit), absent si vide', () => {
+    expect(cigarettes.find((p) => p.code === 'GITANES [0BD70E4D2F6FC807]')?.filtre).toBe(false);
+    expect(cigarettes.find((p) => p.code === 'GITANES [1FE5E4C005DD605B]')?.filtre).toBe(true);
+    const csv = fixture('liste-fr-cigarettes.csv').split('\n');
+    const blank = parseCigarettes([csv[0], csv[1].replace('"filtre"', '""')].join('\n'));
+    expect(blank[0]).not.toHaveProperty('filtre');
   });
   it('autres produits : tabac à rouler (poids), cigare, cigarillo', () => {
     expect(autres.find((p) => p.code.startsWith('DRUM BLEU'))).toMatchObject({ categorie: 'tabac-rouler', marque: 'Drum Bleu', poids: 30, conditionnement: 'Pochette à rabat', numero: '058527' });
@@ -127,6 +134,51 @@ describe('matchToDouane', () => {
     expect(matchToDouane(all, refs).size).toBe(0);
     const dutyFreeOnly = all.filter((p) => p.code.includes('DUTY FREE'));
     expect(matchToDouane(dutyFreeOnly, [ref('Marlboro Gold, en 20 unités')]).size).toBe(0);
+  });
+});
+
+describe('filtre et sans filtre : jamais confondus', () => {
+  const gitanes = ref('Gitanes, en 20 unités', 'cigarette', 'SEITA');
+  const gitanesFiltre = ref('Gitanes Filtre, en 20 unités', 'cigarette', 'SEITA');
+  const brunes = ref('Gauloises Brunes, en 20 unités', 'cigarette', 'SEITA');
+  const brunesFiltre = ref('Gauloises Brunes Filtre, en 20 unités', 'cigarette', 'SEITA');
+
+  it('variante « Filtre » dans la liste Douane : le nom sans « filtre » ne prend que les déclarations sans filtre', () => {
+    const m = matchDetailed(all, [gitanes, gitanesFiltre, brunes, brunesFiltre]).matches;
+    // « Gitanes » : la déclaration sans filtre la plus récente, pas celle « filtre » de février 2026.
+    expect(m.get(gitanes.ref)?.product.code).toBe('GITANES [0BD70E4D2F6FC807]');
+    expect(m.get(gitanes.ref)?.group.every((p) => p.filtre === false)).toBe(true);
+    expect(m.get(gitanesFiltre.ref)?.product.code).toBe('GITANES FILTRE [20A9E3BB7FB140AC]');
+    expect(m.get(gitanesFiltre.ref)?.group.every((p) => p.filtre === true)).toBe(true);
+    // « Gauloises Brunes » : pas la déclaration « filtre » de mars 2026 (émissions d'un autre produit).
+    expect(m.get(brunes.ref)?.product.code).toBe('GAULOISES BRUNES [0BBAA22F3C55ABAA]');
+    expect(m.get(brunesFiltre.ref)?.product.code).toBe('GAULOISES BRUNES FILTRE [3C51004A9B2C12D5]');
+  });
+
+  it('sans variante « Filtre » : déclarations filtre et sans filtre du même nom = ambigu, non rapproché', () => {
+    const r = matchDetailed(all, [gitanes, brunes]);
+    expect(r.matches.has(gitanes.ref)).toBe(false);
+    expect(r.matches.has(brunes.ref)).toBe(false);
+    expect(r.ambiguous).toEqual(expect.arrayContaining([gitanes.ref, brunes.ref]));
+    // Un seul des deux dans le fichier ANSES : rapproché.
+    const filtreOnly = all.filter((p) => !(p.marque === 'Gitanes' && p.filtre === false));
+    expect(matchDetailed(filtreOnly, [gitanes]).matches.get(gitanes.ref)?.product.code).toBe('GITANES [1FE5E4C005DD605B]');
+  });
+
+  it('« filtre » dans le nom Douane : seulement une déclaration filtre ; « (sans filtre) » : seulement sans filtre', () => {
+    const flipped = all.map((p) => (p.code === 'GITANES FILTRE [20A9E3BB7FB140AC]' ? { ...p, filtre: false } : p));
+    expect(matchDetailed(flipped, [gitanes, gitanesFiltre]).matches.has(gitanesFiltre.ref)).toBe(false);
+    const sans = ref('Gitanes (sans filtre), en 20 unités', 'cigarette', 'SEITA');
+    expect(matchDetailed(all, [sans]).matches.get(sans.ref)?.product.code).toBe('GITANES [0BD70E4D2F6FC807]');
+  });
+
+  it('même nom, filtre et sans filtre : deux produits différents (clé, EAN)', () => {
+    const f = all.find((p) => p.code === 'GITANES [E79FA0A653A9FC41]')!;
+    const sf = all.find((p) => p.code === 'GITANES [F2F72F07646D4A2E]')!;
+    expect(groupKey(f)).not.toBe(groupKey(sf));
+    const { file } = buildComposition({ products: all, composition, refs: [gitanes, gitanesFiltre], date: '2026-07-01', source: 's', fetchedAt: '2026-10-22' });
+    // 30002401 est déclaré pour une Gitanes filtre : jamais sur « Gitanes » (sans filtre).
+    expect(file.produits[gitanes.ref].ean).toEqual(['30002395']);
   });
 });
 
