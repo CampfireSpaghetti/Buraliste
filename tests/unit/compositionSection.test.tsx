@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, cleanup, within } from '@testing-library/react';
 import { CompositionSection } from '../../src/features/catalog/CompositionSection';
-import { loadComposition, resetCompositionCache } from '../../src/data/compositionData';
+import { cleanCompositionEntry, loadComposition, resetCompositionCache } from '../../src/data/compositionData';
 import { emissionsLine, monthYearFr } from '../../src/domain/composition';
 import type { CompositionFile } from '../../src/domain/composition';
 
@@ -101,5 +101,28 @@ describe('CompositionSection (fiche tabac)', () => {
     expect(await loadComposition(ok as unknown as typeof fetch)).toBe(file);
     expect(await loadComposition(ok as unknown as typeof fetch)).toBe(file);
     expect(ok).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('composition mal formée : jamais d’erreur sur la fiche', () => {
+  it('ingrédients au nom texte seulement, fonction texte, « brûlé » booléen, émissions en nombres finis', () => {
+    expect(cleanCompositionEntry({
+      nicotine: '0,8', goudron: 10, co: Number.NaN, ingredientsTotal: 'beaucoup', ean: ['3017620422003', 5],
+      ingredients: [{ nom: 'Glycerol', fonction: 7, brule: 'oui' }, { nom: 12, fonction: 'Tabac' }, null, 'texte', { nom: 'Sucre', fonction: 'Arôme', brule: false }],
+    })).toEqual({
+      goudron: 10, ean: ['3017620422003'],
+      ingredients: [{ nom: 'Glycerol', fonction: '' }, { nom: 'Sucre', fonction: 'Arôme', brule: false }],
+    });
+    expect(cleanCompositionEntry('x')).toBeUndefined();
+    expect(cleanCompositionEntry({ ingredients: 'aucun' })).toEqual({ ingredients: [], ean: [] });
+  });
+  it('la fiche s’affiche avec ce qui reste, sans planter', async () => {
+    stubFetch({ ...file, produits: { 'fab|x': { nicotine: { v: 1 }, goudron: 'dix', co: 9, ingredients: [{ nom: 'Glycerol', fonction: null, brule: 1 }, { nom: ['x'] }] } } });
+    render(<CompositionSection douaneRef="fab|x" />);
+    const section = await screen.findByRole('region', { name: 'Composition' });
+    const text = plain(section.textContent);
+    expect(text).toContain('Monoxyde de carbone 9 mg');
+    expect(text).not.toContain('Nicotine');
+    expect(text).toContain('Ingrédients déclarés (1)');
   });
 });

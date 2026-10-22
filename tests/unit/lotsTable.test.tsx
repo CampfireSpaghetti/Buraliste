@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, cleanup, within } from '@testing-library/react';
 import { LotsSection, LotsTable } from '../../src/features/catalog/LotsTable';
-import { resetLotsCache } from '../../src/data/lotsData';
+import { cleanLotsEntry, loadLots, resetLotsCache } from '../../src/data/lotsData';
 import type { LotsEntry, LotsFile } from '../../src/domain/lots';
 
 afterEach(() => {
@@ -84,5 +84,32 @@ describe('LotsSection (chargement à la demande de fdj-lots.json)', () => {
     stubFetch();
     render(<LotsSection fdjRef="fdj|ITGC9K" />);
     expect(await screen.findByRole('region', { name: 'Lots' })).toBeTruthy();
+  });
+});
+
+describe('fichier des lots mal formé : jamais d’erreur sur la fiche', () => {
+  it('seuls les paliers aux montant et nombre finis sont gardés ; plus aucun : le jeu disparaît', async () => {
+    const bad = {
+      version: 'v', fetchedAt: '', jeux: {
+        'fdj|A': { ...cash, chance: 'beaucoup', trj: null, lots: [{ montant: '5', nombre: 2 }, { montant: 10, nombre: null }, null, { montant: 20, nombre: 3 }] },
+        'fdj|B': { ...cash, lots: [{ montant: 'x', nombre: 1 }] },
+        'fdj|C': { ...cash, lots: 'aucun' },
+        'fdj|D': null,
+      },
+    };
+    const f = await loadLots((async () => new Response(JSON.stringify(bad), { status: 200 })) as unknown as typeof fetch);
+    expect(Object.keys(f!.jeux)).toEqual(['fdj|A']);
+    expect(f!.jeux['fdj|A'].lots).toEqual([{ montant: 20, nombre: 3 }]);
+    expect(f!.jeux['fdj|A'].chance).toBeUndefined();
+    expect(f!.jeux['fdj|A'].trj).toBeUndefined();
+    expect(cleanLotsEntry({ lots: [{ montant: 7, nombre: 1 }], gainMax: 'NaN' })).toMatchObject({ gainMax: 7, lots: [{ montant: 7, nombre: 1 }] });
+  });
+  it('la section s’affiche avec ce qui reste, sans planter', async () => {
+    const bad = { version: 'v', fetchedAt: '', jeux: { 'fdj|ITGC9K': { ...cash, bloc: 'x', lots: [{ montant: 100, nombre: 2 }, { montant: {}, nombre: 1 }] } } };
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(bad), { status: 200 })));
+    render(<LotsSection fdjRef="fdj|ITGC9K" />);
+    const section = await screen.findByRole('region', { name: 'Lots' });
+    expect(within(section).getAllByRole('row')).toHaveLength(2); // en-tête + un palier
+    expect(plain(section.textContent)).not.toContain('tickets');
   });
 });
