@@ -86,8 +86,14 @@ export function ProductForm({ id, initialCode, initialKind }: { id?: string; ini
     const user: Record<string, unknown> = { ...(snap ?? existing).user };
     for (const [k, v] of Object.entries(fields) as [keyof ProductFields, unknown][]) {
       if (k === 'barcodes') {
-        const baseCodes = base.barcodes ?? [];
-        const extra = (v as string[]).filter((c) => !baseCodes.includes(c));
+        // Codes officiels et de la liste commune (codes et codes de jeu) : déjà reconnus, jamais recopiés ici ;
+        // un code de la liste commune déjà ajouté sur ce tabac le reste.
+        const baseCodes = new Set(base.barcodes ?? []);
+        const mine = new Set((snap ?? existing).user.barcodes ?? []);
+        const shared = new Set([
+          ...(existing.sharedBarcodes ?? []), ...(existing.sharedFdjPrefixes ?? []), ...(existing.sharedFdjPrefix ? [existing.sharedFdjPrefix] : []),
+        ]);
+        const extra = [...new Set(v as string[])].filter((c) => !baseCodes.has(c) && (mine.has(c) || !shared.has(c)));
         if (extra.length) user.barcodes = extra;
         else delete user.barcodes;
         continue;

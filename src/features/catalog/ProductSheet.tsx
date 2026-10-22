@@ -8,7 +8,8 @@ import { useNav } from '../../nav';
 import { actions, useProducts } from '../../store';
 import { Panel } from '../../ui/Panel';
 import { SubstitutesList } from './SubstitutesList';
-import { LotsSection } from './LotsTable';
+import { LotsTable } from './LotsTable';
+import { useLots } from '../../data/lotsData';
 import { CompositionSection } from './CompositionSection';
 import { rangeProfile } from '../../domain/rangeProfile';
 import type { Product } from '../../domain/types';
@@ -19,6 +20,8 @@ export function ProductSheet({ id }: { id: string }) {
   const products = useProducts();
   const [showSubs, setShowSubs] = useState(false);
   const product = products?.find((p) => p.id === id);
+  // Lots du jeu (fdj-lots.json) : chargés avant tout retour anticipé (règle des hooks).
+  const lots = useLots(product?.fdjRef);
   if (!products) return null;
   if (!product) return <Panel title="Fiche introuvable" onClose={nav.close}><p>Cette fiche n'existe plus.</p></Panel>;
   const f = effectiveFields(product);
@@ -56,7 +59,8 @@ export function ProductSheet({ id }: { id: string }) {
         {game ? (
           <>
             {f.ticketPrice !== undefined && (<><dt>Prix du ticket</dt><dd><b>{formatEuro(f.ticketPrice)}</b></dd></>)}
-            {f.maxPrize !== undefined && (<><dt>Gain maximum</dt><dd>{formatEuro(f.maxPrize)}</dd></>)}
+            {/* Avec le tableau des lots, son « Gain maximal » suffit. */}
+            {f.maxPrize !== undefined && !lots && (<><dt>Gain maximum</dt><dd>{formatEuro(f.maxPrize)}</dd></>)}
             {f.gameType && (<><dt>Type</dt><dd>{f.gameType}</dd></>)}
           </>
         ) : (
@@ -86,7 +90,7 @@ export function ProductSheet({ id }: { id: string }) {
         )}
         {f.notes && (<><dt>Notes</dt><dd>{f.notes}</dd></>)}
       </dl>
-      {game && <LotsSection fdjRef={product.fdjRef} />}
+      {game && lots && <LotsTable entry={lots} />}
       {!game && product.douaneRef && <CompositionSection douaneRef={product.douaneRef} />}
       <CodesSection id={id} product={product} />
       {estimated && <p className="estimate">Force et goût : estimations de départ, modifiables.</p>}
@@ -109,10 +113,15 @@ function CodesSection({ id, product }: { id: string; product: Product }) {
   const closeNotice = useCallback(() => setNotice(null), []);
   const rows = codeRows(product);
   const remove = async (code: string) => {
-    const after = await actions.removeUserCode(id, code);
-    // Retiré, mais encore reconnu par un préfixe (plus court) de la fiche : on le dit.
-    const still = (effectiveFields(after).fdjPrefixes ?? []).find((k) => k !== code && code.startsWith(k));
-    if (still) setNotice(`Ce ticket reste reconnu par « Tickets ${still}… ».`);
+    try {
+      const after = await actions.removeUserCode(id, code);
+      // Retiré, mais encore reconnu par un préfixe (plus court) de la fiche : on le dit.
+      const still = (effectiveFields(after).fdjPrefixes ?? []).find((k) => k !== code && code.startsWith(k));
+      if (still) setNotice(`Ce ticket reste reconnu par « Tickets ${still}… ».`);
+    } catch (e) {
+      console.warn('Retrait du code impossible', e);
+      setNotice('Le code n’a pas pu être retiré. Réessayez.');
+    }
   };
   const catalog = product.base.fdjCodes ?? [];
   return (
