@@ -60,7 +60,8 @@ describe('CompositionSection (fiche tabac)', () => {
       'Cellulose acetate · Matériau de filtration · non brûlé',
       'Autres additifs · Divers',
     ]);
-    expect(text).toContain("Déclaration du fabricant à l'ANSES, juillet 2026");
+    expect(text).toContain('Données ANSES (fichier de juillet 2026)');
+    expect(text).not.toContain('Déclaration du fabricant');
   });
 
   it('liste limitée : « (60 premiers sur N) »', async () => {

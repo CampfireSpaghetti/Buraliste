@@ -27,7 +27,8 @@ export function CompositionView({ entry, date }: { entry: CompositionEntry; date
           </ul>
         </details>
       )}
-      <p className="muted">Déclaration du fabricant à l'ANSES{when && `, ${when}`}</p>
+      {/* Date du fichier publié : la déclaration du fabricant peut être plus ancienne. */}
+      <p className="muted">Données ANSES{when && ` (fichier de ${when})`}</p>
     </section>
   );
 }

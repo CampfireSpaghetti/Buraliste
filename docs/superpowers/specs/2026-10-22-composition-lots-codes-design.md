@@ -58,7 +58,7 @@
   ```
   Le fichier est chargé seulement quand une fiche s'ouvre : il est trop gros pour le démarrage.
   - **Réalisé** : si deux déclarations du même jour sont en désaccord sur les émissions, aucune émission n'est affichée (les ingrédients restent). La liste des ingrédients est limitée (« 60 premiers sur N », champ `ingredientsTotal`). Robot : `npm run anses:update`, étape du workflow hebdomadaire ; en cas d'échec ou de fichier illisible, le dernier fichier valide est gardé et le robot Douane continue.
-- **Juridique** : données publiques sans licence indiquée. L'app cite la source : « Déclaration du fabricant à l'ANSES, <date> ».
+- **Juridique** : données publiques sans licence indiquée. L'app cite la source : « Données ANSES (fichier de <mois année>) » (date du fichier publié ; la déclaration du fabricant peut être plus ancienne).
 
 ### 2.3 Codes-barres des tickets FDJ
 

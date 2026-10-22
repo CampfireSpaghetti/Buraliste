@@ -33,7 +33,7 @@ test('fiche d’un tabac rapproché : composition ANSES (émissions par cigarett
   const section = fiche.getByRole('region', { name: 'Composition' });
   await expect(section).toContainText('Composition (déclaration ANSES)');
   await expect(section).toContainText(/Nicotine \d+(,\d+)?\smg · Goudron \d+(,\d+)?\smg · Monoxyde de carbone \d+(,\d+)?\smg \(par cigarette\)/);
-  await expect(section).toContainText(`Déclaration du fabricant à l'ANSES, ${monthYearFr(comp.date)}`);
+  await expect(section).toContainText(`Données ANSES (fichier de ${monthYearFr(comp.date)})`);
   const summary = section.getByText(/^Ingrédients déclarés \((\d+|\d+ premiers sur \d+)\)$/);
   await expect(summary).toBeVisible();
   const first = section.getByRole('listitem').first();

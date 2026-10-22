@@ -22,7 +22,7 @@
 - **Langue :** interface en français, mots simples.
 - **Sources citées dans l'app :**
   - « D'après le règlement FDJ du jeu » (lots) ;
-  - « Déclaration du fabricant à l'ANSES, <mois année> » (composition).
+  - « Données ANSES (fichier de <mois année>) » (composition).
 - **Robustesse des scripts :** un échec de téléchargement ou d'analyse ne casse jamais la publication. Le dernier fichier valide est gardé, avec `continue-on-error` et un échec visible en fin de workflow, comme Douane et FDJ.
 - **Taille :** `composition.json` n'est jamais chargé au démarrage. Il est chargé à l'ouverture d'une fiche de tabac et mis en cache par le service worker (runtime caching, pas de precache).
 - **Partage :** les champs partagés ajoutés sont `user.fdjPrefixes` (string[]) et `user.barcodes` (déjà partagé). Ils sont ajoutés dans `SHARED_KEYS` et dans la validation des types (`sharedRepo.ts`).
