@@ -8,9 +8,9 @@
 //   npm run fdj:lots -- --pages <dossier>  pages déjà enregistrées (<dossier>/<slug>.html), sans réseau
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import type { FdjGamesFile } from '../../src/domain/fdj.ts';
-import type { LotsFile } from '../../src/domain/lots.ts';
 import { blocFor } from './blocs.ts';
-import { updateLots } from './updateLots.ts';
+import { fetchText } from './fetchText.ts';
+import { readPreviousLots, updateLots } from './updateLots.ts';
 
 const GAMES = 'public/data/fdj-games.json';
 const OUT = 'public/data/fdj-lots.json';
@@ -23,13 +23,11 @@ async function fetchPage(url: string): Promise<string> {
   const slug = url.slice(url.lastIndexOf('/') + 1);
   if (pagesDir) return readFileSync(`${pagesDir}/${slug}.html`, 'utf8');
   await new Promise((r) => setTimeout(r, 500)); // une page à la fois, sans presser le site
-  const res = await fetch(url, { headers });
-  if (!res.ok) throw new Error(`${url} → HTTP ${res.status}`);
-  return res.text();
+  return fetchText(url, { headers }); // 20 s au plus, un nouvel essai
 }
 
 const games = (JSON.parse(readFileSync(GAMES, 'utf8')) as FdjGamesFile).items;
-const previous = existsSync(OUT) ? (JSON.parse(readFileSync(OUT, 'utf8')) as LotsFile) : undefined;
+const previous = readPreviousLots(existsSync(OUT) ? readFileSync(OUT, 'utf8') : undefined);
 const today = new Date().toISOString().slice(0, 10);
 const { file, changed, ok, failed } = await updateLots({ games, previous, today, fetchPage, blocFor });
 

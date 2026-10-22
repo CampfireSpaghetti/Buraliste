@@ -27,6 +27,22 @@ type Options = {
   blocFor?: (name: string) => number | undefined;
 };
 
+/**
+ * Fichier précédent (texte de public/data/fdj-lots.json) : illisible ou mal formé, il compte pour vide (tous les jeux
+ * sont relus) et un avertissement est écrit, au lieu d'arrêter le robot.
+ */
+export function readPreviousLots(text: string | undefined, warn: (message: string) => void = console.warn): LotsFile | undefined {
+  if (text === undefined) return undefined;
+  try {
+    const f = JSON.parse(text) as LotsFile | null;
+    if (f && typeof f === 'object' && f.jeux && typeof f.jeux === 'object' && !Array.isArray(f.jeux)) return f;
+    warn('::warning::fdj-lots.json précédent mal formé : ignoré, tous les jeux sont relus.');
+  } catch (e) {
+    warn(`::warning::fdj-lots.json précédent illisible (${e instanceof Error ? e.message : String(e)}) : ignoré, tous les jeux sont relus.`);
+  }
+  return undefined;
+}
+
 const round = (n: number, digits: number) => Math.round(n * 10 ** digits) / 10 ** digits;
 
 /** Entrée du fichier : chance et taux de retour publiés, sinon recalculés depuis le bloc quand il est connu. */

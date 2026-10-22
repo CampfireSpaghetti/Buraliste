@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { checkLots, parseWinningTables } from '../../scripts/fdj/parseWinningTables';
 import { BLOCS, blocFor } from '../../scripts/fdj/blocs';
-import { pageUrlFor, updateLots } from '../../scripts/fdj/updateLots';
+import { pageUrlFor, readPreviousLots, updateLots } from '../../scripts/fdj/updateLots';
+import { fetchText } from '../../scripts/fdj/fetchText';
 import type { FdjItem } from '../../src/domain/fdj';
 import type { LotsFile } from '../../src/domain/lots';
 
@@ -218,5 +219,46 @@ describe('fichier publié public/data/fdj-lots.json', () => {
       expect(e.gainMax).toBe(e.lots[0].montant);
       expect(e.majLe).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     }
+  });
+});
+
+describe('robot des lots : réseau et fichier précédent', () => {
+  it('fetchText : délai d\'attente de 20 s, un nouvel essai après un échec réseau ou une erreur serveur', async () => {
+    const signals: (AbortSignal | undefined)[] = [];
+    let n = 0;
+    const flaky = (async (_url: string, init?: RequestInit) => {
+      signals.push(init?.signal ?? undefined);
+      if (++n === 1) throw new TypeError('fetch failed');
+      return new Response('page', { status: 200 });
+    }) as typeof fetch;
+    expect(await fetchText('https://x.test/a', { fetchFn: flaky, retryDelayMs: 0 })).toBe('page');
+    expect(n).toBe(2);
+    expect(signals.every((s) => s instanceof AbortSignal)).toBe(true);
+    // Deux échecs : erreur.
+    const down = (async () => new Response('', { status: 503 })) as typeof fetch;
+    await expect(fetchText('https://x.test/b', { fetchFn: down, retryDelayMs: 0 })).rejects.toThrow(/HTTP 503/);
+    // Page absente (404) : pas de nouvel essai.
+    let calls = 0;
+    const missing = (async () => { calls++; return new Response('', { status: 404 }); }) as typeof fetch;
+    await expect(fetchText('https://x.test/c', { fetchFn: missing, retryDelayMs: 0 })).rejects.toThrow(/HTTP 404/);
+    expect(calls).toBe(1);
+  });
+  it('fetchText : une page qui ne répond pas est abandonnée au bout du délai', async () => {
+    const hang = ((_url: string, init?: RequestInit) => new Promise<Response>((_, reject) => {
+      init?.signal?.addEventListener('abort', () => reject(init.signal!.reason));
+    })) as typeof fetch;
+    await expect(fetchText('https://x.test/d', { fetchFn: hang, timeoutMs: 20, retryDelayMs: 0 })).rejects.toThrow();
+  });
+  it('fdj-lots.json précédent illisible ou mal formé : traité comme vide, avec un avertissement', () => {
+    const warn: string[] = [];
+    expect(readPreviousLots('{pas du json', (m) => warn.push(m))).toBeUndefined();
+    expect(readPreviousLots('{"version":"v","jeux":[1]}', (m) => warn.push(m))).toBeUndefined();
+    expect(readPreviousLots('null', (m) => warn.push(m))).toBeUndefined();
+    expect(warn).toHaveLength(3);
+    expect(warn[0]).toMatch(/illisible/);
+    const ok: LotsFile = { version: 'v', fetchedAt: '2026-10-22', jeux: {} };
+    expect(readPreviousLots(JSON.stringify(ok), (m) => warn.push(m))).toEqual(ok);
+    expect(readPreviousLots(undefined, (m) => warn.push(m))).toBeUndefined();
+    expect(warn).toHaveLength(3);
   });
 });
