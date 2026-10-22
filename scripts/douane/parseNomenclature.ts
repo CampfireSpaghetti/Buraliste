@@ -104,6 +104,10 @@ export function parseNomenclature(rows: string[][], sourceUrl: string): Referenc
 
   if (duplicates) console.warn(`${duplicates} référence(s) listée(s) chez plusieurs fournisseurs, fusionnée(s).`);
   if (!effectiveDate) throw new Error('Date d’effet introuvable (ligne « Arrêté du … applicable au … »).');
-  const hash = createHash('sha256').update(JSON.stringify(items)).digest('hex').slice(0, 8);
-  return { version: `${effectiveDate}-${hash}`, effectiveDate, source: sourceUrl, items };
+  return { version: referenceVersion(effectiveDate, items), effectiveDate, source: sourceUrl, items };
+}
+
+/** Version de la liste : date d'effet + empreinte du contenu (change dès qu'une ligne change, codes-barres compris). */
+export function referenceVersion(effectiveDate: string, items: RefItem[]): string {
+  return `${effectiveDate}-${createHash('sha256').update(JSON.stringify(items)).digest('hex').slice(0, 8)}`;
 }

@@ -1,0 +1,178 @@
+﻿"Marché_National_Produit";"Catégorie_Produit";"Type_Produit";"Code_Référence";"Date_Dernière_Mise_A_Jour_Du_Dossier";"Nom_Ingrédient";"CAS_Ingrédient";"Fonction_Ingrédient";"Catégorie_Ingrédient";"Ingrédient_Combustion";"Quantité_Ingrédient_Recette"
+"FR";"Produit du tabac";"Cigarette";"1637 ORIGINE [4A27B949A67924C5]";13/1/2026 13:10:25;"TABAC (TYPE: BURLEY, SECHAGE: AIR)";"-";"Tabac";"divers";"(brûlé)";270.00
+"FR";"Produit du tabac";"Cigarette";"1637 ORIGINE [4A27B949A67924C5]";13/1/2026 13:10:25;"TABAC (TYPE: VIRGINIE, SECHAGE: AIR CHAUD)";"-";"Tabac";"divers";"(brûlé)";210.00
+"FR";"Produit du tabac";"Cigarette";"1637 ORIGINE [4A27B949A67924C5]";13/1/2026 13:10:25;"CELLULOSE DIACETATE POLYMER";"9004-35-7";"Materiau de filtration";"matériau de filtration";"(non brûlé)";136.00
+"FR";"Produit du tabac";"Cigarette";"1637 ORIGINE [4A27B949A67924C5]";13/1/2026 13:10:25;"TABAC (TYPE: VIRGINIE, SECHAGE: VAPEUR)";"-";"Tabac";"divers";"(brûlé)";100.00
+"FR";"Produit du tabac";"Cigarette";"1637 ORIGINE [4A27B949A67924C5]";13/1/2026 13:10:25;"CELLULOSE PULP";"65996-64-4";"Fibre";"papier";"(brûlé)";25.10
+"FR";"Produit du tabac";"Cigarette";"1637 ORIGINE [4A27B949A67924C5]";13/1/2026 13:10:25;"CELLULOSE PULP";"65996-61-4";"Fibre";"papier manchette et encres utilisées sur le papier manchette";"(non brûlé)";20.70
+"FR";"Produit du tabac";"Cigarette";"BROOKLYN CIGARETTES BROOKLYN FF KS [0D21439170192662]";20/8/2020 17:15:00;"TABAC (TYPE: VIRGINIE, SECHAGE: AIR CHAUD)";"-";"Tabac";"divers";"(brûlé)";304.32
+"FR";"Produit du tabac";"Cigarette";"BROOKLYN CIGARETTES BROOKLYN FF KS [0D21439170192662]";20/8/2020 17:15:00;"TABAC (TYPE: BURLEY, SECHAGE: AIR)";"-";"Tabac";"divers";"(brûlé)";153.55
+"FR";"Produit du tabac";"Cigarette";"BROOKLYN CIGARETTES BROOKLYN FF KS [0D21439170192662]";20/8/2020 17:15:00;"CELLULOSE ACETATE";"9004-35-7";"Materiau de filtration";"matériau de filtration";"(non brûlé)";87.91
+"FR";"Produit du tabac";"Cigarette";"BROOKLYN CIGARETTES BROOKLYN FF KS [0D21439170192662]";20/8/2020 17:15:00;"TABAC (TYPE: ORIENTAL, SECHAGE: SOLEIL)";"-";"Tabac";"divers";"(brûlé)";67.47
+"FR";"Produit du tabac";"Cigarette";"BROOKLYN CIGARETTES BROOKLYN FF KS [0D21439170192662]";20/8/2020 17:15:00;"CELLULOSE FIBRE";"65996-61-4";"Fibre";"papier manchette et encres utilisées sur le papier manchette";"(non brûlé)";55.01
+"FR";"Produit du tabac";"Cigarette";"BROOKLYN CIGARETTES BROOKLYN FF KS [0D21439170192662]";20/8/2020 17:15:00;"TABAC (TYPE: AUTRE, SECHAGE: AUTRE)";"-";"Tabac";"divers";"(brûlé)";45.64
+"FR";"Produit du tabac";"Cigarette";"BROOKLYN CIGARETTES BROOKLYN FF KS [142A11533001C8A3]";26/8/2020 15:40:00;"TABAC (TYPE: VIRGINIE, SECHAGE: AIR CHAUD)";"-";"Tabac";"divers";"(brûlé)";304.32
+"FR";"Produit du tabac";"Cigarette";"BROOKLYN CIGARETTES BROOKLYN FF KS [142A11533001C8A3]";26/8/2020 15:40:00;"TABAC (TYPE: BURLEY, SECHAGE: AIR)";"-";"Tabac";"divers";"(brûlé)";153.55
+"FR";"Produit du tabac";"Cigarette";"BROOKLYN CIGARETTES BROOKLYN FF KS [142A11533001C8A3]";26/8/2020 15:40:00;"CELLULOSE ACETATE";"9004-35-7";"Materiau de filtration";"matériau de filtration";"(non brûlé)";87.91
+"FR";"Produit du tabac";"Cigarette";"BROOKLYN CIGARETTES BROOKLYN FF KS [142A11533001C8A3]";26/8/2020 15:40:00;"TABAC (TYPE: ORIENTAL, SECHAGE: SOLEIL)";"-";"Tabac";"divers";"(brûlé)";67.47
+"FR";"Produit du tabac";"Cigarette";"BROOKLYN CIGARETTES BROOKLYN FF KS [142A11533001C8A3]";26/8/2020 15:40:00;"CELLULOSE FIBRE";"65996-61-4";"Fibre";"papier manchette et encres utilisées sur le papier manchette";"(non brûlé)";55.01
+"FR";"Produit du tabac";"Cigarette";"BROOKLYN CIGARETTES BROOKLYN FF KS [142A11533001C8A3]";26/8/2020 15:40:00;"TABAC (TYPE: AUTRE, SECHAGE: AUTRE)";"-";"Tabac";"divers";"(brûlé)";45.64
+"FR";"Produit du tabac";"Cigarette";"GAULOISES BLONDES BLEU [0B8E9C980D4660F9]";19/5/2020 10:47:00;"TABAC (TYPE: BURLEY, SECHAGE: AIR)";"-";"Tabac";"divers";"(brûlé)";226.69
+"FR";"Produit du tabac";"Cigarette";"GAULOISES BLONDES BLEU [0B8E9C980D4660F9]";19/5/2020 10:47:00;"TABAC (TYPE: VIRGINIE, SECHAGE: AIR CHAUD)";"-";"Tabac";"divers";"(brûlé)";132.50
+"FR";"Produit du tabac";"Cigarette";"GAULOISES BLONDES BLEU [0B8E9C980D4660F9]";19/5/2020 10:47:00;"CELLULOSE ACETATE";"9004-35-7";"Materiau de filtration";"matériau de filtration";"(non brûlé)";91.88
+"FR";"Produit du tabac";"Cigarette";"GAULOISES BLONDES BLEU [0B8E9C980D4660F9]";19/5/2020 10:47:00;"TABAC (TYPE: ORIENTAL, SECHAGE: SOLEIL)";"-";"Tabac";"divers";"(brûlé)";82.28
+"FR";"Produit du tabac";"Cigarette";"GAULOISES BLONDES BLEU [0B8E9C980D4660F9]";19/5/2020 10:47:00;"TABAC (TYPE: AUTRE, SECHAGE: AUTRE)";"-";"Tabac";"divers";"(brûlé)";59.03
+"FR";"Produit du tabac";"Cigarette";"GAULOISES BLONDES BLEU [0B8E9C980D4660F9]";19/5/2020 10:47:00;"CELLULOSE FIBRE";"65996-61-4";"Fibre";"emballage pour filtre";"(non brûlé)";39.80
+"FR";"Produit du tabac";"Cigarette";"GAULOISES BLONDES BLEU [0BAB0C03E6037E23]";17/9/2021 11:33:00;"TABAC (TYPE: VIRGINIE, SECHAGE: AIR CHAUD)";"-";"Tabac";"divers";"(brûlé)";352.75
+"FR";"Produit du tabac";"Cigarette";"GAULOISES BLONDES BLEU [0BAB0C03E6037E23]";17/9/2021 11:33:00;"TABAC (TYPE: BURLEY, SECHAGE: AIR)";"-";"Tabac";"divers";"(brûlé)";191.10
+"FR";"Produit du tabac";"Cigarette";"GAULOISES BLONDES BLEU [0BAB0C03E6037E23]";17/9/2021 11:33:00;"CELLULOSE ACETATE";"9004-35-7";"Solvant - Auxilliaire de fabrication";"matériau de filtration";"(non brûlé)";94.04
+"FR";"Produit du tabac";"Cigarette";"GAULOISES BLONDES BLEU [0BAB0C03E6037E23]";17/9/2021 11:33:00;"CELLULOSE FIBRE";"65996-61-4";"Fibre";"papier";"(brûlé)";22.23
+"FR";"Produit du tabac";"Cigarette";"GAULOISES BLONDES BLEU [0BAB0C03E6037E23]";17/9/2021 11:33:00;"CALCIUM CARBONATE";"471-34-1";"Matériau de remplissage";"papier";"(brûlé)";17.17
+"FR";"Produit du tabac";"Cigarette";"GAULOISES BLONDES BLEU [0BAB0C03E6037E23]";17/9/2021 11:33:00;"CELLULOSE";"9004-34-6";"Matériau de remplissage";"papier manchette et encres utilisées sur le papier manchette";"(non brûlé)";16.71
+"FR";"Produit du tabac";"Cigarette";"GAULOISES BLONDES BLEU [0F19461DB556FC48]";9/3/2026 15:42:01;"TABAC (TYPE: VIRGINIE, SECHAGE: AIR CHAUD)";"-";"Tabac";"divers";"(brûlé)";268.05
+"FR";"Produit du tabac";"Cigarette";"GAULOISES BLONDES BLEU [0F19461DB556FC48]";9/3/2026 15:42:01;"TABAC (TYPE: BURLEY, SECHAGE: AIR)";"-";"Tabac";"divers";"(brûlé)";150.87
+"FR";"Produit du tabac";"Cigarette";"GAULOISES BLONDES BLEU [0F19461DB556FC48]";9/3/2026 15:42:01;"CELLULOSE ACETATE";"9004-35-7";"Materiau de filtration";"matériau de filtration";"(non brûlé)";96.57
+"FR";"Produit du tabac";"Cigarette";"GAULOISES BLONDES BLEU [0F19461DB556FC48]";9/3/2026 15:42:01;"TABAC (TYPE: ORIENTAL, SECHAGE: SOLEIL)";"-";"Tabac";"divers";"(brûlé)";42.41
+"FR";"Produit du tabac";"Cigarette";"GAULOISES BLONDES BLEU [0F19461DB556FC48]";9/3/2026 15:42:01;"TABAC (TYPE: AUTRE, SECHAGE: AUTRE)";"-";"Tabac";"divers";"(brûlé)";35.34
+"FR";"Produit du tabac";"Cigarette";"GAULOISES BLONDES BLEU [0F19461DB556FC48]";9/3/2026 15:42:01;"CELLULOSE";"9004-34-6";"Fibre";"papier";"(brûlé)";27.66
+"FR";"Produit du tabac";"Cigarette";"GAULOISES BLONDES BLEU [12537B69C330CD7E]";9/3/2026 15:42:01;"TABAC (TYPE: VIRGINIE, SECHAGE: AIR CHAUD)";"-";"Tabac";"divers";"(brûlé)";268.05
+"FR";"Produit du tabac";"Cigarette";"GAULOISES BLONDES BLEU [12537B69C330CD7E]";9/3/2026 15:42:01;"TABAC (TYPE: BURLEY, SECHAGE: AIR)";"-";"Tabac";"divers";"(brûlé)";150.87
+"FR";"Produit du tabac";"Cigarette";"GAULOISES BLONDES BLEU [12537B69C330CD7E]";9/3/2026 15:42:01;"CELLULOSE ACETATE";"9004-35-7";"Materiau de filtration";"matériau de filtration";"(non brûlé)";96.57
+"FR";"Produit du tabac";"Cigarette";"GAULOISES BLONDES BLEU [12537B69C330CD7E]";9/3/2026 15:42:01;"TABAC (TYPE: ORIENTAL, SECHAGE: SOLEIL)";"-";"Tabac";"divers";"(brûlé)";42.41
+"FR";"Produit du tabac";"Cigarette";"GAULOISES BLONDES BLEU [12537B69C330CD7E]";9/3/2026 15:42:01;"TABAC (TYPE: AUTRE, SECHAGE: AUTRE)";"-";"Tabac";"divers";"(brûlé)";35.34
+"FR";"Produit du tabac";"Cigarette";"GAULOISES BLONDES BLEU [12537B69C330CD7E]";9/3/2026 15:42:01;"CELLULOSE";"9004-34-6";"Fibre";"papier";"(brûlé)";27.66
+"FR";"Produit du tabac";"Cigarette";"GITANES BLEU (FILTRE) [14054C18F794333E]";13/7/2020 10:47:00;"TABAC (TYPE: BRUN, SECHAGE: AIR)";"-";"Tabac";"divers";"(brûlé)";264.13
+"FR";"Produit du tabac";"Cigarette";"GITANES BLEU (FILTRE) [14054C18F794333E]";13/7/2020 10:47:00;"TABAC (TYPE: BURLEY, SECHAGE: AIR)";"-";"Tabac";"divers";"(brûlé)";190.65
+"FR";"Produit du tabac";"Cigarette";"GITANES BLEU (FILTRE) [14054C18F794333E]";13/7/2020 10:47:00;"TABAC (TYPE: VIRGINIE, SECHAGE: AIR CHAUD)";"-";"Tabac";"divers";"(brûlé)";126.82
+"FR";"Produit du tabac";"Cigarette";"GITANES BLEU (FILTRE) [14054C18F794333E]";13/7/2020 10:47:00;"CELLULOSE ACETATE";"9004-35-7";"Materiau de filtration";"matériau de filtration";"(non brûlé)";95.61
+"FR";"Produit du tabac";"Cigarette";"GITANES BLEU (FILTRE) [14054C18F794333E]";13/7/2020 10:47:00;"TABAC (TYPE: AUTRE, SECHAGE: AIR)";"-";"Tabac";"divers";"(brûlé)";49.61
+"FR";"Produit du tabac";"Cigarette";"GITANES BLEU (FILTRE) [14054C18F794333E]";13/7/2020 10:47:00;"TABAC (TYPE: ORIENTAL, SECHAGE: SOLEIL)";"-";"Tabac";"divers";"(brûlé)";39.72
+"FR";"Produit du tabac";"Cigarette";"GITANES BLEU (FILTRE) [1E3D92D3406ED348]";23/1/2026 09:38:59;"TABAC (TYPE: BRUN, SECHAGE: AIR)";"-";"Tabac";"divers";"(brûlé)";226.66
+"FR";"Produit du tabac";"Cigarette";"GITANES BLEU (FILTRE) [1E3D92D3406ED348]";23/1/2026 09:38:59;"TABAC (TYPE: BURLEY, SECHAGE: AIR)";"-";"Tabac";"divers";"(brûlé)";170.71
+"FR";"Produit du tabac";"Cigarette";"GITANES BLEU (FILTRE) [1E3D92D3406ED348]";23/1/2026 09:38:59;"TABAC (TYPE: VIRGINIE, SECHAGE: AIR CHAUD)";"-";"Tabac";"divers";"(brûlé)";124.39
+"FR";"Produit du tabac";"Cigarette";"GITANES BLEU (FILTRE) [1E3D92D3406ED348]";23/1/2026 09:38:59;"CELLULOSE ACETATE";"9004-35-7";"Materiau de filtration";"matériau de filtration";"(non brûlé)";93.71
+"FR";"Produit du tabac";"Cigarette";"GITANES BLEU (FILTRE) [1E3D92D3406ED348]";23/1/2026 09:38:59;"WATER";"7732-18-5";"Humectant";"tabac";"(brûlé)";61.93
+"FR";"Produit du tabac";"Cigarette";"GITANES BLEU (FILTRE) [1E3D92D3406ED348]";23/1/2026 09:38:59;"TABAC (TYPE: ORIENTAL, SECHAGE: SOLEIL)";"-";"Tabac";"divers";"(brûlé)";55.01
+"FR";"Produit du tabac";"Cigarette";"LUCKY STRIKE RED XL [1D658D735EBDD438]";23/3/2026 16:18:32;"TABAC (TYPE: VIRGINIE, SECHAGE: AIR CHAUD)";"-";"Tabac";"divers";"(brûlé)";355.13
+"FR";"Produit du tabac";"Cigarette";"LUCKY STRIKE RED XL [1D658D735EBDD438]";23/3/2026 16:18:32;"TABAC (TYPE: BURLEY, SECHAGE: AIR)";"-";"Tabac";"divers";"(brûlé)";129.88
+"FR";"Produit du tabac";"Cigarette";"LUCKY STRIKE RED XL [1D658D735EBDD438]";23/3/2026 16:18:32;"CELLULOSE ACETATE";"9004-35-7";"Materiau de filtration";"matériau de filtration";"(non brûlé)";99.27
+"FR";"Produit du tabac";"Cigarette";"LUCKY STRIKE RED XL [1D658D735EBDD438]";23/3/2026 16:18:32;"TABAC (TYPE: ORIENTAL, SECHAGE: SOLEIL)";"-";"Tabac";"divers";"(brûlé)";45.35
+"FR";"Produit du tabac";"Cigarette";"LUCKY STRIKE RED XL [1D658D735EBDD438]";23/3/2026 16:18:32;"TABAC (TYPE: NON SPECIFIE, SECHAGE: AUTRE)";"-";"Tabac";"divers";"(brûlé)";28.49
+"FR";"Produit du tabac";"Cigarette";"LUCKY STRIKE RED XL [1D658D735EBDD438]";23/3/2026 16:18:32;"CELLULOSE FIBRE";"9004-34-6";"Fibre";"papier";"(brûlé)";24.64
+"FR";"Produit du tabac";"Cigarette";"LUCKY STRIKE RED XL [3B6426493A5AD67B]";23/3/2026 16:18:32;"TABAC (TYPE: VIRGINIE, SECHAGE: AIR CHAUD)";"-";"Tabac";"divers";"(brûlé)";355.13
+"FR";"Produit du tabac";"Cigarette";"LUCKY STRIKE RED XL [3B6426493A5AD67B]";23/3/2026 16:18:32;"TABAC (TYPE: BURLEY, SECHAGE: AIR)";"-";"Tabac";"divers";"(brûlé)";129.88
+"FR";"Produit du tabac";"Cigarette";"LUCKY STRIKE RED XL [3B6426493A5AD67B]";23/3/2026 16:18:32;"CELLULOSE ACETATE";"9004-35-7";"Materiau de filtration";"matériau de filtration";"(non brûlé)";99.27
+"FR";"Produit du tabac";"Cigarette";"LUCKY STRIKE RED XL [3B6426493A5AD67B]";23/3/2026 16:18:32;"TABAC (TYPE: ORIENTAL, SECHAGE: SOLEIL)";"-";"Tabac";"divers";"(brûlé)";45.35
+"FR";"Produit du tabac";"Cigarette";"LUCKY STRIKE RED XL [3B6426493A5AD67B]";23/3/2026 16:18:32;"TABAC (TYPE: NON SPECIFIE, SECHAGE: AUTRE)";"-";"Tabac";"divers";"(brûlé)";28.49
+"FR";"Produit du tabac";"Cigarette";"LUCKY STRIKE RED XL [3B6426493A5AD67B]";23/3/2026 16:18:32;"CELLULOSE FIBRE";"9004-34-6";"Fibre";"papier";"(brûlé)";24.64
+"FR";"Produit du tabac";"Cigarette";"LUCKY STRIKE RED 100'S [29FF8806B2374D68]";25/3/2026 04:04:56;"TABAC (TYPE: VIRGINIE, SECHAGE: AIR CHAUD)";"-";"Tabac";"divers";"(brûlé)";352.97
+"FR";"Produit du tabac";"Cigarette";"LUCKY STRIKE RED 100'S [29FF8806B2374D68]";25/3/2026 04:04:56;"TABAC (TYPE: BURLEY, SECHAGE: AIR)";"-";"Tabac";"divers";"(brûlé)";212.00
+"FR";"Produit du tabac";"Cigarette";"LUCKY STRIKE RED 100'S [29FF8806B2374D68]";25/3/2026 04:04:56;"CELLULOSE ACETATE";"9004-35-7";"Materiau de filtration";"matériau de filtration";"(non brûlé)";114.60
+"FR";"Produit du tabac";"Cigarette";"LUCKY STRIKE RED 100'S [29FF8806B2374D68]";25/3/2026 04:04:56;"WATER";"7732-18-5";"Solvant - Auxilliaire de fabrication";"tabac";"(brûlé)";58.87
+"FR";"Produit du tabac";"Cigarette";"LUCKY STRIKE RED 100'S [29FF8806B2374D68]";25/3/2026 04:04:56;"TABAC (TYPE: ORIENTAL, SECHAGE: SOLEIL)";"-";"Tabac";"divers";"(brûlé)";56.59
+"FR";"Produit du tabac";"Cigarette";"LUCKY STRIKE RED 100'S [29FF8806B2374D68]";25/3/2026 04:04:56;"TABAC (TYPE: NON SPECIFIE, SECHAGE: AUTRE)";"-";"Tabac";"divers";"(brûlé)";44.52
+"FR";"Produit du tabac";"Cigarette";"LUCKY STRIKE RED 100'S [32EA88B586849A7F]";25/3/2026 04:04:56;"TABAC (TYPE: VIRGINIE, SECHAGE: AIR CHAUD)";"-";"Tabac";"divers";"(brûlé)";352.97
+"FR";"Produit du tabac";"Cigarette";"LUCKY STRIKE RED 100'S [32EA88B586849A7F]";25/3/2026 04:04:56;"TABAC (TYPE: BURLEY, SECHAGE: AIR)";"-";"Tabac";"divers";"(brûlé)";212.00
+"FR";"Produit du tabac";"Cigarette";"LUCKY STRIKE RED 100'S [32EA88B586849A7F]";25/3/2026 04:04:56;"CELLULOSE ACETATE";"9004-35-7";"Materiau de filtration";"matériau de filtration";"(non brûlé)";114.60
+"FR";"Produit du tabac";"Cigarette";"LUCKY STRIKE RED 100'S [32EA88B586849A7F]";25/3/2026 04:04:56;"WATER";"7732-18-5";"Solvant - Auxilliaire de fabrication";"tabac";"(brûlé)";58.87
+"FR";"Produit du tabac";"Cigarette";"LUCKY STRIKE RED 100'S [32EA88B586849A7F]";25/3/2026 04:04:56;"TABAC (TYPE: ORIENTAL, SECHAGE: SOLEIL)";"-";"Tabac";"divers";"(brûlé)";56.59
+"FR";"Produit du tabac";"Cigarette";"LUCKY STRIKE RED 100'S [32EA88B586849A7F]";25/3/2026 04:04:56;"TABAC (TYPE: NON SPECIFIE, SECHAGE: AUTRE)";"-";"Tabac";"divers";"(brûlé)";44.52
+"FR";"Produit du tabac";"Cigarette";"LUCKY STRIKE RED LONGUES [4E67A96E30E3BABB]";23/3/2026 13:50:13;"TABAC (TYPE: VIRGINIE, SECHAGE: AIR CHAUD)";"-";"Tabac";"divers";"(brûlé)";434.64
+"FR";"Produit du tabac";"Cigarette";"LUCKY STRIKE RED LONGUES [4E67A96E30E3BABB]";23/3/2026 13:50:13;"TABAC (TYPE: BURLEY, SECHAGE: AIR)";"-";"Tabac";"divers";"(brûlé)";158.96
+"FR";"Produit du tabac";"Cigarette";"LUCKY STRIKE RED LONGUES [4E67A96E30E3BABB]";23/3/2026 13:50:13;"CELLULOSE ACETATE";"9004-35-7";"Materiau de filtration";"matériau de filtration";"(non brûlé)";112.57
+"FR";"Produit du tabac";"Cigarette";"LUCKY STRIKE RED LONGUES [4E67A96E30E3BABB]";23/3/2026 13:50:13;"TABAC (TYPE: ORIENTAL, SECHAGE: SOLEIL)";"-";"Tabac";"divers";"(brûlé)";55.51
+"FR";"Produit du tabac";"Cigarette";"LUCKY STRIKE RED LONGUES [4E67A96E30E3BABB]";23/3/2026 13:50:13;"TABAC (TYPE: NON SPECIFIE, SECHAGE: AUTRE)";"-";"Tabac";"divers";"(brûlé)";34.87
+"FR";"Produit du tabac";"Cigarette";"LUCKY STRIKE RED LONGUES [4E67A96E30E3BABB]";23/3/2026 13:50:13;"CELLULOSE FIBRE";"9004-34-6";"Fibre";"papier";"(brûlé)";29.57
+"FR";"Produit du tabac";"Cigarette";"LUCKY STRIKE RED LONGUES [68C7BE692B94B13C]";25/3/2026 13:30:47;"TABAC (TYPE: VIRGINIE, SECHAGE: AIR CHAUD)";"-";"Tabac";"divers";"(brûlé)";412.36
+"FR";"Produit du tabac";"Cigarette";"LUCKY STRIKE RED LONGUES [68C7BE692B94B13C]";25/3/2026 13:30:47;"TABAC (TYPE: BURLEY, SECHAGE: AIR)";"-";"Tabac";"divers";"(brûlé)";159.65
+"FR";"Produit du tabac";"Cigarette";"LUCKY STRIKE RED LONGUES [68C7BE692B94B13C]";25/3/2026 13:30:47;"CELLULOSE ACETATE";"9004-35-7";"Materiau de filtration";"matériau de filtration";"(non brûlé)";113.02
+"FR";"Produit du tabac";"Cigarette";"LUCKY STRIKE RED LONGUES [68C7BE692B94B13C]";25/3/2026 13:30:47;"TABAC (TYPE: ORIENTAL, SECHAGE: SOLEIL)";"-";"Tabac";"divers";"(brûlé)";62.32
+"FR";"Produit du tabac";"Cigarette";"LUCKY STRIKE RED LONGUES [68C7BE692B94B13C]";25/3/2026 13:30:47;"TABAC (TYPE: NON SPECIFIE, SECHAGE: AUTRE)";"-";"Tabac";"divers";"(brûlé)";39.15
+"FR";"Produit du tabac";"Cigarette";"LUCKY STRIKE RED LONGUES [68C7BE692B94B13C]";25/3/2026 13:30:47;"CELLULOSE FIBRE";"65996-61-4";"Fibre";"papier";"(brûlé)";29.81
+"FR";"Produit du tabac";"Cigarette";"MARLBORO GOLD 100S 100S HARD PACK - 20 CIGARETTES [29E9588171F87851]";27/3/2026 10:20:24;"TABAC (TYPE: VIRGINIE, SECHAGE: AIR CHAUD)";"-";"Tabac";"divers";"(brûlé)";306.20
+"FR";"Produit du tabac";"Cigarette";"MARLBORO GOLD 100S 100S HARD PACK - 20 CIGARETTES [29E9588171F87851]";27/3/2026 10:20:24;"TABAC (TYPE: AUTRE, SECHAGE: AUTRE)";"-";"Tabac";"divers";"(brûlé)";148.70
+"FR";"Produit du tabac";"Cigarette";"MARLBORO GOLD 100S 100S HARD PACK - 20 CIGARETTES [29E9588171F87851]";27/3/2026 10:20:24;"CELLULOSE ACETATE";"9004-35-7";"Materiau de filtration";"matériau de filtration";"(non brûlé)";122.40
+"FR";"Produit du tabac";"Cigarette";"MARLBORO GOLD 100S 100S HARD PACK - 20 CIGARETTES [29E9588171F87851]";27/3/2026 10:20:24;"TABAC (TYPE: BURLEY, SECHAGE: AIR)";"-";"Tabac";"divers";"(brûlé)";91.70
+"FR";"Produit du tabac";"Cigarette";"MARLBORO GOLD 100S 100S HARD PACK - 20 CIGARETTES [29E9588171F87851]";27/3/2026 10:20:24;"CELLULOSE";"65996-61-4";"Fibre";"emballage pour filtre";"(non brûlé)";48.50
+"FR";"Produit du tabac";"Cigarette";"MARLBORO GOLD 100S 100S HARD PACK - 20 CIGARETTES [29E9588171F87851]";27/3/2026 10:20:24;"TABAC (TYPE: ORIENTAL, SECHAGE: SOLEIL)";"-";"Tabac";"divers";"(brûlé)";41.10
+"FR";"Produit du tabac";"Cigarette";"MARLBORO GOLD 100S 100S HARD PACK - 20 CIGARETTES [626431740260D975]";27/3/2026 10:21:41;"TABAC (TYPE: VIRGINIE, SECHAGE: AIR CHAUD)";"-";"Tabac";"divers";"(brûlé)";317.90
+"FR";"Produit du tabac";"Cigarette";"MARLBORO GOLD 100S 100S HARD PACK - 20 CIGARETTES [626431740260D975]";27/3/2026 10:21:41;"TABAC (TYPE: AUTRE, SECHAGE: AUTRE)";"-";"Tabac";"divers";"(brûlé)";144.50
+"FR";"Produit du tabac";"Cigarette";"MARLBORO GOLD 100S 100S HARD PACK - 20 CIGARETTES [626431740260D975]";27/3/2026 10:21:41;"CELLULOSE ACETATE";"9004-35-7";"Materiau de filtration";"matériau de filtration";"(non brûlé)";106.80
+"FR";"Produit du tabac";"Cigarette";"MARLBORO GOLD 100S 100S HARD PACK - 20 CIGARETTES [626431740260D975]";27/3/2026 10:21:41;"TABAC (TYPE: BURLEY, SECHAGE: AIR)";"-";"Tabac";"divers";"(brûlé)";86.10
+"FR";"Produit du tabac";"Cigarette";"MARLBORO GOLD 100S 100S HARD PACK - 20 CIGARETTES [626431740260D975]";27/3/2026 10:21:41;"CELLULOSE";"65996-61-4";"Fibre";"emballage pour filtre";"(non brûlé)";49.20
+"FR";"Produit du tabac";"Cigarette";"MARLBORO GOLD 100S 100S HARD PACK - 20 CIGARETTES [626431740260D975]";27/3/2026 10:21:41;"TABAC (TYPE: ORIENTAL, SECHAGE: SOLEIL)";"-";"Tabac";"divers";"(brûlé)";41.30
+"FR";"Produit du tabac";"Cigarette";"MARLBORO GOLD DUTY FREE - HARD PACK - 20 CIGARETTES [1233B9A8C329A006]";16/1/2026 14:18:54;"TABAC (TYPE: VIRGINIE, SECHAGE: AIR CHAUD)";"-";"Tabac";"divers";"(brûlé)";242.80
+"FR";"Produit du tabac";"Cigarette";"MARLBORO GOLD DUTY FREE - HARD PACK - 20 CIGARETTES [1233B9A8C329A006]";16/1/2026 14:18:54;"CELLULOSE ACETATE";"9004-35-7";"Materiau de filtration";"matériau de filtration";"(non brûlé)";123.40
+"FR";"Produit du tabac";"Cigarette";"MARLBORO GOLD DUTY FREE - HARD PACK - 20 CIGARETTES [1233B9A8C329A006]";16/1/2026 14:18:54;"TABAC (TYPE: AUTRE, SECHAGE: AUTRE)";"-";"Tabac";"divers";"(brûlé)";117.90
+"FR";"Produit du tabac";"Cigarette";"MARLBORO GOLD DUTY FREE - HARD PACK - 20 CIGARETTES [1233B9A8C329A006]";16/1/2026 14:18:54;"TABAC (TYPE: BURLEY, SECHAGE: AIR)";"-";"Tabac";"divers";"(brûlé)";72.70
+"FR";"Produit du tabac";"Cigarette";"MARLBORO GOLD DUTY FREE - HARD PACK - 20 CIGARETTES [1233B9A8C329A006]";16/1/2026 14:18:54;"CELLULOSE";"65996-61-4";"Fibre";"emballage pour filtre";"(non brûlé)";48.50
+"FR";"Produit du tabac";"Cigarette";"MARLBORO GOLD DUTY FREE - HARD PACK - 20 CIGARETTES [1233B9A8C329A006]";16/1/2026 14:18:54;"TABAC (TYPE: ORIENTAL, SECHAGE: SOLEIL)";"-";"Tabac";"divers";"(brûlé)";32.60
+"FR";"Produit du tabac";"Cigarette";"MARLBORO GOLD HARD PACK - 20 CIGARETTES [0B58B531C99F18D9]";27/3/2026 10:26:13;"TABAC (TYPE: VIRGINIE, SECHAGE: AIR CHAUD)";"-";"Tabac";"divers";"(brûlé)";252.40
+"FR";"Produit du tabac";"Cigarette";"MARLBORO GOLD HARD PACK - 20 CIGARETTES [0B58B531C99F18D9]";27/3/2026 10:26:13;"TABAC (TYPE: AUTRE, SECHAGE: AUTRE)";"-";"Tabac";"divers";"(brûlé)";114.70
+"FR";"Produit du tabac";"Cigarette";"MARLBORO GOLD HARD PACK - 20 CIGARETTES [0B58B531C99F18D9]";27/3/2026 10:26:13;"CELLULOSE ACETATE";"9004-35-7";"Materiau de filtration";"matériau de filtration";"(non brûlé)";108.80
+"FR";"Produit du tabac";"Cigarette";"MARLBORO GOLD HARD PACK - 20 CIGARETTES [0B58B531C99F18D9]";27/3/2026 10:26:13;"TABAC (TYPE: BURLEY, SECHAGE: AIR)";"-";"Tabac";"divers";"(brûlé)";68.40
+"FR";"Produit du tabac";"Cigarette";"MARLBORO GOLD HARD PACK - 20 CIGARETTES [0B58B531C99F18D9]";27/3/2026 10:26:13;"CELLULOSE";"65996-61-4";"Fibre";"emballage pour filtre";"(non brûlé)";49.20
+"FR";"Produit du tabac";"Cigarette";"MARLBORO GOLD HARD PACK - 20 CIGARETTES [0B58B531C99F18D9]";27/3/2026 10:26:13;"TABAC (TYPE: ORIENTAL, SECHAGE: SOLEIL)";"-";"Tabac";"divers";"(brûlé)";32.80
+"FR";"Produit du tabac";"Cigarette";"MARLBORO GOLD HARD PACK - 20 CIGARETTES [B950B28C9C7110AB]";27/3/2026 10:25:16;"TABAC (TYPE: VIRGINIE, SECHAGE: AIR CHAUD)";"-";"Tabac";"divers";"(brûlé)";243.70
+"FR";"Produit du tabac";"Cigarette";"MARLBORO GOLD HARD PACK - 20 CIGARETTES [B950B28C9C7110AB]";27/3/2026 10:25:16;"TABAC (TYPE: AUTRE, SECHAGE: AUTRE)";"-";"Tabac";"divers";"(brûlé)";118.30
+"FR";"Produit du tabac";"Cigarette";"MARLBORO GOLD HARD PACK - 20 CIGARETTES [B950B28C9C7110AB]";27/3/2026 10:25:16;"CELLULOSE ACETATE";"9004-35-7";"Materiau de filtration";"matériau de filtration";"(non brûlé)";103.80
+"FR";"Produit du tabac";"Cigarette";"MARLBORO GOLD HARD PACK - 20 CIGARETTES [B950B28C9C7110AB]";27/3/2026 10:25:16;"TABAC (TYPE: BURLEY, SECHAGE: AIR)";"-";"Tabac";"divers";"(brûlé)";73.00
+"FR";"Produit du tabac";"Cigarette";"MARLBORO GOLD HARD PACK - 20 CIGARETTES [B950B28C9C7110AB]";27/3/2026 10:25:16;"CELLULOSE";"65996-61-4";"Fibre";"emballage pour filtre";"(non brûlé)";49.20
+"FR";"Produit du tabac";"Cigarette";"MARLBORO GOLD HARD PACK - 20 CIGARETTES [B950B28C9C7110AB]";27/3/2026 10:25:16;"TABAC (TYPE: ORIENTAL, SECHAGE: SOLEIL)";"-";"Tabac";"divers";"(brûlé)";32.70
+"FR";"Produit du tabac";"Cigarette";"MARLBORO RED HARD PACK - 20 CIGARETTES [0722A5204328C253]";27/3/2026 10:20:50;"TABAC (TYPE: VIRGINIE, SECHAGE: AIR CHAUD)";"-";"Tabac";"divers";"(brûlé)";213.80
+"FR";"Produit du tabac";"Cigarette";"MARLBORO RED HARD PACK - 20 CIGARETTES [0722A5204328C253]";27/3/2026 10:20:50;"TABAC (TYPE: BURLEY, SECHAGE: AIR)";"-";"Tabac";"divers";"(brûlé)";138.80
+"FR";"Produit du tabac";"Cigarette";"MARLBORO RED HARD PACK - 20 CIGARETTES [0722A5204328C253]";27/3/2026 10:20:50;"TABAC (TYPE: AUTRE, SECHAGE: AUTRE)";"-";"Tabac";"divers";"(brûlé)";128.90
+"FR";"Produit du tabac";"Cigarette";"MARLBORO RED HARD PACK - 20 CIGARETTES [0722A5204328C253]";27/3/2026 10:20:50;"CELLULOSE ACETATE";"9004-35-7";"Materiau de filtration";"matériau de filtration";"(non brûlé)";91.40
+"FR";"Produit du tabac";"Cigarette";"MARLBORO RED HARD PACK - 20 CIGARETTES [0722A5204328C253]";27/3/2026 10:20:50;"CELLULOSE";"65996-61-4";"Fibre";"emballage pour filtre";"(non brûlé)";38.30
+"FR";"Produit du tabac";"Cigarette";"MARLBORO RED HARD PACK - 20 CIGARETTES [0722A5204328C253]";27/3/2026 10:20:50;"TABAC (TYPE: ORIENTAL, SECHAGE: SOLEIL)";"-";"Tabac";"divers";"(brûlé)";36.20
+"FR";"Produit du tabac";"Cigarette";"MARLBORO RED HARD PACK - 20 CIGARETTES [2B991D910E44EABC]";27/3/2026 10:26:12;"TABAC (TYPE: VIRGINIE, SECHAGE: AIR CHAUD)";"-";"Tabac";"divers";"(brûlé)";215.00
+"FR";"Produit du tabac";"Cigarette";"MARLBORO RED HARD PACK - 20 CIGARETTES [2B991D910E44EABC]";27/3/2026 10:26:12;"TABAC (TYPE: BURLEY, SECHAGE: AIR)";"-";"Tabac";"divers";"(brûlé)";139.90
+"FR";"Produit du tabac";"Cigarette";"MARLBORO RED HARD PACK - 20 CIGARETTES [2B991D910E44EABC]";27/3/2026 10:26:12;"TABAC (TYPE: AUTRE, SECHAGE: AUTRE)";"-";"Tabac";"divers";"(brûlé)";126.90
+"FR";"Produit du tabac";"Cigarette";"MARLBORO RED HARD PACK - 20 CIGARETTES [2B991D910E44EABC]";27/3/2026 10:26:12;"CELLULOSE ACETATE";"9004-35-7";"Materiau de filtration";"matériau de filtration";"(non brûlé)";90.30
+"FR";"Produit du tabac";"Cigarette";"MARLBORO RED HARD PACK - 20 CIGARETTES [2B991D910E44EABC]";27/3/2026 10:26:12;"CELLULOSE";"65996-61-4";"Fibre";"emballage pour filtre";"(non brûlé)";38.30
+"FR";"Produit du tabac";"Cigarette";"MARLBORO RED HARD PACK - 20 CIGARETTES [2B991D910E44EABC]";27/3/2026 10:26:12;"TABAC (TYPE: ORIENTAL, SECHAGE: SOLEIL)";"-";"Tabac";"divers";"(brûlé)";36.30
+"FR";"Produit du tabac";"Cigarette";"MARLBORO RED SOFT PACK - 20 CIGARETTES [2F1E006B1484D4F5]";27/3/2026 10:27:08;"TABAC (TYPE: VIRGINIE, SECHAGE: AIR CHAUD)";"-";"Tabac";"divers";"(brûlé)";212.20
+"FR";"Produit du tabac";"Cigarette";"MARLBORO RED SOFT PACK - 20 CIGARETTES [2F1E006B1484D4F5]";27/3/2026 10:27:08;"TABAC (TYPE: BURLEY, SECHAGE: AIR)";"-";"Tabac";"divers";"(brûlé)";140.30
+"FR";"Produit du tabac";"Cigarette";"MARLBORO RED SOFT PACK - 20 CIGARETTES [2F1E006B1484D4F5]";27/3/2026 10:27:08;"TABAC (TYPE: AUTRE, SECHAGE: AUTRE)";"-";"Tabac";"divers";"(brûlé)";128.90
+"FR";"Produit du tabac";"Cigarette";"MARLBORO RED SOFT PACK - 20 CIGARETTES [2F1E006B1484D4F5]";27/3/2026 10:27:08;"CELLULOSE ACETATE";"9004-35-7";"Materiau de filtration";"matériau de filtration";"(non brûlé)";84.90
+"FR";"Produit du tabac";"Cigarette";"MARLBORO RED SOFT PACK - 20 CIGARETTES [2F1E006B1484D4F5]";27/3/2026 10:27:08;"CELLULOSE";"65996-61-4";"Fibre";"emballage pour filtre";"(non brûlé)";38.30
+"FR";"Produit du tabac";"Cigarette";"MARLBORO RED SOFT PACK - 20 CIGARETTES [2F1E006B1484D4F5]";27/3/2026 10:27:08;"TABAC (TYPE: ORIENTAL, SECHAGE: SOLEIL)";"-";"Tabac";"divers";"(brûlé)";36.20
+"FR";"Produit du tabac";"Cigarette";"PETER STUYVESANT BLEU BY DUNHILL [0A7C98A4ACF6F55A]";21/5/2026 15:37:26;"TABAC (TYPE: VIRGINIE, SECHAGE: AIR CHAUD)";"-";"Tabac";"divers";"(brûlé)";324.94
+"FR";"Produit du tabac";"Cigarette";"PETER STUYVESANT BLEU BY DUNHILL [0A7C98A4ACF6F55A]";21/5/2026 15:37:26;"TABAC (TYPE: BURLEY, SECHAGE: AIR)";"-";"Tabac";"divers";"(brûlé)";133.42
+"FR";"Produit du tabac";"Cigarette";"PETER STUYVESANT BLEU BY DUNHILL [0A7C98A4ACF6F55A]";21/5/2026 15:37:26;"CELLULOSE ACETATE";"9004-35-7";"Materiau de filtration";"matériau de filtration";"(non brûlé)";121.98
+"FR";"Produit du tabac";"Cigarette";"PETER STUYVESANT BLEU BY DUNHILL [0A7C98A4ACF6F55A]";21/5/2026 15:37:26;"TABAC (TYPE: ORIENTAL, SECHAGE: SOLEIL)";"-";"Tabac";"divers";"(brûlé)";36.07
+"FR";"Produit du tabac";"Cigarette";"PETER STUYVESANT BLEU BY DUNHILL [0A7C98A4ACF6F55A]";21/5/2026 15:37:26;"TABAC (TYPE: NON SPECIFIE, SECHAGE: AUTRE)";"-";"Tabac";"divers";"(brûlé)";34.45
+"FR";"Produit du tabac";"Cigarette";"PETER STUYVESANT BLEU BY DUNHILL [0A7C98A4ACF6F55A]";21/5/2026 15:37:26;"CELLULOSE FIBRE";"9004-34-6";"Fibre";"papier";"(brûlé)";22.59
+"FR";"Produit du tabac";"Cigarette";"PETER STUYVESANT BLEU BY DUNHILL [7B469FB1A2D73559]";21/5/2026 15:37:26;"TABAC (TYPE: VIRGINIE, SECHAGE: AIR CHAUD)";"-";"Tabac";"divers";"(brûlé)";324.94
+"FR";"Produit du tabac";"Cigarette";"PETER STUYVESANT BLEU BY DUNHILL [7B469FB1A2D73559]";21/5/2026 15:37:26;"TABAC (TYPE: BURLEY, SECHAGE: AIR)";"-";"Tabac";"divers";"(brûlé)";133.42
+"FR";"Produit du tabac";"Cigarette";"PETER STUYVESANT BLEU BY DUNHILL [7B469FB1A2D73559]";21/5/2026 15:37:26;"CELLULOSE ACETATE";"9004-35-7";"Materiau de filtration";"matériau de filtration";"(non brûlé)";121.98
+"FR";"Produit du tabac";"Cigarette";"PETER STUYVESANT BLEU BY DUNHILL [7B469FB1A2D73559]";21/5/2026 15:37:26;"TABAC (TYPE: ORIENTAL, SECHAGE: SOLEIL)";"-";"Tabac";"divers";"(brûlé)";36.07
+"FR";"Produit du tabac";"Cigarette";"PETER STUYVESANT BLEU BY DUNHILL [7B469FB1A2D73559]";21/5/2026 15:37:26;"TABAC (TYPE: NON SPECIFIE, SECHAGE: AUTRE)";"-";"Tabac";"divers";"(brûlé)";34.45
+"FR";"Produit du tabac";"Cigarette";"PETER STUYVESANT BLEU BY DUNHILL [7B469FB1A2D73559]";21/5/2026 15:37:26;"CELLULOSE FIBRE";"9004-34-6";"Fibre";"papier";"(brûlé)";22.59
+"FR";"Produit du tabac";"Cigare";"COHIBA SIGLO I [3CFDCEB922C2C6D4]";6/2/2026 09:40:24;"TABAC (TYPE: BRUN, SECHAGE: AIR)";"-";"Tabac";"divers";"(brûlé)";5909.40
+"FR";"Produit du tabac";"Cigare";"COHIBA SIGLO I [4DBE35667815451E]";6/2/2026 09:40:24;"TABAC (TYPE: BRUN, SECHAGE: AIR)";"-";"Tabac";"divers";"(brûlé)";5909.40
+"FR";"Produit du tabac";"Cigarillo";"DAVIDOFF MINI CIGARILLOS SILVER [1631AFF8DE0D519F]";21/1/2026 13:11:48;"TABAC (TYPE: BRUN, SECHAGE: AIR)";"-";"Tabac";"divers";"(brûlé)";960.00
+"FR";"Produit du tabac";"Cigarillo";"DAVIDOFF MINI CIGARILLOS SILVER [1631AFF8DE0D519F]";21/1/2026 13:11:48;"AUTRES ADDITIFS";"-";"Divers";"Divers";"(divers)";1.00
+"FR";"Produit du tabac";"Cigarillo";"DAVIDOFF MINI CIGARILLOS SILVER [513CA0AF14ABD29E]";21/1/2026 13:11:48;"TABAC (TYPE: BRUN, SECHAGE: AIR)";"-";"Tabac";"divers";"(brûlé)";960.00
+"FR";"Produit du tabac";"Cigarillo";"DAVIDOFF MINI CIGARILLOS SILVER [513CA0AF14ABD29E]";21/1/2026 13:11:48;"AUTRES ADDITIFS";"-";"Divers";"Divers";"(divers)";1.00
+"FR";"Produit du tabac";"Tabac à rouler";"DRUM BLEU [226388CA4A204034]";27/5/2026 12:21:35;"TABAC (TYPE: VIRGINIE, SECHAGE: AIR CHAUD)";"-";"Tabac";"divers";"(brûlé)";308.88
+"FR";"Produit du tabac";"Tabac à rouler";"DRUM BLEU [226388CA4A204034]";27/5/2026 12:21:35;"TABAC (TYPE: KENTUCKY, SECHAGE: FEU)";"-";"Tabac";"divers";"(brûlé)";261.27
+"FR";"Produit du tabac";"Tabac à rouler";"DRUM BLEU [226388CA4A204034]";27/5/2026 12:21:35;"TABAC (TYPE: AUTRE, SECHAGE: AUTRE)";"-";"Tabac";"divers";"(brûlé)";71.27
+"FR";"Produit du tabac";"Tabac à rouler";"DRUM BLEU [226388CA4A204034]";27/5/2026 12:21:35;"TABAC (TYPE: BRUN, SECHAGE: AIR)";"-";"Tabac";"divers";"(brûlé)";47.46
+"FR";"Produit du tabac";"Tabac à rouler";"DRUM BLEU [226388CA4A204034]";27/5/2026 12:21:35;"INVERT SUGAR";"8013-17-0";"Renforçateur d'arôme et/ou du goût";"tabac";"(brûlé)";37.03
+"FR";"Produit du tabac";"Tabac à rouler";"DRUM BLEU [226388CA4A204034]";27/5/2026 12:21:35;"PROPYLENE GLYCOL";"57-55-6";"Humectant";"tabac";"(brûlé)";37.89
+"FR";"Produit du tabac";"Tabac à rouler";"DRUM BLOND [078E4953CB506285]";19/1/2026 13:44:51;"TABAC (TYPE: VIRGINIE, SECHAGE: AIR CHAUD)";"-";"Tabac";"divers";"(brûlé)";679.97
+"FR";"Produit du tabac";"Tabac à rouler";"DRUM BLOND [078E4953CB506285]";19/1/2026 13:44:51;"TABAC (TYPE: BURLEY, SECHAGE: AIR)";"-";"Tabac";"divers";"(brûlé)";190.40
+"FR";"Produit du tabac";"Tabac à rouler";"DRUM BLOND [078E4953CB506285]";19/1/2026 13:44:51;"WATER";"7732-18-5";"Humectant";"tabac";"(brûlé)";121.32
+"FR";"Produit du tabac";"Tabac à rouler";"DRUM BLOND [078E4953CB506285]";19/1/2026 13:44:51;"TABAC (TYPE: BRUN, SECHAGE: AIR)";"-";"Tabac";"divers";"(brûlé)";81.59
+"FR";"Produit du tabac";"Tabac à rouler";"DRUM BLOND [078E4953CB506285]";19/1/2026 13:44:51;"PROPYLENE GLYCOL";"57-55-6";"Humectant";"tabac";"(brûlé)";37.61
+"FR";"Produit du tabac";"Tabac à rouler";"DRUM BLOND [078E4953CB506285]";19/1/2026 13:44:51;"INVERT SUGAR";"8013-17-0";"Renforçateur d'arôme et/ou du goût";"tabac";"(brûlé)";9.98
+"FR";"Produit du tabac";"Tabac à rouler";"DRUM BLOND [56CC17BBCF9558BB]";23/1/2026 10:02:41;"TABAC (TYPE: VIRGINIE, SECHAGE: AIR CHAUD)";"-";"Tabac";"divers";"(brûlé)";277.38
+"FR";"Produit du tabac";"Tabac à rouler";"DRUM BLOND [56CC17BBCF9558BB]";23/1/2026 10:02:41;"TABAC (TYPE: BRUN, SECHAGE: AIR)";"-";"Tabac";"divers";"(brûlé)";277.46
+"FR";"Produit du tabac";"Tabac à rouler";"DRUM BLOND [56CC17BBCF9558BB]";23/1/2026 10:02:41;"TABAC (TYPE: BURLEY, SECHAGE: AIR)";"-";"Tabac";"divers";"(brûlé)";166.44
+"FR";"Produit du tabac";"Tabac à rouler";"DRUM BLOND [56CC17BBCF9558BB]";23/1/2026 10:02:41;"TABAC (TYPE: AUTRE, SECHAGE: AUTRE)";"-";"Tabac";"divers";"(brûlé)";110.93
+"FR";"Produit du tabac";"Tabac à rouler";"DRUM BLOND [56CC17BBCF9558BB]";23/1/2026 10:02:41;"PROPYLENE GLYCOL";"57-55-6";"Humectant";"tabac";"(brûlé)";37.55
+"FR";"Produit du tabac";"Tabac à rouler";"DRUM BLOND [56CC17BBCF9558BB]";23/1/2026 10:02:41;"INVERT SUGAR";"8013-17-0";"Renforçateur d'arôme et/ou du goût";"tabac";"(brûlé)";9.97
+"FR";"Produit du tabac";"Cigarette";"MARLBORO GOLD TOUCH HARD PACK - 20 CIGARETTES [T0B58B531C99F18D9]";27/3/2026 10:26:13;"TABAC (TYPE: VIRGINIE, SECHAGE: AIR CHAUD)";"-";"Tabac";"divers";"(brûlé)";252.40
+"FR";"Produit du tabac";"Cigarette";"MARLBORO GOLD TOUCH HARD PACK - 20 CIGARETTES [T0B58B531C99F18D9]";27/3/2026 10:26:13;"TABAC (TYPE: AUTRE, SECHAGE: AUTRE)";"-";"Tabac";"divers";"(brûlé)";114.70
+"FR";"Produit du tabac";"Cigarette";"MARLBORO GOLD TOUCH HARD PACK - 20 CIGARETTES [T0B58B531C99F18D9]";27/3/2026 10:26:13;"CELLULOSE ACETATE";"9004-35-7";"Materiau de filtration";"matériau de filtration";"(non brûlé)";108.80

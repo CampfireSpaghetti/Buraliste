@@ -9,6 +9,7 @@ import { actions, useProducts } from '../../store';
 import { Panel } from '../../ui/Panel';
 import { SubstitutesList } from './SubstitutesList';
 import { LotsSection } from './LotsTable';
+import { CompositionSection } from './CompositionSection';
 import { rangeProfile } from '../../domain/rangeProfile';
 import type { Product } from '../../domain/types';
 import './catalog.css';
@@ -86,6 +87,7 @@ export function ProductSheet({ id }: { id: string }) {
         {f.notes && (<><dt>Notes</dt><dd>{f.notes}</dd></>)}
       </dl>
       {game && <LotsSection fdjRef={product.fdjRef} />}
+      {!game && product.douaneRef && <CompositionSection douaneRef={product.douaneRef} />}
       <CodesSection id={id} product={product} />
       {estimated && <p className="estimate">Force et goût : estimations de départ, modifiables.</p>}
       <div className="row">

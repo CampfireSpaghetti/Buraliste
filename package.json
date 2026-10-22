@@ -13,6 +13,7 @@
     "postinstall": "node scripts/copy-zxing.mjs",
     "fdj:update": "node scripts/fdj/update.ts",
     "fdj:lots": "node scripts/fdj/lots.ts",
+    "anses:update": "node scripts/anses/update.ts",
     "relay:mock": "node scripts/mock-relay.ts"
   },
   "dependencies": {

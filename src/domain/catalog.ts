@@ -15,6 +15,7 @@ export type RefItem = {
   price?: number;
   previousPrice?: number;
   status: 'nouveau' | 'retrait' | 'inchange';
+  barcodes?: string[]; // EAN déclarés à l'ANSES (références rapprochées, voir scripts/anses) : codes officiels
 };
 
 export type ReferenceFile = { version: string; effectiveDate: string; source: string; items: RefItem[] };
@@ -64,6 +65,7 @@ function baseFor(item: RefItem, effectiveDate: string, depart?: DepartItem): Par
     name: item.name,
     brand: item.brand,
     format: item.format,
+    barcodes: Array.isArray(item.barcodes) && item.barcodes.length ? item.barcodes.filter((c) => typeof c === 'string' && c !== '') : undefined,
     price: item.price,
     previousPrice: item.previousPrice,
     status: item.status,

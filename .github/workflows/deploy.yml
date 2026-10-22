@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
   schedule:
-    - cron: '17 4 * * 1' # chaque lundi 04:17 UTC : listes Douane et FDJ, codes en retard
+    - cron: '17 4 * * 1' # chaque lundi 04:17 UTC : listes Douane et FDJ, composition ANSES, codes en retard
   workflow_dispatch:
   issues:
     types: [opened] # codes-barres envoyés par les téléphones, par le relais
@@ -192,6 +192,13 @@ jobs:
         if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         continue-on-error: true
         run: npm run fdj:lots
+      - name: Mise à jour de la composition ANSES
+        id: anses
+        # Après la liste Douane (rapprochement des références ; EAN ajoutés aux codes officiels). Fichiers data.gouv.fr
+        # mis à jour environ chaque mois : sans changement, rien n'est réécrit. En échec, la dernière composition est gardée.
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        continue-on-error: true
+        run: npm run anses:update
       - name: Codes-barres reçus des téléphones (par le relais)
         id: codes
         if: github.event_name != 'push'
@@ -210,7 +217,7 @@ jobs:
             git config user.name "la-carotte-bot"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git add public/data
-            git commit -m "chore: listes partagées du $(date +%Y-%m-%d) (Douane, FDJ, codes-barres)"
+            git commit -m "chore: listes partagées du $(date +%Y-%m-%d) (Douane, FDJ, ANSES, codes-barres)"
             git pull --rebase origin main
             git push
           fi
@@ -285,7 +292,7 @@ jobs:
             fi
           done
       - name: Signaler une source qui n'a pas pu être lue
-        if: steps.refs.outcome == 'failure' || steps.fdj.outcome == 'failure' || steps.lots.outcome == 'failure'
+        if: steps.refs.outcome == 'failure' || steps.fdj.outcome == 'failure' || steps.lots.outcome == 'failure' || steps.anses.outcome == 'failure'
         run: |
-          echo "::error::Liste Douane : ${{ steps.refs.outcome }} · Liste FDJ : ${{ steps.fdj.outcome }} · Lots FDJ : ${{ steps.lots.outcome }}. L'app garde la dernière liste connue."
+          echo "::error::Liste Douane : ${{ steps.refs.outcome }} · Liste FDJ : ${{ steps.fdj.outcome }} · Lots FDJ : ${{ steps.lots.outcome }} · Composition ANSES : ${{ steps.anses.outcome }}. L'app garde la dernière liste connue."
           exit 1
