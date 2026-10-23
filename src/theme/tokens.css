@@ -17,6 +17,7 @@
   --highlight: #fbe7b5;
   --danger: #b3261e;
   --ok: #2e6b3f;
+  --toast-bg: var(--encre);
 
   --font-display: 'Alfa Slab One', Georgia, serif;
   --font-body: 'Barlow Semi Condensed', system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -37,6 +38,7 @@
     --laiton-texte: #d9b26a;
     --danger: #ff8a80;
     --ok: #7fd18f;
+    --toast-bg: #313a50; /* plus clair que le fond : le message se détache en sombre */
     color-scheme: dark;
   }
 }

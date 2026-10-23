@@ -15,10 +15,12 @@ import { rangeProfile } from '../../domain/rangeProfile';
 import type { Product } from '../../domain/types';
 import './catalog.css';
 
-export function ProductSheet({ id }: { id: string }) {
+export function ProductSheet({ id, notice }: { id: string; notice?: string }) {
   const nav = useNav();
   const products = useProducts();
   const [showSubs, setShowSubs] = useState(false);
+  const [flash, setFlash] = useState(notice);
+  const closeFlash = useCallback(() => setFlash(undefined), []);
   const product = products?.find((p) => p.id === id);
   // Lots du jeu (fdj-lots.json) : chargés avant tout retour anticipé (règle des hooks).
   const lots = useLots(product?.fdjRef);
@@ -100,6 +102,7 @@ export function ProductSheet({ id }: { id: string }) {
           {inCompare ? 'Retirer de la comparaison' : 'Ajouter à la comparaison'}
         </button>
       </div>
+      {flash && <Toast message={flash} onDone={closeFlash} />}
     </Panel>
   );
 }

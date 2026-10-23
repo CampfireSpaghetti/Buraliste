@@ -3,7 +3,7 @@ import type { Kind } from './domain/types';
 import { pushRecent } from './store';
 
 export type View =
-  | { type: 'product'; id: string }
+  | { type: 'product'; id: string; notice?: string } // notice : confirmation affichée à l'ouverture (code ajouté…)
   | { type: 'create'; code?: string; kind?: Kind; then?: 'count' }
   | { type: 'edit'; id: string }
   | { type: 'attach'; code: string }

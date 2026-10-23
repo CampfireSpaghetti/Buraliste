@@ -170,3 +170,17 @@ test('un jeu enlevé de la liste ne revient pas tout seul', async ({ page }) => 
   await addLine(page, 'Astro', '3', '0'); // « + Ligne » le remet
   await expect(page.getByRole('button', { name: 'Linéaire Astro : 3' })).toBeVisible();
 });
+
+test('EAN inconnu au comptage (carnet, boîte) : rattaché à un jeu existant, puis reconnu seul', async ({ page }) => {
+  await page.getByRole('button', { name: 'Scanner', exact: true }).first().click();
+  await scan(page, '3760000000024');
+  const dlg = page.getByRole('dialog', { name: "C'est quel jeu ?" });
+  await expect(dlg).toBeVisible();
+  await expect(dlg.getByRole('button', { name: '+ Nouveau jeu' })).toBeVisible();
+  await dlg.getByRole('button', { name: /Cash/ }).click();
+  await typeBoth(page, '4', '20');
+  await page.waitForTimeout(1600); // anti-doublon
+  await scan(page, '3760000000024');
+  await expect(page.getByRole('dialog', { name: "C'est quel jeu ?" })).toHaveCount(0);
+  await expect(keypad(page)).toContainText('Cash');
+});

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveScan, learnFdjCode, createScanDebouncer, effectiveFields, gameCandidates, withUserBarcode, withoutUserCode, codeRows, TRACEABILITY_MESSAGE } from '../../src/domain/matching';
+import { resolveScan, learnFdjCode, attachCodePatch, createScanDebouncer, effectiveFields, gameCandidates, withUserBarcode, withoutUserCode, codeRows, TRACEABILITY_MESSAGE } from '../../src/domain/matching';
 import type { Product, ProductFields } from '../../src/domain/types';
 
 function p(id: string, base: Partial<ProductFields>, user: Partial<ProductFields> = {}): Product {
@@ -233,5 +233,28 @@ describe('createScanDebouncer', () => {
     expect(accept('A', 1000)).toBe(false);
     expect(accept('B', 1100)).toBe(true);
     expect(accept('A', 2600)).toBe(true);
+  });
+});
+
+describe('attachCodePatch (rattacher un code à une fiche existante)', () => {
+  const cig = p('cig', { kind: 'cigarette', name: 'Cig' });
+  const cash = game('cash', { barcodes: ['04170012345678'] });
+  it('tabac : le code-barres rejoint la couche user', () => {
+    expect(attachCodePatch(cig, '3017620422003', [cig, cash])).toEqual({ barcodes: ['3017620422003'] });
+  });
+  it('jeu existant + EAN : code ajouté tel quel, aucun préfixe appris (un EAN ne désigne pas une série de tickets)', () => {
+    const g = game('g', {}, );
+    const known = { ...g, user: { barcodes: ['3760000000017'] } };
+    expect(attachCodePatch(known, '3760000000024', [known, cig])).toEqual({ barcodes: ['3760000000017', '3760000000024'] });
+  });
+  it('jeu existant + ticket : comme au comptage (code complet et préfixe appris)', () => {
+    expect(attachCodePatch(cash, '04170099999999', [cash])).toEqual(learnFdjCode(cash, '04170099999999', [cash]));
+  });
+  it('jeu existant + ticket confirmé : le numéro du catalogue est retenu', () => {
+    expect(attachCodePatch(cash, '8710500100012', [cash], { confirmedPrefix: '87105' })).toEqual({ barcodes: ['8710500100012'], fdjPrefixes: ['87105'] });
+  });
+  it('après rattachement, le scan de l’EAN ouvre le jeu', () => {
+    const after = { ...cash, user: attachCodePatch(cash, '3760000000024', [cash]) };
+    expect(resolveScan('3760000000024', [cig, after])).toEqual({ type: 'product', product: after });
   });
 });

@@ -31,7 +31,7 @@ export default defineConfig(({ mode }) => ({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,woff2,wasm,json,png,svg}'],
+        globPatterns: ['**/*.{js,css,html,woff2,wasm,json,png,svg,webp}'],
         // Composition ANSES : trop grosse pour le précache (téléchargée à la première fiche de tabac ouverte), gardée
         // ensuite par le service worker pour le hors-ligne, et rafraîchie en arrière-plan.
         globIgnores: ['**/data/composition.json'],

@@ -1,0 +1,5 @@
+/* Plaque à onglets : le choix actif prend le bordeaux de l'enseigne, filet laiton dessous. */
+.segmented { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; padding: 4px; border-radius: calc(var(--radius) + 4px); background: var(--surface); border: 2px solid var(--fg); }
+.segment { min-height: 44px; padding: 0 8px; border: 0; border-radius: var(--radius); background: transparent; color: var(--fg); font-weight: 700; line-height: 1.15; }
+.segment.on { background: var(--accent); color: var(--accent-fg); box-shadow: inset 0 -3px 0 var(--laiton); }
+.segment:not(.on):active { background: var(--bg); }
