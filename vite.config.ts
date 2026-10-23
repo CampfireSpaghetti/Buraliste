@@ -12,7 +12,7 @@ export default defineConfig(({ mode }) => ({
     relayCspPlugin(() => process.env.VITE_RELAY_URL ?? loadEnv(mode, process.cwd(), 'VITE_').VITE_RELAY_URL),
     VitePWA({
       registerType: 'prompt',
-      includeAssets: ['icons/favicon.svg', 'icons/apple-touch-icon.png'],
+      includeAssets: ['icons/favicon.png', 'icons/apple-touch-icon.png'],
       manifest: {
         name: 'La Carotte',
         short_name: 'La Carotte',
