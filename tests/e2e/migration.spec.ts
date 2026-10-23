@@ -49,7 +49,7 @@ const v4Data = {
 /** Crée la base v4 avec l'API IndexedDB brute (sans Dexie), avant que l'app ne soit chargée. */
 async function createV4Database(page: Page) {
   // Une page de la même origine qui ne charge pas l'app.
-  await page.goto('./icons/favicon.svg');
+  await page.goto('./icons/favicon.png');
   await page.evaluate(async (data) => {
     localStorage.setItem('carotte:recent', JSON.stringify(data.recent));
     await new Promise<void>((resolve, reject) => {

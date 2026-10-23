@@ -1,11 +1,7 @@
+/* Icône de l'app en miniature : enseigne TABAC dans le viseur, coins arrondis comme sur l'écran d'accueil. */
 .carotte {
-  display: inline-grid; place-items: center; flex: none;
-  background: var(--carotte); color: var(--email);
-  clip-path: polygon(50% 0, 100% 30%, 100% 70%, 50% 100%, 0 70%, 0 30%);
-}
-.carotte::after {
-  content: ''; width: 60%; height: 2px; background: currentColor;
-  box-shadow: 0 -8px 0 currentColor, 0 8px 0 currentColor;
+  display: block; flex: none; border-radius: 22%;
+  box-shadow: 0 0 0 1.5px var(--laiton), 0 2px 6px rgba(0, 0, 0, .35);
 }
 .carotte.bounce { animation: carotte-bounce .7s cubic-bezier(.3, 1.6, .5, 1); }
 @keyframes carotte-bounce {
