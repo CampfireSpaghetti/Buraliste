@@ -272,6 +272,19 @@ export async function addCountLines(lines: CountLine[]): Promise<void> {
   });
 }
 
+/**
+ * Remise à zéro du comptage (partagée) : chaque ligne comptée repasse à 0 / 0, « jamais comptée » (updatedAt 0). Les
+ * lignes restent dans la liste. Renvoie les lignes telles qu'elles étaient, pour « Annuler » (restoreCountLine).
+ */
+export async function resetCountLines(): Promise<CountLine[]> {
+  return db.transaction('rw', db.countLines, db.opsOut, db.syncState, async () => {
+    const counted = (await db.countLines.toArray()).filter((l) => l.deleted !== true && (l.linearQty !== 0 || l.stockQty !== 0 || l.updatedAt !== 0));
+    const previous = counted.map((l) => withoutClock<CountLine>(l));
+    for (const l of previous) await writeShared('line', l.id, { ...l, linearQty: 0, stockQty: 0, updatedAt: 0 });
+    return previous;
+  });
+}
+
 /** Remet une ligne supprimée telle quelle (garde sa date de modification). */
 export async function restoreCountLine(line: CountLine): Promise<CountLine> {
   return writeShared('line', line.id, { ...withoutClock<CountLine>(line), deleted: false });

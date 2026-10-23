@@ -184,3 +184,27 @@ test('EAN inconnu au comptage (carnet, boîte) : rattaché à un jeu existant, p
   await expect(page.getByRole('dialog', { name: "C'est quel jeu ?" })).toHaveCount(0);
   await expect(keypad(page)).toContainText('Cash');
 });
+
+test('remise à zéro : confirmation, tout à 0, les jeux restent ; « Annuler » rend le comptage', async ({ page }) => {
+  await expect(page.getByRole('button', { name: 'Remettre à zéro' })).toBeDisabled(); // rien de compté
+  await addLine(page, 'Millionnaire', '12', '100');
+  await page.getByRole('button', { name: 'Linéaire Cash : 0' }).click();
+  await type(page, '5');
+  await type(page, '30');
+  await page.getByRole('button', { name: 'Remettre à zéro' }).click();
+  const dlg = page.getByRole('dialog', { name: 'Remettre le comptage à zéro' });
+  await expect(dlg).toContainText('2 jeux repassent à 0');
+  await dlg.getByRole('button', { name: 'Annuler' }).click();
+  await expect(page.getByRole('button', { name: 'Linéaire Cash : 5' })).toBeVisible();
+  await page.getByRole('button', { name: 'Remettre à zéro' }).click();
+  await page.getByRole('dialog', { name: 'Remettre le comptage à zéro' }).getByRole('button', { name: 'Remettre à zéro' }).click();
+  for (const name of ['Cash', 'Astro', 'Millionnaire']) {
+    await expect(page.getByRole('button', { name: `Linéaire ${name} : 0` })).toBeVisible();
+    await expect(page.getByRole('button', { name: `Stock ${name} : 0` })).toBeVisible();
+  }
+  await expect(page.getByRole('button', { name: 'Remettre à zéro' })).toBeDisabled();
+  await page.getByRole('status').getByRole('button', { name: 'Annuler' }).click();
+  await expect(page.getByRole('button', { name: 'Linéaire Cash : 5' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Stock Cash : 30' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Stock Millionnaire : 100' })).toBeVisible();
+});

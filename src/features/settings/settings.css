@@ -16,3 +16,9 @@
 .sync-state .sync-dot { width: 12px; height: 12px; border-color: var(--line); vertical-align: middle; font-size: 9px; }
 .sync-state .sync-dot.sync-connexion { border-color: var(--muted); }
 .sync-state .error { margin: 0; }
+.install-card .steps svg { margin: 0 2px; }
+.install-help summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; font-weight: 700; color: var(--accent); }
+.install-help ul { margin: 0 0 6px; padding-left: 18px; display: flex; flex-direction: column; gap: 8px; font-size: 15px; }
+.install-help svg { vertical-align: middle; }
+.install-url { gap: 6px; }
+.install-url-value { font-weight: 700; overflow-wrap: anywhere; }

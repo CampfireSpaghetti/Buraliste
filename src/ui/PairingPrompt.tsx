@@ -101,7 +101,7 @@ export function PairingPrompt() {
         <Sheet label="Sur l’écran d’accueil" onClose={() => setIosHint(false)}>
           <h3>Sur l’écran d’accueil</h3>
           <p style={{ margin: 0 }}>
-            Pour l’avoir sur l’écran d’accueil : ouvrez ce lien dans Safari, puis Partager → « Sur l’écran d’accueil ».
+            Pour l’avoir sur l’écran d’accueil : ouvrez ce lien dans Safari, puis Menu de la page (•••) → Partager → « Sur l’écran d’accueil ».
             Ensuite, ouvrez l’app, touchez le nom du tabac en haut → Rejoindre un tabac → Coller le lien d’invitation.
           </p>
           <button type="button" className="btn accent" onClick={() => setIosHint(false)}>Compris</button>

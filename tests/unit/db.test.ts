@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto';
 import Dexie from 'dexie';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { db, listProducts, patchUserFields, upsertCountLine, deleteCountLine, restoreCountLine, listCountLines, getSettings, saveSettings } from '../../src/data/db';
+import { db, listProducts, patchUserFields, upsertCountLine, deleteCountLine, restoreCountLine, resetCountLines, listCountLines, getSettings, saveSettings } from '../../src/data/db';
 import { syncReferences, syncFdjGames } from '../../src/data/referencesSync';
 import type { FdjGamesFile } from '../../src/domain/fdj';
 import type { ReferenceFile } from '../../src/domain/catalog';
@@ -50,6 +50,20 @@ describe('lignes de comptage', () => {
     expect(await listCountLines()).toHaveLength(0);
     await restoreCountLine(removed);
     expect(await listCountLines()).toEqual([saved]);
+  });
+  it('remise à zéro : quantités à 0 et « jamais compté » ; Annuler rend tout tel quel', async () => {
+    await upsertCountLine({ id: 'l1', code: '0417', name: 'Cash', linearQty: 3, stockQty: 12, updatedAt: 0 });
+    await upsertCountLine({ id: 'l2', code: '', name: 'Millionnaire', linearQty: 0, stockQty: 4, updatedAt: 0 });
+    await db.countLines.put({ id: 'l3', code: '', name: 'Astro', linearQty: 0, stockQty: 0, updatedAt: 0 });
+    const before = await listCountLines();
+    const previous = await resetCountLines();
+    expect(previous.map((l) => l.id).sort()).toEqual(['l1', 'l2']); // une ligne déjà à 0 n'est pas réécrite
+    const after = await listCountLines();
+    expect(after).toHaveLength(3);
+    expect(after.every((l) => l.linearQty === 0 && l.stockQty === 0 && l.updatedAt === 0)).toBe(true);
+    for (const l of previous) await restoreCountLine(l);
+    const strip = (ls: typeof before) => ls.map(({ _clock: _c, ...l }: any) => l).sort((a, b) => a.id.localeCompare(b.id));
+    expect(strip(await listCountLines())).toEqual(strip(before));
   });
 });
 

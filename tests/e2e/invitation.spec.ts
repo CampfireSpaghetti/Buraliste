@@ -226,7 +226,7 @@ test('iPhone, lien ouvert dans Safari : après avoir rejoint, astuce pour l’é
   await B.page.getByRole('dialog', { name: 'Rejoindre « Tabac de la Gare » ?' }).getByRole('button', { name: 'Rejoindre' }).click();
   await expect(shopName(B.page)).toHaveText('Tabac de la Gare');
   const hint = B.page.getByRole('dialog', { name: 'Sur l’écran d’accueil' });
-  await expect(hint).toContainText('Pour l’avoir sur l’écran d’accueil : ouvrez ce lien dans Safari, puis Partager → « Sur l’écran d’accueil ». Ensuite, ouvrez l’app, touchez le nom du tabac en haut → Rejoindre un tabac → Coller le lien d’invitation.');
+  await expect(hint).toContainText('Pour l’avoir sur l’écran d’accueil : ouvrez ce lien dans Safari, puis Menu de la page (•••) → Partager → « Sur l’écran d’accueil ». Ensuite, ouvrez l’app, touchez le nom du tabac en haut → Rejoindre un tabac → Coller le lien d’invitation.');
   await expect(hint).not.toContainText('Mes tabacs');
   await hint.getByRole('button', { name: 'Compris' }).click();
   await expect(hint).toHaveCount(0);

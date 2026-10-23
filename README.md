@@ -5,6 +5,7 @@ L'outil de poche du buraliste, pour iPhone et Android :
 - **Scanner** un produit avec l'appareil photo et voir sa fiche (force, goût, origine, prix officiel) ;
 - **Proposer un remplaçant** quand un produit manque ;
 - **Compter les jeux de grattage** et envoyer le comptage en image .jpg sur Google Drive (par le menu Partager, sans accès de l'app au Drive).
+- **Remettre le comptage à zéro** en un geste (avec confirmation, export proposé avant, et « Annuler »).
 
 C'est une application web installable (PWA) : gratuite, sans App Store ni Play Store, elle fonctionne hors connexion. Les données sont enregistrées sur le téléphone. Dès que l'administrateur a mis le relais en service (voir plus bas), les données de chaque tabac sont envoyées automatiquement, **chiffrées**, pour être partagées avec les téléphones de ce tabac, et seulement eux.
 
@@ -12,7 +13,7 @@ C'est une application web installable (PWA) : gratuite, sans App Store ni Play S
 
 Adresse : **https://wongmichel2048.github.io/Buraliste/**
 
-- **iPhone (Safari)** : ouvrir l'adresse → bouton Partager → « Sur l'écran d'accueil ».
+- **iPhone (Safari, iOS 26 et suivants)** : ouvrir l'adresse dans Safari → bouton **Menu de la page** (•••, à côté de l'adresse) → **Partager** → faire défiler → **« Sur l'écran d'accueil »** → laisser **« Ouvrir comme app web »** activé → **Ajouter**. Si « Sur l'écran d'accueil » n'apparaît pas : tout en bas de la liste, « Modifier les actions ». Un lien ouvert depuis WhatsApp, Messages ou Gmail doit d'abord être ouvert dans Safari. iOS 18 et avant : bouton Partager en bas de l'écran → « Sur l'écran d'accueil ». Le guide pas à pas est aussi dans l'app : **Réglages** → **Installer sur mon téléphone**.
 - **Android (Chrome)** : ouvrir l'adresse → menu ⋮ → « Installer l'application ».
 
 ## Plusieurs tabacs, plusieurs employés
