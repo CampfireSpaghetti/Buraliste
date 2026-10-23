@@ -1,6 +1,6 @@
 import { db } from './data/db';
 import { TEST_SCAN_EVENT } from './features/scanner/feedback';
-import type { CountLine, Product, Settings } from './domain/types';
+import type { CountLine, Product, Settings, Task } from './domain/types';
 import { notifyDataChanged } from './store';
 import type { SyncEngine } from './sync/engine';
 
@@ -16,8 +16,13 @@ export function testModeEnabled(): boolean {
 export function installTestHooks() {
   const w = window as unknown as Record<string, unknown>;
   w.__carotteScan = (code: string, format?: string) => window.dispatchEvent(new CustomEvent(TEST_SCAN_EVENT, { detail: format ? { code, format } : code }));
-  w.__carotteSeed = async (data: { products?: Product[]; countLines?: CountLine[]; settings?: Partial<Settings> }) => {
-    await db.transaction('rw', db.products, db.countLines, db.settings, async () => {
+  w.__carotteSeed = async (data: { products?: Product[]; countLines?: CountLine[]; settings?: Partial<Settings>; tasks?: Task[] }) => {
+    await db.transaction('rw', [db.products, db.countLines, db.settings, db.tasks], async () => {
+      // Tâches : remplacées seulement si le test en donne (sinon la liste de base, créée au démarrage, reste).
+      if (data.tasks) {
+        await db.tasks.clear();
+        await db.tasks.bulkPut(data.tasks);
+      }
       await Promise.all([db.products.clear(), db.countLines.clear(), db.settings.clear()]);
       await db.products.bulkPut(data.products ?? []);
       await db.countLines.bulkPut(data.countLines ?? []);
