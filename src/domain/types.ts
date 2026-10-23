@@ -78,3 +78,15 @@ export interface Settings {
 
 export const TASTES = ['doux', 'léger', 'équilibré', 'corsé', 'intense', 'boisé', 'épicé', 'terreux', 'vanillé', 'fruité', 'crémeux', 'torréfié', 'herbacé'] as const;
 export const GAME_TYPES = ['classique', 'gros lot', 'thématique', 'multi-chances'] as const;
+
+export type Service = 'matin' | 'apres-midi';
+
+/** Tâche de la liste « À faire » (partagée entre les téléphones du tabac). */
+export interface Task {
+  id: string;
+  label: string;
+  service: Service;
+  order: number; // rang dans le service (nombres à virgule : un déplacement n'écrit que la tâche déplacée)
+  doneAt: number; // heure où la tâche a été cochée (ms) ; 0 = pas faite
+  deleted?: boolean; // supprimée (gardée pour la synchronisation, jamais affichée)
+}
