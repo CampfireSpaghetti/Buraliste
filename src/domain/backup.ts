@@ -1,8 +1,9 @@
 import { migrateLegacyLine } from './count';
 import { productIdMap, remapProductIds } from './productId';
-import type { CountLine, Product, Settings } from './types';
+import type { CountLine, Product, Settings, Task } from './types';
 
-export type BackupData = { products: Product[]; countLines: CountLine[]; settings: Settings };
+/** `tasks` : liste « À faire » (absente des sauvegardes d'avant, qui restent valides). */
+export type BackupData = { products: Product[]; countLines: CountLine[]; settings: Settings; tasks?: Task[] };
 export type BackupFile = { app: 'la-carotte'; schema: 2; exportedAt: number } & BackupData;
 
 const SCHEMA = 2;
@@ -23,6 +24,11 @@ const validQty = (q: unknown) => Number.isInteger(q) && (q as number) >= 0 && (q
 function validLine(l: unknown): boolean {
   return isObj(l) && typeof l.id === 'string' && typeof l.name === 'string' && typeof l.code === 'string'
     && typeof l.updatedAt === 'number' && validQty(l.linearQty) && validQty(l.stockQty);
+}
+
+function validTask(t: unknown): boolean {
+  return isObj(t) && typeof t.id === 'string' && typeof t.label === 'string' && (t.service === 'matin' || t.service === 'apres-midi')
+    && Number.isFinite(t.order) && Number.isFinite(t.doneAt);
 }
 
 function validProduct(p: unknown): boolean {
@@ -48,7 +54,8 @@ export function parseBackup(text: string): { ok: true; data: BackupFile } | { ok
   const ok =
     Array.isArray(raw.products) && raw.products.every(validProduct)
     && Array.isArray(raw.countLines) && raw.countLines.every(validLine)
-    && isObj(raw.settings) && typeof raw.settings.shopName === 'string';
+    && isObj(raw.settings) && typeof raw.settings.shopName === 'string'
+    && (raw.tasks === undefined || (Array.isArray(raw.tasks) && raw.tasks.every(validTask)));
   if (!ok) return { ok: false, error: BROKEN };
   return { ok: true, data: raw as unknown as BackupFile };
 }
@@ -62,7 +69,7 @@ export function withStableIds(data: BackupData): BackupData {
   if (map.size === 0) return data;
   const c = remapProductIds({ products: data.products, lines: data.countLines, hiddenGames: data.settings.hiddenGames }, map);
   const settings = c.hiddenChanged ? { ...data.settings, hiddenGames: c.hiddenGames } : data.settings;
-  return { products: c.products, countLines: c.lines, settings };
+  return { products: c.products, countLines: c.lines, settings, tasks: data.tasks };
 }
 
 /** Rappel si la dernière sauvegarde a plus de 7 jours, ou s'il n'y en a jamais eu alors que des données existent. */
