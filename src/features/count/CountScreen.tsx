@@ -25,7 +25,7 @@ type KeypadTarget = {
 };
 const FIELD_LABEL: Record<QtyField, string> = { linearQty: 'Linéaire', stockQty: 'Stock' };
 type LineForm = { mode: 'new' } | { mode: 'edit'; line: CountLine };
-type ToastState = { message: string; undo?: CountLine };
+type ToastState = { message: string; undo?: CountLine; undoReset?: CountLine[] };
 
 export function CountScreen() {
   const products = useProducts();
@@ -42,6 +42,7 @@ export function CountScreen() {
   const [counted, setCounted] = useState<Set<string>>(new Set());
   const [toast, setToast] = useState<ToastState | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [resetting, setResetting] = useState(false);
 
   const sortBy = settings?.sortCount ?? 'name';
   const lines = useMemo(() => sortLines(rawLines ?? [], sortBy), [rawLines, sortBy]);
@@ -109,6 +110,13 @@ export function CountScreen() {
     setToast({ message: 'Ligne supprimée', undo: removed });
   };
 
+  const nonZero = lines.filter((l) => l.linearQty > 0 || l.stockQty > 0).length;
+  const reset = async () => {
+    setResetting(false);
+    const previous = await actions.resetCountLines();
+    setToast({ message: 'Comptage remis à zéro', undoReset: previous });
+  };
+
   const closeToast = useCallback(() => setToast(null), []);
   const paused = !!(keypad || ask || confirm || newGame || lineForm);
 
@@ -147,10 +155,13 @@ export function CountScreen() {
             <button type="button" className="btn" onClick={() => setLineForm({ mode: 'new' })}>+ Ligne</button>
             <button type="button" className="btn primary" disabled={lines.length === 0} onClick={() => setExporting(true)}>Export .jpg</button>
           </div>
-          <div className="sortbar chips" role="group" aria-label="Trier">
-            <span className="label">Trier :</span>
-            <button type="button" className={'chip' + (sortBy === 'name' ? ' on' : '')} aria-pressed={sortBy === 'name'} onClick={() => actions.saveSettings({ sortCount: 'name' })}>Nom</button>
-            <button type="button" className={'chip' + (sortBy === 'updatedAt' ? ' on' : '')} aria-pressed={sortBy === 'updatedAt'} onClick={() => actions.saveSettings({ sortCount: 'updatedAt' })}>Date</button>
+          <div className="sortbar">
+            <div className="chips" role="group" aria-label="Trier">
+              <span className="label">Trier :</span>
+              <button type="button" className={'chip' + (sortBy === 'name' ? ' on' : '')} aria-pressed={sortBy === 'name'} onClick={() => actions.saveSettings({ sortCount: 'name' })}>Nom</button>
+              <button type="button" className={'chip' + (sortBy === 'updatedAt' ? ' on' : '')} aria-pressed={sortBy === 'updatedAt'} onClick={() => actions.saveSettings({ sortCount: 'updatedAt' })}>Date</button>
+            </div>
+            <button type="button" className="chip reset-chip" disabled={nonZero === 0} onClick={() => setResetting(true)}>Remettre à zéro</button>
           </div>
           {table}
         </>
@@ -217,12 +228,27 @@ export function CountScreen() {
           onCreated={(g) => { setNewGame(null); openForGame(g, newGame.code); }}
         />
       )}
+      {resetting && (
+        <Sheet label="Remettre le comptage à zéro" onClose={() => setResetting(false)}>
+          <h3 style={{ fontSize: 20 }}>Remettre le comptage à zéro ?</h3>
+          <p className="muted" style={{ margin: 0 }}>
+            Le linéaire et le stock de {nonZero} {nonZero > 1 ? 'jeux repassent' : 'jeu repasse'} à 0, sur tous les téléphones du tabac.
+            Les jeux restent dans la liste. Exportez d'abord le comptage si vous voulez le garder.
+          </p>
+          <button type="button" className="btn" onClick={() => { setResetting(false); setExporting(true); }}>Exporter d'abord (.jpg)</button>
+          <div className="row">
+            <button type="button" className="btn" onClick={() => setResetting(false)}>Annuler</button>
+            <button type="button" className="btn danger" onClick={() => void reset()}>Remettre à zéro</button>
+          </div>
+        </Sheet>
+      )}
       {exporting && settings && <ExportPanel lines={lines} settings={settings} onClose={() => setExporting(false)} />}
       {toast && (
         <Toast
           message={toast.message}
-          action={toast.undo ? 'Annuler' : undefined}
+          action={toast.undo || toast.undoReset ? 'Annuler' : undefined}
           onAction={() => {
+            if (toast.undoReset) void actions.restoreCountLines(toast.undoReset);
             const undo = toast.undo;
             if (undo) {
               void actions.restoreCountLine(undo);

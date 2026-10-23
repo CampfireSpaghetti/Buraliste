@@ -1,7 +1,10 @@
 .count { display: flex; flex-direction: column; gap: 10px; }
 .count-actions { display: flex; gap: 8px; }
 .count-actions .btn { flex: 1; padding: 0 8px; }
-.sortbar { display: flex; align-items: center; gap: 6px; }
+.sortbar { display: flex; align-items: center; justify-content: space-between; gap: 6px; flex-wrap: wrap; }
+.sortbar .chips { align-items: center; }
+.reset-chip { min-height: 40px; border-color: var(--danger); color: var(--danger); }
+.reset-chip:disabled { opacity: .4; cursor: not-allowed; }
 .count-table-wrap { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
 .count-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 .count-table thead th {
