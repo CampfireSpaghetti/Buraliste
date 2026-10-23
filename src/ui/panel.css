@@ -36,7 +36,7 @@ button.chip { min-height: 40px; }
 .chip.alert { border-color: var(--accent); color: var(--accent); }
 .toast {
   position: fixed; left: 12px; right: 12px; bottom: calc(env(safe-area-inset-bottom) + 76px); z-index: 40;
-  background: var(--encre); color: var(--email); border-radius: 12px; padding: 6px 6px 6px 16px;
+  background: var(--toast-bg); color: var(--email); border-radius: 12px; border-left: 4px solid var(--laiton); padding: 6px 6px 6px 16px;
   display: flex; align-items: center; justify-content: space-between; gap: 8px; font-weight: 600; box-shadow: 0 8px 24px rgba(0,0,0,.3);
 }
 .toast button { min-height: var(--tap); padding: 0 14px; border: 0; border-radius: 8px; background: transparent; color: #fbe7b5; font-weight: 700; }

@@ -14,6 +14,13 @@ import './scanner.css';
 /** Résultats transmis à l'écran : tous sauf le code de traçabilité, refusé ici. */
 export type ScannedResult = Exclude<ScanResult, { type: 'traceability' }>;
 
+/** Consigne sous le viseur : ce que l'écran attend. */
+const HINTS: Record<Props['mode'], string> = {
+  lookup: 'Paquet, cartouche ou jeu de grattage : visez le code-barres.',
+  count: 'Visez le code-barres du ticket.',
+  'add-code': 'Visez le code à ajouter à cette fiche.',
+};
+
 type Props = {
   mode: 'lookup' | 'count' | 'add-code';
   /** `code` : le code lu (normalisé). Un code de traçabilité n'arrive jamais ici : la vue l'explique elle-même. */
@@ -81,6 +88,7 @@ export function ScannerView({ mode, onResult, paused = false, footer }: Props) {
       <div className="scanner-cam">
         <video ref={videoRef} muted playsInline aria-hidden="true" />
         {!blocked && <div className="scanner-vise" aria-hidden="true" />}
+        {state === 'running' && <p className="scanner-hint">{HINTS[mode]}</p>}
         {state === 'starting' && <p className="scanner-msg">Démarrage de l'appareil photo…</p>}
         {blocked && (
           <div className="scanner-blocked">

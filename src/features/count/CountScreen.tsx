@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { countLineId, missingGameLines, sortLines } from '../../domain/count';
-import { effectiveFields, gameCandidates, learnFdjCode, resolveScan } from '../../domain/matching';
+import { attachCodePatch, effectiveFields, gameCandidates, learnFdjCode, resolveScan } from '../../domain/matching';
 import { fold } from '../../domain/search';
 import { formatEuro } from '../../domain/format';
 import { normalizeCode } from '../../domain/barcode';
@@ -75,6 +75,8 @@ export function CountScreen() {
       else openForGame(r.product, '');
     } else if (r.type === 'confirm-game') setConfirm({ code: r.code, game: r.product, prefix: r.prefix });
     else if (r.type === 'ask-game') setAsk({ code: r.code, candidates: r.candidates });
+    // EAN inconnu (carnet, boîte…) : il peut appartenir à un jeu déjà connu, on le demande avant de créer un jeu.
+    else if (r.type === 'unknown-ean' && games.length > 0) setAsk({ code: r.code, candidates: gameCandidates(r.code, products ?? []) });
     else setNewGame({ code: r.code });
   };
 
@@ -203,7 +205,7 @@ export function CountScreen() {
           onPick={async (g) => {
             const code = ask.code;
             setAsk(null);
-            const updated = await actions.patchUserFields(g.id, learnFdjCode(await currentProduct(g), code, products ?? []));
+            const updated = await actions.patchUserFields(g.id, attachCodePatch(await currentProduct(g), code, products ?? []));
             openForGame(updated, code);
           }}
         />

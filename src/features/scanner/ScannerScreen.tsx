@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { effectiveFields, gameCandidates, learnFdjCode } from '../../domain/matching';
+import { attachCodePatch, effectiveFields, gameCandidates, learnFdjCode } from '../../domain/matching';
 import type { Product } from '../../domain/types';
 import { useNav } from '../../nav';
 import { actions, currentProduct, useProducts } from '../../store';
@@ -45,7 +45,7 @@ export function ScannerScreen() {
             const { code, game, prefix } = confirm;
             setConfirm(null);
             await actions.patchUserFields(game.id, learnFdjCode(await currentProduct(game), code, products ?? [], { confirmedPrefix: prefix }));
-            nav.open({ type: 'product', id: game.id });
+            nav.open({ type: 'product', id: game.id, notice: `${effectiveFields(game).name} : ses tickets seront reconnus directement.` });
           }}
         />
       )}
@@ -57,8 +57,8 @@ export function ScannerScreen() {
           onClose={() => setAsk(null)}
           onNewGame={() => { nav.open({ type: 'create', code: ask.code, kind: 'jeu-fdj' }); setAsk(null); }}
           onPick={async (g) => {
-            await actions.patchUserFields(g.id, learnFdjCode(await currentProduct(g), ask.code, products ?? []));
-            nav.open({ type: 'product', id: g.id });
+            await actions.patchUserFields(g.id, attachCodePatch(await currentProduct(g), ask.code, products ?? []));
+            nav.open({ type: 'product', id: g.id, notice: `Ticket rattaché à ${effectiveFields(g).name}.` });
             setAsk(null);
           }}
         />

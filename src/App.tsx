@@ -53,7 +53,7 @@ function rememberTab(t: Tab) {
 
 function ViewLayer({ view }: { view: View }) {
   switch (view.type) {
-    case 'product': return <ProductSheet id={view.id} />;
+    case 'product': return <ProductSheet id={view.id} notice={view.notice} />;
     case 'create': return <ProductForm initialCode={view.code} initialKind={view.kind} />;
     case 'edit': return <ProductForm id={view.id} />;
     case 'attach': return <AttachToReference code={view.code} />;

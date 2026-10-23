@@ -58,3 +58,30 @@ test('code inconnu : créer une fiche à la main, puis le scan ouvre la fiche', 
   await scan(page, '4006381333931');
   await expect(page.getByRole('heading', { name: 'Cigare maison' })).toBeVisible();
 });
+
+test('code inconnu : rattacher à un jeu de grattage existant, puis le scan ouvre le jeu', async ({ page }) => {
+  await seed(page, { products: [
+    { id: 'cash', source: 'depart', outOfStock: false, pinnedSubstitutes: [], updatedAt: 0, base: { kind: 'jeu-fdj', name: 'Cash', ticketPrice: 5 }, user: {} },
+    { id: 'astro', source: 'depart', outOfStock: false, pinnedSubstitutes: [], updatedAt: 0, base: { kind: 'jeu-fdj', name: 'Astro', ticketPrice: 2 }, user: {} },
+  ] });
+  await scan(page, '3760000000024');
+  await expect(page.getByRole('heading', { name: 'Code inconnu' })).toBeVisible();
+  await page.getByRole('button', { name: 'Jeu de grattage' }).click();
+  // Les jeux sont listés sans recherche ; la recherche les filtre.
+  await expect(page.getByRole('button', { name: /Astro/ })).toBeVisible();
+  await page.getByPlaceholder('Rechercher un jeu').fill('cas');
+  await expect(page.getByRole('button', { name: /Astro/ })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '+ Nouveau jeu' })).toBeVisible();
+  await page.getByRole('button', { name: /Cash/ }).click();
+  await expect(page.getByRole('heading', { name: 'Cash' })).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'Cash' }).getByRole('status')).toContainText('Code ajouté à Cash');
+  await expect(page.getByRole('region', { name: 'Codes-barres' })).toContainText('3760000000024');
+  await page.getByRole('button', { name: 'Fermer' }).click();
+  await page.waitForTimeout(1600);
+  await scan(page, '3760000000024');
+  await expect(page.getByRole('heading', { name: 'Cash' })).toBeVisible();
+  // Le choix « Jeu de grattage » est retenu pour le prochain code inconnu.
+  await page.getByRole('button', { name: 'Fermer' }).click();
+  await scan(page, '4006381333931');
+  await expect(page.getByRole('button', { name: 'Jeu de grattage' })).toHaveAttribute('aria-pressed', 'true');
+});

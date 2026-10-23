@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { effectiveFields, learnFdjCode, withUserBarcode } from '../../domain/matching';
+import { attachCodePatch, effectiveFields } from '../../domain/matching';
 import { useNav } from '../../nav';
 import { actions, currentProduct, useProducts } from '../../store';
 import { Panel } from '../../ui/Panel';
@@ -29,10 +29,8 @@ export function AddCodeScanner({ id }: { id: string }) {
     setBusy(true);
     try {
       const current = await currentProduct(product);
-      const patch = f.kind === 'jeu-fdj'
-        // Ticket : comme au comptage (code complet + préfixe appris) ; le numéro du catalogue de CE jeu est confirmé.
-        ? learnFdjCode(current, code, products, r.type === 'confirm-game' && r.product.id === id ? { confirmedPrefix: r.prefix } : {})
-        : withUserBarcode(current.user, code);
+      // Ticket : comme au comptage (code complet + préfixe appris) ; le numéro du catalogue de CE jeu est confirmé.
+      const patch = attachCodePatch(current, code, products, r.type === 'confirm-game' && r.product.id === id ? { confirmedPrefix: r.prefix } : {});
       await actions.patchUserFields(id, patch);
       nav.close();
     } catch (e) {

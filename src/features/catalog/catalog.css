@@ -56,3 +56,15 @@
 .composition .muted { font-size: 13.5px; }
 .composition summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; font-weight: 600; }
 .composition .ingredients { margin: 0; padding-left: 18px; font-size: 14.5px; display: flex; flex-direction: column; gap: 3px; overflow-wrap: anywhere; }
+.catalog-empty { display: grid; grid-template-columns: 102px 1fr; gap: 16px; align-items: center; padding: 16px 4px; }
+.catalog-empty img { width: 102px; height: auto; }
+.catalog-empty p { margin: 0 0 8px; }
+.catalog-empty .btn { margin-top: 4px; }
+.unknown-code { display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; border-radius: var(--radius); background: var(--surface); border: 2px dashed var(--line); }
+.unknown-code-value { font-size: 26px; font-weight: 700; letter-spacing: .04em; overflow-wrap: anywhere; }
+.attach-question { font-size: 19px; }
+.attach-help { margin: -4px 0 0; }
+.attach-results { display: flex; flex-direction: column; gap: 8px; }
+.attach-card { flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; }
+.attach-card .muted { flex: none; text-align: right; }
+.attach-card:disabled { opacity: .6; }

@@ -6,6 +6,7 @@ import { formatEuro } from '../../domain/format';
 import { KIND_LABELS, type Kind, type Product } from '../../domain/types';
 import { useNav } from '../../nav';
 import { readRecent, useProducts } from '../../store';
+import enseigne from '../../assets/enseigne-tabac.webp';
 import './catalog.css';
 
 type Filter = 'tout' | Kind | 'rupture';
@@ -90,7 +91,14 @@ export function CatalogScreen() {
             {recent.map((p) => <ProductCard key={p.id} product={p} today={today} />)}
           </>
         ) : (
-          <p className="muted">Scannez un produit ou cherchez-le par son nom.</p>
+          <div className="catalog-empty">
+            <img src={enseigne} alt="" width={102} height={240} />
+            <div>
+              <p><b>Retrouvez une fiche en un geste.</b></p>
+              <p className="muted">Scannez un paquet ou un ticket, ou tapez un nom, une marque, un code. Les fiches ouvertes s'affichent ici.</p>
+              <button type="button" className="btn accent" onClick={() => { location.hash = 'scanner'; }}>Ouvrir le scanner</button>
+            </div>
+          </div>
         )
       ) : (
         <>

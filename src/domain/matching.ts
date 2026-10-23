@@ -166,6 +166,17 @@ export function withUserBarcode(user: Partial<ProductFields>, code: string): Par
   return { barcodes: uniq([...(user.barcodes ?? []), code]) };
 }
 
+/**
+ * Patch pour rattacher `code` à une fiche existante, tabac ou jeu. Jeu + ticket : comme au comptage (code complet et
+ * préfixe appris ou confirmé). Jeu + EAN (carnet, boîte) : code ajouté tel quel, sans préfixe : un EAN désigne un
+ * article, pas une série de tickets. Tabac : code ajouté à la couche user.
+ */
+export function attachCodePatch(product: Product, code: string, products: Product[], opts: { confirmedPrefix?: string } = {}): Partial<ProductFields> {
+  const game = effectiveFields(product).kind === 'jeu-fdj';
+  if (game && !isValidEan(code)) return learnFdjCode(product, code, products, opts);
+  return withUserBarcode(product.user, code);
+}
+
 /** Couche user sans ce code ni ce préfixe (ancien `fdjPrefix` compris) ; une liste vidée disparaît. */
 export function withoutUserCode(user: Partial<ProductFields>, code: string): Partial<ProductFields> {
   const out = { ...user };
