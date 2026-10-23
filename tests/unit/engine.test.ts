@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { handle, type RelayEnv } from '../../relay/src/handlers';
 import { createMemoryStore } from '../../relay/src/memoryStore';
-import { CarotteDB, DEFAULT_SETTINGS } from '../../src/data/db';
+import { CarotteDB, DEFAULT_SETTINGS, REJOIN_ASKED } from '../../src/data/db';
 import { applyRemoteOps } from '../../src/data/sharedRepo';
 import { createRelayClient, type RelayClient } from '../../src/sync/relayClient';
 import { resetClockForTests } from '../../src/sync/clock';
@@ -88,6 +88,28 @@ afterEach(async () => {
 });
 
 describe('moteur de synchronisation', () => {
+  it('liste « À faire » : une tâche va d’un téléphone à l’autre ; un téléphone mis à jour après coup la récupère en rejoignant', async () => {
+    const key = generateTabacKey();
+    const r = fakeRelay();
+    const A = phone();
+    const B = phone();
+    const now = Date.now();
+    await localWrite(A, { e: 'task', id: 't1', f: { label: 'Arroser', service: 'matin', order: 1, doneAt: now, deleted: false }, t: hlcAt(now - 1000) });
+    const ea = createSyncEngine({ relay: r.client, key, db: A });
+    const eb = createSyncEngine({ relay: r.client, key, db: B });
+    await ea.syncNow();
+    await eb.syncNow();
+    expect(await B.tasks.get('t1')).toMatchObject({ label: 'Arroser', doneAt: now });
+    // B « ancienne version » : il avait lu le message sans garder la tâche. À la mise à jour (v7), il rejoint.
+    await B.tasks.clear();
+    await eb.syncNow();
+    expect(await B.tasks.get('t1')).toBeUndefined();
+    await B.syncState.put({ key: REJOIN_ASKED, value: true });
+    await eb.syncNow();
+    expect(await B.tasks.get('t1')).toMatchObject({ label: 'Arroser', doneAt: now });
+    expect(await B.syncState.get(REJOIN_ASKED)).toBeUndefined();
+  });
+
   it('deux moteurs convergent', async () => {
     const key = generateTabacKey();
     const r = fakeRelay();

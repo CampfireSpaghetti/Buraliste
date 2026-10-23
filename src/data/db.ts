@@ -1,5 +1,6 @@
 import Dexie, { type Table } from 'dexie';
-import type { CountLine, Product, ProductFields, Settings } from '../domain/types';
+import type { CountLine, Product, ProductFields, Service, Settings, Task } from '../domain/types';
+import { BASE_TASKS, isDoneToday, nextOrder, orderAt, serviceTasks } from '../domain/tasks';
 import { officialRef, type Contribution } from '../domain/sharing';
 import { productIdMap, remapIdList, remapOp, remapProductIds, type IdMap } from '../domain/productId';
 import { withoutClock, type Clocked, type Op } from '../sync/merge';
@@ -17,6 +18,9 @@ export type SyncStateRow = { key: string; value: unknown };
 
 type SettingsRow = Settings & { key: 'main' };
 
+/** Demande au moteur de synchronisation de rejoindre le canal à sa prochaine synchronisation (voir engine.ts). */
+export const REJOIN_ASKED = 'rejoindre';
+
 export const DEFAULT_SETTINGS: Settings = { shopName: DEFAULT_TABAC_NAME, sortCount: 'name' };
 
 export class CarotteDB extends Dexie {
@@ -28,6 +32,7 @@ export class CarotteDB extends Dexie {
   opsOut!: Table<OpOut, number>;
   syncState!: Table<SyncStateRow, string>;
   parkedOps!: Table<ParkedOp, number>;
+  tasks!: Table<Clocked<Task>, string>;
   constructor(name = 'la-carotte') {
     super(name);
     this.version(1).stores({
@@ -62,6 +67,11 @@ export class CarotteDB extends Dexie {
     });
     // v6 : opérations reçues pour des produits encore inconnus ici, rejouées après chaque mise à jour des listes.
     this.version(6).stores({ parkedOps: '++seq, at' });
+    // v7 : liste « À faire ». Une version précédente de l'app ignorait les opérations des tâches : ce téléphone rejoint
+    // de nouveau le canal (photographie puis messages qui la suivent) pour récupérer celles déjà créées ailleurs.
+    this.version(7).stores({ tasks: 'id' }).upgrade(async (tx) => {
+      if ((await tx.table('syncState').get('lastN')) !== undefined) await tx.table('syncState').put({ key: REJOIN_ASKED, value: true });
+    });
   }
 }
 
@@ -298,3 +308,85 @@ export async function requestPersistence(): Promise<boolean> {
     return false;
   }
 }
+
+// ---------------------------------------------------------------- liste « À faire »
+
+const TASKS_SEEDED = 'tasksSeeded';
+const taskTx = <T>(fn: () => Promise<T>) => db.transaction('rw', db.tasks, db.opsOut, db.syncState, fn);
+
+/** Tâches visibles (une tâche supprimée reste comme pierre tombale pour la synchronisation). */
+export const listTasks = async (): Promise<Task[]> =>
+  (await db.tasks.toArray()).filter((t) => t.deleted !== true).map((t) => withoutClock<Task>(t));
+
+/**
+ * Liste de base, une fois par tabac et par téléphone : ajoutée telle quelle, sans opération (chaque téléphone la crée
+ * de son côté, avec les mêmes ids). Une tâche de base déjà connue (supprimée comprise) n'est jamais remplacée.
+ */
+export async function seedTasks(): Promise<void> {
+  await db.transaction('rw', db.tasks, db.syncState, async () => {
+    if ((await db.syncState.get(TASKS_SEEDED)) !== undefined) return;
+    for (const t of BASE_TASKS) if (!(await db.tasks.get(t.id))) await db.tasks.put({ ...t });
+    await db.syncState.put({ key: TASKS_SEEDED, value: true });
+  });
+}
+
+async function storedTask(id: string): Promise<Task> {
+  const t = await db.tasks.get(id);
+  if (!t || t.deleted === true) throw new Error(`Tâche introuvable : ${id}`);
+  return withoutClock<Task>(t);
+}
+
+/** Nouvelle tâche, en fin de service. */
+export const addTask = (label: string, service: Service): Promise<Task> =>
+  taskTx(async () => {
+    const order = nextOrder(serviceTasks(await listTasks(), service));
+    const id = newId();
+    return writeShared<Task>('task', id, { id, label: label.trim(), service, order, doneAt: 0 });
+  });
+
+/** Texte et service (un changement de service place la tâche en fin du nouveau service). */
+export const updateTask = (id: string, patch: { label: string; service: Service }): Promise<Task> =>
+  taskTx(async () => {
+    const t = await storedTask(id);
+    const order = patch.service === t.service ? t.order : nextOrder(serviceTasks(await listTasks(), patch.service));
+    return writeShared<Task>('task', id, { ...t, label: patch.label.trim(), service: patch.service, order });
+  });
+
+/** Cocher (heure de maintenant) ou décocher (0). */
+export const setTaskDone = (id: string, done: boolean, now = Date.now()): Promise<Task> =>
+  taskTx(async () => writeShared<Task>('task', id, { ...(await storedTask(id)), doneAt: done ? now : 0 }));
+
+/** Supprime (partagé) et renvoie la tâche telle qu'elle était, pour « Annuler ». */
+export const deleteTask = (id: string): Promise<Task> =>
+  taskTx(async () => {
+    const t = await storedTask(id);
+    await writeShared<Task>('task', id, { ...t, deleted: true });
+    return t;
+  });
+
+/** Remet une tâche telle qu'elle était (annulation d'une suppression ou d'une remise à zéro). */
+export const restoreTask = (t: Task): Promise<Task> => taskTx(() => writeShared<Task>('task', t.id, { ...withoutClock<Task>(t), deleted: false }));
+
+/** Décoche les tâches faites aujourd'hui ; renvoie-les telles qu'elles étaient, pour « Annuler ». */
+export const resetTasks = (now = Date.now()): Promise<Task[]> =>
+  taskTx(async () => {
+    const done = (await listTasks()).filter((t) => isDoneToday(t, now));
+    for (const t of done) await writeShared<Task>('task', t.id, { ...t, doneAt: 0 });
+    return done;
+  });
+
+/** Place la tâche à l'index `toIndex` de son service (n'écrit que la tâche déplacée, sauf renumérotation). */
+export const moveTask = (id: string, toIndex: number): Promise<void> =>
+  taskTx(async () => {
+    const t = await storedTask(id);
+    const list = serviceTasks(await listTasks(), t.service);
+    const r = orderAt(list, id, toIndex);
+    if ('order' in r) {
+      if (r.order !== t.order) await writeShared<Task>('task', id, { ...t, order: r.order });
+      return;
+    }
+    for (const { id: other, order } of r.renumber) {
+      const o = list.find((x) => x.id === other)!;
+      if (o.order !== order) await writeShared<Task>('task', other, { ...o, order });
+    }
+  });

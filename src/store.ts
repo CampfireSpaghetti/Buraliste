@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import * as repo from './data/db';
 import { enqueueContributions, flushOutbox } from './data/sharingData';
-import type { CountLine, Product, ProductFields, Settings } from './domain/types';
+import type { CountLine, Product, ProductFields, Service, Settings, Task } from './domain/types';
 
 const DATA_EVENT = 'carotte:data';
 export const notifyDataChanged = () => window.dispatchEvent(new Event(DATA_EVENT));
@@ -26,6 +26,7 @@ function useLive<T>(load: () => Promise<T>): T | null {
 export const useProducts = () => useLive(repo.listProducts);
 export const useCountLines = () => useLive(repo.listCountLines);
 export const useSettings = () => useLive(repo.getSettings);
+export const useTasks = () => useLive(repo.listTasks);
 
 function withNotify<A extends unknown[], R>(fn: (...a: A) => Promise<R>) {
   return async (...a: A): Promise<R> => {
@@ -68,6 +69,14 @@ export const actions = {
   restoreCountLines: withNotify(async (ls: CountLine[]) => { for (const l of ls) await repo.restoreCountLine(l); }),
   saveSettings: withNotify((s: Partial<Settings>) => repo.saveSettings(s)),
   hideGame: withNotify((gameId: string) => repo.hideGame(gameId)),
+  addTask: withNotify((label: string, service: Service) => repo.addTask(label, service)),
+  updateTask: withNotify((id: string, patch: { label: string; service: Service }) => repo.updateTask(id, patch)),
+  setTaskDone: withNotify((id: string, done: boolean) => repo.setTaskDone(id, done)),
+  deleteTask: withNotify((id: string) => repo.deleteTask(id)),
+  restoreTask: withNotify((t: Task) => repo.restoreTask(t)),
+  resetTasks: withNotify(() => repo.resetTasks()),
+  restoreTasks: withNotify(async (ts: Task[]) => { for (const t of ts) await repo.restoreTask(t); }),
+  moveTask: withNotify((id: string, toIndex: number) => repo.moveTask(id, toIndex)),
   unhideGame: withNotify((gameId: string) => repo.unhideGame(gameId)),
 };
 

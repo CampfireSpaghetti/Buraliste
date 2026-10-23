@@ -2,7 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import './theme/global.css';
 import App from './App';
-import { requestPersistence, syncSettingsNameAtStartup } from './data/db';
+import { requestPersistence, seedTasks, syncSettingsNameAtStartup } from './data/db';
 import { DEFAULT_TABAC_NAME, ensureRegistry } from './tabacs/registry';
 import { setPendingLinkInvite, takeInviteFromUrl } from './tabacs/inviteLink';
 import { syncFdjGames, syncReferences } from './data/referencesSync';
@@ -28,6 +28,8 @@ createRoot(document.getElementById('root')!).render(
 // Le nom du tabac dans le registre et le nom de la boutique (réglages) restent alignés. Dans la base neuve d'un tabac
 // créé ou rejoint, le nom vient d'être écrit : l'écran (en-tête) est rafraîchi.
 void syncSettingsNameAtStartup().then(notifyDataChanged).catch(() => undefined);
+// Liste « À faire » de base (une fois par tabac et par téléphone).
+void seedTasks().then(notifyDataChanged).catch((e) => console.error('Liste « À faire » non créée', e));
 // Les téléphones n'ont plus de clé GitHub (le relais la détient) : celle d'une ancienne version est effacée.
 void clearLegacyShareToken().catch(() => undefined);
 

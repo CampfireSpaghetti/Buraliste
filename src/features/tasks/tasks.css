@@ -1,0 +1,53 @@
+.tasks { display: flex; flex-direction: column; gap: 12px; padding-bottom: 24px; }
+.tasks-day { display: grid; grid-template-columns: 1fr auto; align-items: baseline; gap: 6px 12px; }
+.tasks-date { font-weight: 700; font-size: 18px; }
+.tasks-progress { font-size: 16px; color: var(--muted); }
+.tasks-progress b { color: var(--fg); font-size: 20px; }
+/* Jauge de la journée : filet laiton qui se remplit. */
+.tasks-bar { grid-column: 1 / -1; height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.tasks-bar span { display: block; height: 100%; background: var(--laiton); transition: width .3s ease-out; }
+.tasks-tools { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.tasks-tools .muted { font-size: 13.5px; }
+
+.tasks-service { display: flex; flex-direction: column; gap: 6px; }
+.tasks-service h3 {
+  display: flex; justify-content: space-between; align-items: baseline; margin-top: 6px; padding-bottom: 4px;
+  font-family: var(--font-display); font-weight: 400; font-size: 21px; color: var(--accent); border-bottom: 2px solid var(--fg);
+}
+.tasks-count { font-family: var(--font-body); font-weight: 700; font-size: 16px; color: var(--fg); }
+.tasks-empty { margin: 4px 0; }
+
+.task-list { list-style: none; margin: 0; padding: 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.task-list:empty { display: none; }
+.task {
+  position: relative; display: flex; align-items: stretch; min-height: 56px; border-bottom: 1px solid var(--line);
+  background: var(--surface); transition: transform .15s ease-out;
+}
+.task:last-child { border-bottom: 0; border-radius: 0 0 var(--radius) var(--radius); }
+.task:first-child { border-radius: var(--radius) var(--radius) 0 0; }
+.task.dragged { z-index: 2; transition: none; box-shadow: 0 10px 24px rgba(0, 0, 0, .25); outline: 2px solid var(--laiton); border-radius: var(--radius); }
+.dragging-list { user-select: none; -webkit-user-select: none; }
+
+.task-handle {
+  flex: none; width: 40px; border: 0; background: transparent; color: var(--muted); display: grid; place-items: center;
+  touch-action: none; cursor: grab; padding: 0;
+}
+.task-handle svg { fill: currentColor; }
+.task.dragged .task-handle { cursor: grabbing; color: var(--laiton-texte); }
+
+.task-check { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; padding: 8px 4px 8px 0; cursor: pointer; }
+.task-check input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
+.task-box {
+  flex: none; width: 30px; height: 30px; border-radius: 7px; border: 2.5px solid var(--fg); display: grid; place-items: center;
+  background: var(--surface); transition: background .12s, border-color .12s;
+}
+.task-box svg { fill: none; stroke: #fff; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; opacity: 0; }
+.task.done .task-box { background: var(--ok); border-color: var(--ok); }
+.task.done .task-box svg { opacity: 1; }
+.task-check input:focus-visible + .task-box { outline: 3px solid var(--laiton-texte); outline-offset: 2px; }
+.task-label { flex: 1; min-width: 0; font-size: 17px; line-height: 1.25; overflow-wrap: anywhere; }
+.task.done .task-label { color: var(--muted); }
+.task-time { flex: none; font-weight: 700; font-size: 16px; color: var(--ok); }
+
+.task-more { flex: none; width: 48px; border: 0; background: transparent; color: var(--muted); display: grid; place-items: center; }
+.task-more svg { fill: currentColor; }

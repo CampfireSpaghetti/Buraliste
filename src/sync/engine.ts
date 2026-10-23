@@ -8,7 +8,7 @@
  * Les numéros de messages croissent dans un canal, avec des trous : on ne suppose jamais qu'ils se suivent.
  * Un relais dont le dernier numéro recule (données effacées, canal changé) est rejoint de nouveau, état republié.
  */
-import { db as appDb, type CarotteDB } from '../data/db';
+import { db as appDb, REJOIN_ASKED, type CarotteDB } from '../data/db';
 import { applyRemoteOps, OPS_QUEUED_EVENT } from '../data/sharedRepo';
 import { notifyDataChanged } from '../store';
 import { decryptJson, deriveChannel, encryptJson } from './crypto';
@@ -335,6 +335,9 @@ export function createSyncEngine(opts: SyncEngineOptions): SyncEngine {
     try {
       channel ??= deriveChannel(key);
       const { canal, ecriture } = await channel;
+      // Mise à jour de l'app (base v7, liste « À faire ») : la version d'avant ignorait les opérations des tâches. Le
+      // téléphone oublie sa position et rejoint le canal, pour récupérer celles déjà créées par les autres téléphones.
+      if ((await getState(REJOIN_ASKED)) === true) await d.syncState.bulkDelete([K_LAST, K_PULL, K_SEEN, K_PHOTO_TODO, REJOIN_ASKED]);
       if ((await getState(K_LAST)) === undefined) await join(canal);
       else if (now() - (await numState(K_PULL)) > STALE_PULL_MS) await catchUp(canal);
       const resetOnSend = await send(canal, ecriture);

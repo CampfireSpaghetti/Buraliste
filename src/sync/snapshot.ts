@@ -11,17 +11,17 @@
  * Appliquer une photographie fusionne champ par champ, chaque champ avec SON horodatage (jamais ré-horodaté).
  */
 import { DEFAULT_SETTINGS, type CarotteDB } from '../data/db';
-import { applyRemoteOps, sharedKeysFor, type Entity } from '../data/sharedRepo';
+import { applyRemoteOps, sharedKeysFor, tableFor, type Entity } from '../data/sharedRepo';
 import { deviceId } from './clock';
 import type { Op } from './merge';
 
 type Rec = Record<string, unknown>;
 export type EtatRecord = Rec & { id: string; _clock: Record<string, string> };
-export type Etat = { line: EtatRecord[]; product: EtatRecord[]; settings: EtatRecord[] };
+export type Etat = { line: EtatRecord[]; product: EtatRecord[]; settings: EtatRecord[]; task: EtatRecord[] };
 
 const isObj = (v: unknown): v is Rec => typeof v === 'object' && v !== null && !Array.isArray(v);
 const FORBIDDEN = new Set(['__proto__', 'constructor', 'prototype']);
-const ENTITIES: Entity[] = ['settings', 'product', 'line'];
+const ENTITIES: Entity[] = ['settings', 'product', 'line', 'task'];
 
 /**
  * Partie « appareil » des horodatages d'origine enregistrés localement. Les horodatages se comparent comme des chaînes
@@ -74,6 +74,11 @@ function lineHasData(l: Rec): boolean {
     || l.deleted === true;
 }
 
+/** Tâche créée ou modifiée ici (pas seulement une tâche de la liste de base, que chaque téléphone crée lui-même). */
+function taskHasData(t: Rec): boolean {
+  return !String(t.id).startsWith('base:') || (isObj(t._clock) && Object.keys(t._clock).length > 0);
+}
+
 function etatRecord(e: Entity, r: Rec): EtatRecord {
   const out: Rec = { id: e === 'settings' ? 'main' : String(r.id) };
   const keys = sharedKeysFor(e, r);
@@ -99,10 +104,11 @@ function etatRecord(e: Entity, r: Rec): EtatRecord {
   return out as EtatRecord;
 }
 
-async function readAll(d: CarotteDB): Promise<{ line: Rec[]; product: Rec[]; settings: Rec[] }> {
-  return d.transaction('r', d.countLines, d.products, d.settings, async () => {
-    const [lines, products, settings] = await Promise.all([d.countLines.toArray(), d.products.toArray(), d.settings.get('main')]);
+async function readAll(d: CarotteDB): Promise<{ line: Rec[]; product: Rec[]; settings: Rec[]; task: Rec[] }> {
+  return d.transaction('r', [d.countLines, d.products, d.settings, d.tasks], async () => {
+    const [lines, products, settings, tasks] = await Promise.all([d.countLines.toArray(), d.products.toArray(), d.settings.get('main'), d.tasks.toArray()]);
     return {
+      task: tasks as unknown as Rec[],
       line: lines as unknown as Rec[],
       product: (products as unknown as Rec[]).filter(productHasData),
       settings: settings ? [settings as unknown as Rec] : [],
@@ -117,13 +123,14 @@ export async function buildEtat(d: CarotteDB): Promise<Etat> {
     line: all.line.map((r) => etatRecord('line', r)),
     product: all.product.map((r) => etatRecord('product', r)),
     settings: all.settings.map((r) => etatRecord('settings', r)),
+    task: all.task.map((r) => etatRecord('task', r)),
   };
 }
 
 /** La base a des données à partager (premier contact d'un tabac existant avec le relais). */
 export async function hasLocalData(d: CarotteDB): Promise<boolean> {
   const all = await readAll(d);
-  return all.line.some(lineHasData) || all.product.length > 0
+  return all.line.some(lineHasData) || all.product.length > 0 || all.task.some(taskHasData)
     || all.settings.some((s) => isObj(s._clock) && Object.keys(s._clock).length > 0);
 }
 
@@ -134,10 +141,10 @@ export async function hasLocalData(d: CarotteDB): Promise<boolean> {
  * à heure égale (réglages, lignes jamais comptées : heure 0), c'est la photographie qui gagne.
  */
 export async function stampLegacy(d: CarotteDB): Promise<void> {
-  await d.transaction('rw', d.countLines, d.products, d.settings, async () => {
+  await d.transaction('rw', [d.countLines, d.products, d.settings, d.tasks], async () => {
     const all = await readAll(d);
     for (const e of ENTITIES) {
-      const table = (e === 'line' ? d.countLines : e === 'product' ? d.products : d.settings) as unknown as { put(r: Rec): Promise<unknown> };
+      const table = tableFor(e, d) as unknown as { put(r: Rec): Promise<unknown> };
       for (const r of all[e]) {
         const own = isObj(r._clock) ? r._clock : {};
         const clock = fullClock(e, r, LOCAL_LEGACY_DEVICE);

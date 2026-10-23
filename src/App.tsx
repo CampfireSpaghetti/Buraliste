@@ -11,6 +11,7 @@ import { AddCodeScanner } from './features/catalog/AddCodeScanner';
 import { CatalogScreen } from './features/catalog/CatalogScreen';
 import { CompareView } from './features/catalog/CompareView';
 import { CountScreen } from './features/count/CountScreen';
+import { TasksScreen } from './features/tasks/TasksScreen';
 import { SettingsScreen } from './features/settings/SettingsScreen';
 import { UpdateBanner } from './ui/UpdateBanner';
 import { StorageBanner } from './ui/StorageBanner';
@@ -23,6 +24,7 @@ import './ui/panel.css';
 const TITLES: Record<Tab, string> = {
   scanner: 'Scanner',
   catalogue: 'Catalogue',
+  taches: 'À faire',
   grattage: 'Comptage grattage',
   reglages: 'Réglages',
 };
@@ -98,6 +100,7 @@ function Shell() {
         <h2 className="screen-title">{TITLES[tab]}</h2>
         {tab === 'scanner' && <ScannerScreen />}
         {tab === 'catalogue' && <CatalogScreen />}
+        {tab === 'taches' && <TasksScreen />}
         {tab === 'grattage' && <CountScreen />}
         {tab === 'reglages' && <SettingsScreen />}
       </main>
