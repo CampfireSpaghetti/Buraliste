@@ -54,6 +54,9 @@ export function TasksScreen() {
   const [exporting, setExporting] = useState(false);
   const [toast, setToast] = useState<ToastState | null>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
+  // Déplacement en cours d'enregistrement : la tâche est montrée tout de suite à sa nouvelle place.
+  const [moving, setMoving] = useState<{ id: string; to: number } | null>(null);
+  useEffect(() => setMoving(null), [tasks]);
   const rows = useRef(new Map<string, HTMLLIElement>());
   const closeToast = useCallback(() => setToast(null), []);
 
@@ -77,6 +80,19 @@ export function TasksScreen() {
     setToast({ message: `Tâche supprimée : ${t.label}`, undo: [before] });
   };
 
+  const move = (id: string, to: number) => {
+    setMoving({ id, to });
+    void actions.moveTask(id, to).catch(() => setMoving(null));
+  };
+  /** Tâches d'un service, avec le déplacement en cours d'enregistrement déjà appliqué. */
+  const ordered = (s: Service): Task[] => {
+    const list = serviceTasks(tasks, s);
+    const i = moving ? list.findIndex((t) => t.id === moving.id) : -1;
+    if (!moving || i < 0) return list;
+    const rest = list.filter((t) => t.id !== moving.id);
+    return [...rest.slice(0, moving.to), list[i], ...rest.slice(moving.to)];
+  };
+
   const startDrag = (e: PointerEvent<HTMLButtonElement>, t: Task, list: Task[]) => {
     if (e.button !== 0) return;
     e.preventDefault();
@@ -97,14 +113,14 @@ export function TasksScreen() {
   };
   const endDrag = (e: PointerEvent<HTMLButtonElement>, cancelled = false) => {
     if (!drag || e.pointerId !== drag.pointerId) return;
-    if (!cancelled && drag.to !== drag.from) void actions.moveTask(drag.id, drag.to);
+    if (!cancelled && drag.to !== drag.from) move(drag.id, drag.to);
     setDrag(null);
   };
   const keyMove = (e: KeyboardEvent<HTMLButtonElement>, t: Task, index: number, count: number) => {
     const to = e.key === 'ArrowUp' ? index - 1 : e.key === 'ArrowDown' ? index + 1 : -1;
     if (to < 0 || to >= count) return;
     e.preventDefault();
-    void actions.moveTask(t.id, to);
+    move(t.id, to);
   };
 
   /** Décalage d'une ligne pendant qu'une autre est glissée : elle fait de la place à la position visée. */
@@ -134,7 +150,7 @@ export function TasksScreen() {
       </div>
 
       {SERVICES.map((s) => {
-        const list = serviceTasks(tasks, s.id);
+        const list = ordered(s.id);
         const n = list.filter((t) => isDoneToday(t, now)).length;
         return (
           <section key={s.id} className="tasks-service" aria-labelledby={`service-${s.id}`}>

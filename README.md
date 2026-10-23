@@ -6,6 +6,16 @@ L'outil de poche du buraliste, pour iPhone et Android :
 - **Proposer un remplaçant** quand un produit manque ;
 - **Compter les jeux de grattage** et envoyer le comptage en image .jpg sur Google Drive (par le menu Partager, sans accès de l'app au Drive).
 - **Remettre le comptage à zéro** en un geste (avec confirmation, export proposé avant, et « Annuler »).
+- **Suivre les tâches du jour** (onglet **À faire**) : la liste du matin et de l'après-midi, cochée avec l'heure, partagée entre les téléphones du tabac, et exportable en .jpg.
+
+## Onglet « À faire »
+
+- **Cocher** : toucher la tâche. L'heure s'affiche ; toucher de nouveau décoche.
+- **Chaque jour**, la liste repart décochée toute seule (à minuit, heure du téléphone). **Remettre à zéro** décoche tout à n'importe quel moment, avec confirmation et « Annuler ».
+- **+ Tâche** : texte et service (Matin ou Après-midi), ajoutée en fin de service. Le bouton **…** d'une tâche permet de la renommer, de changer son service ou de la supprimer (« Annuler » quelques secondes).
+- **Ranger** : glisser la poignée ⠿ (ou, au clavier, flèches haut et bas sur la poignée).
+- **Export .jpg** : les deux services, cochés ou non, avec les heures, par le menu Partager.
+- Tout le monde dans le tabac peut cocher, ajouter, retirer et remettre à zéro. La liste de départ : vérifier stock grattage, cigarettes et tabletterie, remplir le linéaire, la vitrine et la machine à café (matin) ; vérifier stock grattage, nettoyer l'espace de travail et l'espace client (après-midi).
 
 C'est une application web installable (PWA) : gratuite, sans App Store ni Play Store, elle fonctionne hors connexion. Les données sont enregistrées sur le téléphone. Dès que l'administrateur a mis le relais en service (voir plus bas), les données de chaque tabac sont envoyées automatiquement, **chiffrées**, pour être partagées avec les téléphones de ce tabac, et seulement eux.
 
@@ -23,7 +33,7 @@ Chaque gérant crée son tabac lui-même, sans compte ni mot de passe. Ses emplo
 - **Créer un tabac** : toucher le nom du tabac en haut de l'écran → **Créer un tabac** → saisir le nom. Le tabac que vous aviez déjà devient votre premier tabac, sans rien perdre.
 - **Inviter un employé** : **Réglages** → **Inviter un employé** → un QR code s'affiche. L'employé le scanne avec l'app (le scanner de l'app reconnaît ce QR code), puis confirme « Rejoindre « nom du tabac » ? ». Son téléphone se met à jour tout seul. Attention : **toute personne qui scanne ce QR code accède aux données du tabac**, ne le montrez qu'à vos employés.
 - **Changer de tabac** : un même téléphone peut servir pour plusieurs tabacs. Toucher le nom du tabac en haut → choisir le tabac. Les données de chaque tabac restent séparées.
-- **Ce qui est partagé dans un tabac** : le comptage des jeux de grattage, les ruptures et remplaçants épinglés, les fiches créées ou corrigées, les jeux enlevés de la liste, le nom du tabac et les réglages. Si deux personnes modifient la même chose, la saisie la plus récente gagne.
+- **Ce qui est partagé dans un tabac** : le comptage des jeux de grattage, la liste « À faire » (tâches et cases cochées), les ruptures et remplaçants épinglés, les fiches créées ou corrigées, les jeux enlevés de la liste, le nom du tabac et les réglages. Si deux personnes modifient la même chose, la saisie la plus récente gagne.
 - **Ce qui n'est jamais partagé** : la sauvegarde complète, l'écran ouvert, et tout ce qui concerne vos autres tabacs. Un employé qui n'a pas scanné votre QR code ne voit rien. Les fiches supprimées à la main restent supprimées seulement sur le téléphone où vous l'avez fait.
 - **Confidentialité** : les données d'un tabac sont **chiffrées de bout en bout**. Elles sont chiffrées sur le téléphone avant d'être envoyées, avec une clé qui ne se trouve que sur les téléphones du tabac (elle voyage uniquement dans le QR code). **Personne ne peut lire les données d'un tabac** : ni le relais, ni Cloudflare qui l'héberge, ni GitHub, ni les autres tabacs, ni l'auteur de l'app.
 - **Sans réseau**, tout fonctionne comme d'habitude. Les modifications partent au retour du réseau. Un petit point en haut indique l'état : vert, à jour ; laiton, envoi en attente ; gris, hors ligne ; rouge, problème (le détail est dans Réglages).

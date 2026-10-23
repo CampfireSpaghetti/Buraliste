@@ -180,3 +180,46 @@ test('accès refusé par le relais : message dans Réglages, point rouge, donné
   await expect(A.page.getByRole('button', { name: 'Stock Cash : 120' })).toBeVisible();
   await A.ctx.close();
 });
+
+test('deux téléphones : la liste « À faire » se partage (cases cochées en même temps, tâche ajoutée)', async ({ browser }) => {
+  test.setTimeout(120_000);
+  const A = await phone(browser);
+  const B = await phone(browser);
+  await A.page.goto('./#taches');
+  const sheet = await openTabacs(A.page);
+  await sheet.getByRole('button', { name: 'Créer un tabac' }).click();
+  await sheet.getByLabel('Nom du nouveau tabac').fill('Tabac des Halles');
+  await sheet.getByRole('button', { name: 'Créer', exact: true }).click();
+  await expect(shopName(A.page)).toHaveText('Tabac des Halles');
+  await engineReady(A.page);
+  await tabs(A.page).getByRole('button', { name: 'Réglages' }).click();
+  await A.page.getByRole('button', { name: 'Inviter un employé' }).click();
+  const invite = await A.page.locator('[data-invite]').getAttribute('data-invite');
+  await A.page.getByRole('button', { name: 'Fermer' }).click();
+  await B.page.goto('./#scanner');
+  await scan(B.page, invite!);
+  await B.page.getByRole('dialog', { name: 'Rejoindre « Tabac des Halles » ?' }).getByRole('button', { name: 'Rejoindre' }).click();
+  await expect(shopName(B.page)).toHaveText('Tabac des Halles');
+  await engineReady(B.page);
+
+  // A et B cochent chacun une tâche différente, sans se synchroniser entre-temps : aucune ne se perd.
+  await tabs(A.page).getByRole('button', { name: 'À faire' }).click();
+  await tabs(B.page).getByRole('button', { name: 'À faire' }).click();
+  await A.page.getByText('Remplir la vitrine').click();
+  await B.page.getByText('Remplir le linéaire').click();
+  await A.page.getByRole('button', { name: '+ Tâche' }).click();
+  const add = A.page.getByRole('dialog', { name: 'Nouvelle tâche' });
+  await add.getByLabel('Tâche à faire').fill('Commander les tickets');
+  await add.getByRole('button', { name: 'Après-midi' }).click();
+  await add.getByRole('button', { name: 'Ajouter' }).click();
+  for (const p of [A.page, B.page]) {
+    await eventually([A.page, B.page], async () => {
+      await expect(p.getByRole('checkbox', { name: 'Remplir la vitrine' })).toBeChecked({ timeout: 1_000 });
+      await expect(p.getByRole('checkbox', { name: 'Remplir le linéaire' })).toBeChecked({ timeout: 1_000 });
+      await expect(p.getByText('Commander les tickets')).toBeVisible({ timeout: 1_000 });
+    });
+  }
+  await expect(B.page.getByText('2 / 10 faites')).toBeVisible();
+  await A.ctx.close();
+  await B.ctx.close();
+});
