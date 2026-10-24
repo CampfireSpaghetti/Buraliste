@@ -7,7 +7,7 @@ import { applyRemoteOps } from '../../src/data/sharedRepo';
 import { createRelayClient, type RelayClient } from '../../src/sync/relayClient';
 import { resetClockForTests } from '../../src/sync/clock';
 import { createSyncEngine, type SyncStatus } from '../../src/sync/engine';
-import { deriveChannel, decryptJson, encryptJson, generateTabacKey } from '../../src/sync/crypto';
+import { deriveChannel, decryptJson, encryptJson, generateDeviceKeys, generateTabacKey, unwrapKey, wrapKeyFor, type Rotation } from '../../src/sync/crypto';
 import type { Op } from '../../src/sync/merge';
 
 const RELAY = 'https://relais.test';
@@ -88,6 +88,37 @@ afterEach(async () => {
 });
 
 describe('moteur de synchronisation', () => {
+  it('changement de clé : les opérations d’avant sont appliquées, la lecture s’arrête au message, un faux message ensuite n’est jamais lu', async () => {
+    const key = generateTabacKey();
+    const r = fakeRelay();
+    const A = phone();
+    const B = phone();
+    const X = phone();
+    const now = Date.now();
+    const [kb, kx] = await Promise.all([generateDeviceKeys(), generateDeviceKeys()]);
+    const k2 = generateTabacKey();
+    const ea = createSyncEngine({ relay: r.client, key, db: A });
+    await localWrite(A, lineOp('l1', { code: '0417', name: 'Cash', linearQty: 5, stockQty: 0, updatedAt: now, deleted: false }, hlcAt(now - 3000)));
+    await ea.syncNow();
+    await ea.postControl({ rotation: await wrapKeyFor(k2, [{ id: 'b', pub: kb.pub }]) });
+    // Le retiré essaie ensuite de faire passer sa propre « nouvelle clé » : arrivée après, elle n'est jamais lue.
+    const { canal, ecriture } = await deriveChannel(key);
+    await r.client.post(canal, { ecriture, messages: [await encryptJson(key, { v: 1, rotation: await wrapKeyFor(generateTabacKey(), [{ id: 'b', pub: kb.pub }]) })] });
+    await localWrite(A, lineOp('l2', { code: '', name: 'Après', linearQty: 1, stockQty: 0, updatedAt: now, deleted: false }, hlcAt(now - 1000)));
+    await r.client.post(canal, { ecriture, messages: [await encryptJson(key, { v: 1, ops: (await A.opsOut.toArray()).map((x) => x.op) })] });
+
+    const seen: Rotation[] = [];
+    const eb = createSyncEngine({ relay: r.client, key, db: B, onRotation: (rot) => { seen.push(rot); } });
+    await eb.syncNow();
+    expect(seen).toHaveLength(1);
+    expect(await unwrapKey(seen[0], 'b', kb.priv)).toBe(k2); // B reçoit la vraie nouvelle clé
+    expect((await B.countLines.get('l1'))?.linearQty).toBe(5); // opérations d'avant : appliquées
+    expect(await B.countLines.get('l2')).toBeUndefined(); // après : ignorées
+    const sx: Rotation[] = [];
+    await createSyncEngine({ relay: r.client, key, db: X, onRotation: (rot) => { sx.push(rot); } }).syncNow();
+    expect(await unwrapKey(sx[0], 'x', kx.priv)).toBeUndefined(); // X n'est pas dans la liste : plus d'accès
+  });
+
   it('liste « À faire » : une tâche va d’un téléphone à l’autre ; un téléphone mis à jour après coup la récupère en rejoignant', async () => {
     const key = generateTabacKey();
     const r = fakeRelay();

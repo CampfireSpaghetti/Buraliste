@@ -196,3 +196,22 @@ export function switchTabac(id: string): void {
   setCurrentTabac(id);
   location.reload();
 }
+
+/** Nouvelle clé d'un tabac (retrait d'un employé) : la base reste, seul le canal change. */
+export function setTabacKey(id: string, key: string): void {
+  if (!KEY_PATTERN.test(key)) throw new Error('clé invalide');
+  const r = load(DEFAULT_TABAC_NAME);
+  save({ ...r, tabacs: r.tabacs.map((t) => (t.id === id ? { ...t, key } : t)) });
+}
+
+/**
+ * Oublie un tabac dont ce téléphone a été retiré : sa base est supprimée. C'était le seul : un tabac neuf (vide, clé
+ * neuve) le remplace. La page doit ensuite être rechargée.
+ */
+export async function forgetTabac(id: string): Promise<void> {
+  await Dexie.delete(dbNameFor(id));
+  const r = load(DEFAULT_TABAC_NAME);
+  const tabacs = r.tabacs.filter((t) => t.id !== id);
+  if (tabacs.length === 0) tabacs.push(newPrincipal(DEFAULT_TABAC_NAME));
+  save({ current: tabacs.some((t) => t.id === r.current) ? r.current : tabacs[0].id, tabacs });
+}

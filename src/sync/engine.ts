@@ -11,7 +11,7 @@
 import { db as appDb, REJOIN_ASKED, type CarotteDB } from '../data/db';
 import { applyRemoteOps, OPS_QUEUED_EVENT } from '../data/sharedRepo';
 import { notifyDataChanged } from '../store';
-import { decryptJson, deriveChannel, encryptJson } from './crypto';
+import { decryptJson, deriveChannel, encryptJson, type Rotation } from './crypto';
 import type { Op } from './merge';
 import { RelayError, type RelayClient, type Sealed } from './relayClient';
 import { applyEtat, buildEtat, hasLocalData, stampLegacy } from './snapshot';
@@ -29,6 +29,8 @@ export type SyncEngine = {
   status(): SyncStatus;
   /** Délai avant la prochaine tentative après un échec ; `null` si aucune n'est prévue (pas d'échec, ou accès refusé). */
   nextDelayMs(): number | null;
+  /** Envoie un message de contrôle (changement de clé) sur le canal, après les opérations en file. */
+  postControl(body: { rotation: Rotation }): Promise<void>;
 };
 
 export type SyncEngineOptions = {
@@ -42,6 +44,11 @@ export type SyncEngineOptions = {
   now?: () => number;
   /** Appelé quand des données reçues ont changé la base (par défaut : rafraîchir l'écran). */
   onChange?: () => void;
+  /**
+   * Message de changement de clé lu sur le canal (retrait d'un employé) : les opérations d'avant sont appliquées, la
+   * lecture de ce canal s'arrête et le moteur aussi. Sans lui, le message est ignoré.
+   */
+  onRotation?: (rotation: Rotation) => Promise<void> | void;
 };
 
 const MAX_OPS_PER_MESSAGE = 200;
@@ -140,6 +147,8 @@ export function createSyncEngine(opts: SyncEngineOptions): SyncEngine {
   let interval: ReturnType<typeof setInterval> | undefined;
   let retryTimer: ReturnType<typeof setTimeout> | undefined;
   let sendTimer: ReturnType<typeof setTimeout> | undefined;
+  /** Changement de clé lu sur le canal : le moteur s'arrête après l'avoir transmis (`onRotation`). */
+  let rotated: Rotation | undefined;
 
   const getState = async (k: string): Promise<unknown> => (await d.syncState.get(k))?.value;
   const numState = async (k: string): Promise<number> => {
@@ -185,11 +194,17 @@ export function createSyncEngine(opts: SyncEngineOptions): SyncEngine {
       let maxN = last;
       let skipped = 0;
       let fresh = 0;
-      for (const m of list) {
-        if (!isObj(m) || typeof m.n !== 'number' || !Number.isInteger(m.n) || m.n <= last) continue;
+      let rotation: Rotation | undefined;
+      // Messages dans l'ordre des numéros : un message de changement de clé arrête la lecture (les suivants sont ignorés).
+      const ordered = list.filter((m) => isObj(m) && typeof m.n === 'number' && Number.isInteger(m.n) && m.n > last).sort((a, b) => a.n - b.n);
+      for (const m of ordered) {
         fresh++;
         maxN = Math.max(maxN, m.n);
         const body = await decryptJson(key, m);
+        if (opts.onRotation && isObj(body) && body.v === 1 && isObj(body.rotation)) {
+          rotation = body.rotation as Rotation;
+          break;
+        }
         if (!isObj(body) || body.v !== 1 || !Array.isArray(body.ops)) {
           skipped++;
           continue;
@@ -203,6 +218,10 @@ export function createSyncEngine(opts: SyncEngineOptions): SyncEngine {
       // lecture de la page et celle de `dernier` serait sauté).
       const seen = (await numState(K_SEEN)) + fresh;
       await d.syncState.bulkPut([{ key: K_LAST, value: maxN }, { key: K_SEEN, value: seen }]);
+      if (rotation) {
+        rotated = rotation;
+        return false;
+      }
       if (list.length < PAGE) break;
       if (maxN === last) {
         // Page pleine sans aucun message nouveau : relais défaillant, on s'arrête (pas de boucle sans fin).
@@ -331,6 +350,27 @@ export function createSyncEngine(opts: SyncEngineOptions): SyncEngine {
     retryTimer = undefined;
   }
 
+  /**
+   * Changement de clé lu : ce canal n'est plus celui du tabac. Le moteur s'arrête (rien d'autre n'y est envoyé ni
+   * publié) et transmet le message (`onRotation` : nouvelle clé, ou plus d'accès).
+   */
+  async function stopForRotation(): Promise<boolean> {
+    if (!rotated) return false;
+    const r = rotated;
+    rotated = undefined;
+    stop();
+    await opts.onRotation?.(r);
+    return true;
+  }
+
+  /** Message de contrôle, après une dernière synchronisation (les opérations en file partent d'abord). */
+  async function postControl(body: { rotation: Rotation }): Promise<void> {
+    await syncNow();
+    channel ??= deriveChannel(key);
+    const { canal, ecriture } = await channel;
+    await relay.post(canal, { ecriture, messages: [await encryptJson(key, { v: 1, ...body })] });
+  }
+
   async function run(): Promise<void> {
     try {
       channel ??= deriveChannel(key);
@@ -340,8 +380,11 @@ export function createSyncEngine(opts: SyncEngineOptions): SyncEngine {
       if ((await getState(REJOIN_ASKED)) === true) await d.syncState.bulkDelete([K_LAST, K_PULL, K_SEEN, K_PHOTO_TODO, REJOIN_ASKED]);
       if ((await getState(K_LAST)) === undefined) await join(canal);
       else if (now() - (await numState(K_PULL)) > STALE_PULL_MS) await catchUp(canal);
+      if (await stopForRotation()) return;
       const resetOnSend = await send(canal, ecriture);
-      if ((await pull(canal)) || resetOnSend) await rejoin(canal);
+      const lost = await pull(canal);
+      if (await stopForRotation()) return;
+      if (lost || resetOnSend) await rejoin(canal);
       await maybePublish(canal, ecriture);
       failures = 0;
       refused = false;
@@ -444,5 +487,5 @@ export function createSyncEngine(opts: SyncEngineOptions): SyncEngine {
     clearRetry();
   }
 
-  return { start, stop, syncNow, status: computeStatus, nextDelayMs };
+  return { start, stop, syncNow, status: computeStatus, nextDelayMs, postControl };
 }

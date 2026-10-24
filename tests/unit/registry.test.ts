@@ -196,7 +196,7 @@ describe('une base par tabac', () => {
     old.close();
     const upgraded = new CarotteDB(name);
     await upgraded.open();
-    expect(upgraded.verno).toBe(9);
+    expect(upgraded.verno).toBe(10);
     expect(await upgraded.countLines.get('avant')).toMatchObject({ name: 'Cash', linearQty: 3 });
     expect((await upgraded.settings.get('main'))?.shopName).toBe('Chez moi');
     upgraded.close();
@@ -227,5 +227,22 @@ describe('nom du tabac au démarrage', () => {
     await saveSettings({ shopName: 'Chez Marie' });
     expect(listTabacs().find((t) => t.id === dbTabacId)!.name).toBe('Chez Marie');
     expect(listTabacs().find((t) => t.id === a.id)!.name).toBe('Rue haute');
+  });
+});
+
+describe('retrait d’un employé : clé changée, tabac oublié', () => {
+  it('setTabacKey change la clé seulement ; forgetTabac supprime la base et remplace le dernier tabac', async () => {
+    const { setTabacKey, forgetTabac, listTabacs, currentTabac, addTabac } = await import('../../src/tabacs/registry');
+    const t = addTabac('Tabac de la Gare');
+    const k2 = 'B'.repeat(43);
+    setTabacKey(t.id, k2);
+    expect(listTabacs().find((x) => x.id === t.id)).toMatchObject({ name: 'Tabac de la Gare', key: k2 });
+    expect(() => setTabacKey(t.id, 'courte')).toThrow();
+    for (const x of listTabacs()) await forgetTabac(x.id);
+    const left = listTabacs();
+    expect(left).toHaveLength(1);
+    expect(left[0].id).toBe('principal');
+    expect(currentTabac().id).toBe('principal');
+    expect(left[0].key).not.toBe(k2);
   });
 });

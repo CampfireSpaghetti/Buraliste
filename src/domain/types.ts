@@ -116,3 +116,16 @@ export interface CountSnapshot {
   lines: SnapshotLine[];
   deleted?: boolean;
 }
+
+export type Role = 'gerant' | 'employe';
+
+/** Téléphone d'un tabac (liste « Employés ») : id = identifiant de l'appareil. */
+export interface Member {
+  id: string;
+  name: string; // nom tapé par la personne (vide : « Téléphone sans nom »)
+  role: Role;
+  pub: string; // clé publique ECDH P-256 de ce téléphone pour ce tabac (base64url) : reçoit les nouvelles clés
+  joinedAt: number;
+  lastSeen: number;
+  removed?: boolean; // retiré du tabac par un gérant
+}
