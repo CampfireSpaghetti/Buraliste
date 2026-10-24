@@ -6,7 +6,9 @@ import { formatEuro } from '../../domain/format';
 import { normalizeCode } from '../../domain/barcode';
 import type { CountLine, Product } from '../../domain/types';
 import { addCountLines, newId } from '../../data/db';
-import { actions, currentProduct, newUserProduct, notifyDataChanged, useCountLines, useProducts, useSettings } from '../../store';
+import { actions, currentProduct, newUserProduct, notifyDataChanged, useCountLines, useHistory, useProducts, useSettings } from '../../store';
+import type { CountSnapshot } from '../../domain/types';
+import { HistoryPanel } from './HistoryPanel';
 import { Sheet } from '../../ui/Panel';
 import { Toast } from '../../ui/Toast';
 import { ScannerView, type ScannedResult } from '../scanner/ScannerView';
@@ -25,7 +27,8 @@ type KeypadTarget = {
 };
 const FIELD_LABEL: Record<QtyField, string> = { linearQty: 'Linéaire', stockQty: 'Stock' };
 type LineForm = { mode: 'new' } | { mode: 'edit'; line: CountLine };
-type ToastState = { message: string; undo?: CountLine; undoReset?: CountLine[] };
+/** `undoFinish` : « Fin comptage » à annuler (comptage enregistré, comptages retirés pour faire de la place, tableau d'avant). */
+type ToastState = { message: string; undo?: CountLine; undoReset?: CountLine[]; undoFinish?: { snapshot: CountSnapshot; pruned: CountSnapshot[]; lines?: CountLine[] } };
 
 export function CountScreen() {
   const products = useProducts();
@@ -41,6 +44,9 @@ export function CountScreen() {
   const [last, setLast] = useState<{ name: string; linear: number; stock: number } | null>(null);
   const [counted, setCounted] = useState<Set<string>>(new Set());
   const [toast, setToast] = useState<ToastState | null>(null);
+  const history = useHistory();
+  const [finishing, setFinishing] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [resetting, setResetting] = useState(false);
 
@@ -111,6 +117,14 @@ export function CountScreen() {
   };
 
   const nonZero = lines.filter((l) => l.linearQty > 0 || l.stockQty > 0).length;
+  /** « Fin comptage » : enregistre le tableau dans l'historique, puis le remet à zéro si demandé. */
+  const finish = async (thenReset: boolean) => {
+    setFinishing(false);
+    const { snapshot, pruned } = await actions.saveSnapshot();
+    const before = thenReset ? await actions.resetCountLines() : undefined;
+    setToast({ message: thenReset ? 'Comptage enregistré, tableau remis à zéro' : 'Comptage enregistré', undoFinish: { snapshot, pruned, lines: before } });
+  };
+
   const reset = async () => {
     setResetting(false);
     const previous = await actions.resetCountLines();
@@ -149,6 +163,10 @@ export function CountScreen() {
         </div>
       ) : (
         <>
+          <button type="button" className="btn history-btn" disabled={!history?.length} onClick={() => setShowHistory(true)}>
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v4h4M12 7v5l3 2" /></svg>
+            {history?.length ? `Historique · ${history.length} ${history.length > 1 ? 'comptages' : 'comptage'}` : 'Historique'}
+          </button>
           {settings && <BackupReminder settings={settings} hasData={(rawLines ?? []).some((l) => l.updatedAt > 0)} />}
           <div className="count-actions">
             <button type="button" className="btn accent" onClick={() => setScanning(true)}>Scanner</button>
@@ -164,6 +182,8 @@ export function CountScreen() {
             <button type="button" className="chip reset-chip" disabled={nonZero === 0} onClick={() => setResetting(true)}>Remettre à zéro</button>
           </div>
           {table}
+          <button type="button" className="btn accent finish-btn" disabled={lines.length === 0} onClick={() => setFinishing(true)}>Fin comptage</button>
+          <p className="muted finish-hint">Enregistre le comptage dans l'historique (les 8 derniers sont gardés).</p>
         </>
       )}
 
@@ -228,6 +248,19 @@ export function CountScreen() {
           onCreated={(g) => { setNewGame(null); openForGame(g, newGame.code); }}
         />
       )}
+      {finishing && (
+        <Sheet label="Fin comptage" onClose={() => setFinishing(false)}>
+          <h3 style={{ fontSize: 20 }}>Fin du comptage</h3>
+          <p className="muted" style={{ margin: 0 }}>
+            Le comptage ({lines.length} {lines.length > 1 ? 'jeux' : 'jeu'}) est enregistré dans l'historique, sur tous les téléphones du tabac.
+            {(history?.length ?? 0) >= 8 && ' Le plus ancien des 8 comptages gardés sera retiré.'}
+          </p>
+          <button type="button" className="btn accent" onClick={() => void finish(true)}>Enregistrer et remettre à zéro</button>
+          <button type="button" className="btn" onClick={() => void finish(false)}>Enregistrer seulement</button>
+          <button type="button" className="btn ghost" onClick={() => setFinishing(false)}>Annuler</button>
+        </Sheet>
+      )}
+      {showHistory && <HistoryPanel onClose={() => setShowHistory(false)} />}
       {resetting && (
         <Sheet label="Remettre le comptage à zéro" onClose={() => setResetting(false)}>
           <h3 style={{ fontSize: 20 }}>Remettre le comptage à zéro ?</h3>
@@ -246,9 +279,14 @@ export function CountScreen() {
       {toast && (
         <Toast
           message={toast.message}
-          action={toast.undo || toast.undoReset ? 'Annuler' : undefined}
+          action={toast.undo || toast.undoReset || toast.undoFinish ? 'Annuler' : undefined}
           onAction={() => {
             if (toast.undoReset) void actions.restoreCountLines(toast.undoReset);
+            const f = toast.undoFinish;
+            if (f) {
+              void actions.putSnapshots([{ ...f.snapshot, deleted: true }, ...f.pruned]);
+              if (f.lines) void actions.restoreCountLines(f.lines);
+            }
             const undo = toast.undo;
             if (undo) {
               void actions.restoreCountLine(undo);

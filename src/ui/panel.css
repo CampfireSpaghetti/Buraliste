@@ -39,6 +39,11 @@ button.chip { min-height: 40px; }
   background: var(--toast-bg); color: var(--email); border-radius: 12px; border-left: 4px solid var(--laiton); padding: 6px 6px 6px 16px;
   display: flex; align-items: center; justify-content: space-between; gap: 8px; font-weight: 600; box-shadow: 0 8px 24px rgba(0,0,0,.3);
 }
+/* Une feuille ouverte en bas (confirmation, pavé) : le message passe en haut, pour ne jamais couvrir ses boutons.
+   Seul son bouton (« Annuler ») capte le doigt ; le texte laisse passer les touchers. */
+body:has(.sheet-wrap) .toast { bottom: auto; top: calc(env(safe-area-inset-top) + 12px); }
+.toast { pointer-events: none; }
+.toast button { pointer-events: auto; }
 .toast button { min-height: var(--tap); padding: 0 14px; border: 0; border-radius: 8px; background: transparent; color: #fbe7b5; font-weight: 700; }
 .banner { background: var(--highlight); color: var(--fg); border-radius: var(--radius); padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; font-size: 15px; font-weight: 600; }
 .banner-actions { display: flex; gap: 8px; }
