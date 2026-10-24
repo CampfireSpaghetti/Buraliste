@@ -8,17 +8,17 @@ const at = (h: number, m: number) => new Date(2026, 9, 23, h, m).getTime();
 
 describe('export .jpg de la liste « À faire »', () => {
   it('en-tête, services dans l’ordre, tâches avec heure, total', () => {
-    const tasks: Task[] = BASE_TASKS.map((t) => (t.id === 'base:2' ? { ...t, doneAt: at(8, 12) } : t.id === 'base:8' ? { ...t, doneAt: at(14, 5) } : t));
+    const tasks: Task[] = BASE_TASKS.map((t) => (t.id === 'base:matin-2' ? { ...t, doneAt: at(8, 12) } : t.id === 'base:apres-midi-5' ? { ...t, doneAt: at(14, 5) } : t));
     const l = layoutTasksExport(tasks, 'Tabac du Centre', now);
     expect(l.header).toEqual({ shop: 'Tabac du Centre', title: 'Tâches du jour', stamp: '23/10/2026 15:30' });
-    expect(l.sections.map((s) => [s.label, s.count])).toEqual([['Matin', '1 / 6'], ['Après-midi', '1 / 3']]);
-    expect(l.rows).toHaveLength(9);
+    expect(l.sections.map((s) => [s.label, s.count])).toEqual([['Matin', '1 / 9'], ['Après-midi', '1 / 9']]);
+    expect(l.rows).toHaveLength(18);
     expect(l.rows[1]).toMatchObject({ label: 'Vérifier stock cigarettes', done: true, time: '08:12' });
     expect(l.rows[0]).toMatchObject({ done: false, time: '' });
-    expect(l.rows[7]).toMatchObject({ label: "Nettoyer l'espace de travail", done: true, time: '14:05' });
-    expect(l.totalLabel).toBe('2 / 9 faites');
+    expect(l.rows[13]).toMatchObject({ label: "Nettoyer l'espace de travail", done: true, time: '14:05' });
+    expect(l.totalLabel).toBe('2 / 18 faites');
     // Les lignes ne se chevauchent pas, la section Après-midi vient après la dernière tâche du matin.
-    expect(l.sections[1].y).toBe(l.rows[5].y + M.rowH);
+    expect(l.sections[1].y).toBe(l.rows[8].y + M.rowH);
     expect(l.height).toBe(l.footerY + M.footerH);
     expect(l.scale).toBe(2);
   });

@@ -205,8 +205,9 @@ test('deux téléphones : la liste « À faire » se partage (cases cochées en 
   // A et B cochent chacun une tâche différente, sans se synchroniser entre-temps : aucune ne se perd.
   await tabs(A.page).getByRole('button', { name: 'À faire' }).click();
   await tabs(B.page).getByRole('button', { name: 'À faire' }).click();
-  await A.page.getByText('Remplir la vitrine').click();
-  await B.page.getByText('Remplir le linéaire').click();
+  const matin = (p: Page) => p.getByRole('region', { name: /^Matin/ });
+  await matin(A.page).getByText('Remplir la vitrine').click();
+  await matin(B.page).getByText('Remplir le linéaire').click();
   await A.page.getByRole('button', { name: '+ Tâche' }).click();
   const add = A.page.getByRole('dialog', { name: 'Nouvelle tâche' });
   await add.getByLabel('Tâche à faire').fill('Commander les tickets');
@@ -214,12 +215,12 @@ test('deux téléphones : la liste « À faire » se partage (cases cochées en 
   await add.getByRole('button', { name: 'Ajouter' }).click();
   for (const p of [A.page, B.page]) {
     await eventually([A.page, B.page], async () => {
-      await expect(p.getByRole('checkbox', { name: 'Remplir la vitrine' })).toBeChecked({ timeout: 1_000 });
-      await expect(p.getByRole('checkbox', { name: 'Remplir le linéaire' })).toBeChecked({ timeout: 1_000 });
+      await expect(matin(p).getByRole('checkbox', { name: 'Remplir la vitrine' })).toBeChecked({ timeout: 1_000 });
+      await expect(matin(p).getByRole('checkbox', { name: 'Remplir le linéaire' })).toBeChecked({ timeout: 1_000 });
       await expect(p.getByText('Commander les tickets')).toBeVisible({ timeout: 1_000 });
     });
   }
-  await expect(B.page.getByText('2 / 10 faites')).toBeVisible();
+  await expect(B.page.getByText('2 / 19 faites')).toBeVisible();
   await A.ctx.close();
   await B.ctx.close();
 });

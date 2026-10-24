@@ -16,12 +16,16 @@ l'après-midi, avec ajout, retrait, remise à zéro, export, et des poignées po
 
 ## Liste de base
 
-Matin : Vérifier stock grattage · Vérifier stock cigarettes · Vérifier stock tabletterie · Remplir le linéaire ·
-Remplir la vitrine · Remplir la machine à café.
+Mise à jour du 24/10/2026 (demande du gérant) : **la même liste le matin et l'après-midi**, 9 tâches chacun, dans cet
+ordre, « Vérifier stock grattage » deux fois (choix du gérant) : Vérifier stock grattage · Vérifier stock cigarettes ·
+Remplir le linéaire · Remplir la vitrine · Nettoyer l'espace de travail · Vérifier stock tabletterie · Vérifier stock
+grattage · Remplir la machine à café · Nettoyer l'espace client.
 
-Après-midi : Vérifier stock grattage · Nettoyer l'espace de travail · Nettoyer l'espace client.
+Première liste (23/10, remplacée) : matin 6 tâches, après-midi 3, ids `base:1` à `base:9`. Un téléphone qui l'avait
+supprime (partagé) celles de ses tâches de base dont le texte et le service n'ont pas changé ; les tâches ajoutées ou
+renommées restent. Repère `tasksSeeded` : `true` pour la première liste, `2` pour celle-ci.
 
-Les ids sont fixes (`base:1` à `base:9`) : chaque téléphone crée la même liste de son côté, sans opération partagée
+Les ids sont fixes (`base:matin-1` à `base:apres-midi-9`) : chaque téléphone crée la même liste de son côté, sans opération partagée
 (comme les lignes de jeu « jamais comptées »). La liste de base n'est créée qu'une fois par tabac et par téléphone
 (repère local `tasksSeeded`) : une tâche de base supprimée ne revient pas.
 

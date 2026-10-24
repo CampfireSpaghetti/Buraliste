@@ -5,20 +5,31 @@ export const SERVICES: { id: Service; label: string }[] = [
   { id: 'apres-midi', label: 'Après-midi' },
 ];
 
-const BASE: [Service, string][] = [
-  ['matin', 'Vérifier stock grattage'],
-  ['matin', 'Vérifier stock cigarettes'],
-  ['matin', 'Vérifier stock tabletterie'],
-  ['matin', 'Remplir le linéaire'],
-  ['matin', 'Remplir la vitrine'],
-  ['matin', 'Remplir la machine à café'],
-  ['apres-midi', 'Vérifier stock grattage'],
-  ['apres-midi', "Nettoyer l'espace de travail"],
-  ['apres-midi', "Nettoyer l'espace client"],
+/** Liste de base, la même le matin et l'après-midi, dans l'ordre donné par le gérant (le grattage deux fois). */
+const BASE = [
+  'Vérifier stock grattage',
+  'Vérifier stock cigarettes',
+  'Remplir le linéaire',
+  'Remplir la vitrine',
+  "Nettoyer l'espace de travail",
+  'Vérifier stock tabletterie',
+  'Vérifier stock grattage',
+  'Remplir la machine à café',
+  "Nettoyer l'espace client",
 ];
 
-/** Liste de base : ids fixes, la même sur chaque téléphone (créée sans opération partagée, comme les lignes de jeu). */
-export const BASE_TASKS: Task[] = BASE.map(([service, label], i) => ({ id: `base:${i + 1}`, label, service, order: i + 1, doneAt: 0 }));
+/**
+ * Liste de base : ids fixes (`base:matin-1`… `base:apres-midi-9`), la même sur chaque téléphone (créée sans opération
+ * partagée, comme les lignes de jeu).
+ */
+export const BASE_TASKS: Task[] = SERVICES.flatMap((s) => BASE.map((label, i) => ({ id: `base:${s.id}-${i + 1}`, label, service: s.id, order: i + 1, doneAt: 0 })));
+
+/** Première liste de base (6 le matin, 3 l'après-midi, ids `base:1`… `base:9`), remplacée par BASE_TASKS. */
+export const LEGACY_BASE_TASKS: Pick<Task, 'id' | 'label' | 'service'>[] = ([
+  ['matin', 'Vérifier stock grattage'], ['matin', 'Vérifier stock cigarettes'], ['matin', 'Vérifier stock tabletterie'],
+  ['matin', 'Remplir le linéaire'], ['matin', 'Remplir la vitrine'], ['matin', 'Remplir la machine à café'],
+  ['apres-midi', 'Vérifier stock grattage'], ['apres-midi', "Nettoyer l'espace de travail"], ['apres-midi', "Nettoyer l'espace client"],
+] as [Service, string][]).map(([service, label], i) => ({ id: `base:${i + 1}`, label, service }));
 
 const dayOf = (ms: number) => new Date(ms).toDateString();
 

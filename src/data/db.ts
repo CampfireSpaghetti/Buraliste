@@ -1,6 +1,6 @@
 import Dexie, { type Table } from 'dexie';
 import type { CountLine, Product, ProductFields, Service, Settings, Task } from '../domain/types';
-import { BASE_TASKS, isDoneToday, nextOrder, orderAt, serviceTasks } from '../domain/tasks';
+import { BASE_TASKS, LEGACY_BASE_TASKS, isDoneToday, nextOrder, orderAt, serviceTasks } from '../domain/tasks';
 import { officialRef, type Contribution } from '../domain/sharing';
 import { productIdMap, remapIdList, remapOp, remapProductIds, type IdMap } from '../domain/productId';
 import { withoutClock, type Clocked, type Op } from '../sync/merge';
@@ -318,15 +318,30 @@ const taskTx = <T>(fn: () => Promise<T>) => db.transaction('rw', db.tasks, db.op
 export const listTasks = async (): Promise<Task[]> =>
   (await db.tasks.toArray()).filter((t) => t.deleted !== true).map((t) => withoutClock<Task>(t));
 
+/** Version de la liste de base créée sur ce téléphone (`true` : la première, 6 le matin et 3 l'après-midi). */
+const SEED_VERSION = 2;
+
 /**
  * Liste de base, une fois par tabac et par téléphone : ajoutée telle quelle, sans opération (chaque téléphone la crée
  * de son côté, avec les mêmes ids). Une tâche de base déjà connue (supprimée comprise) n'est jamais remplacée.
+ * Téléphone qui avait la première liste : ses tâches de base dont le texte et le service n'ont pas été changés sont
+ * supprimées (partagé : les autres téléphones les perdent aussi, sans qu'elles reviennent) ; les tâches ajoutées ou
+ * renommées restent.
  */
 export async function seedTasks(): Promise<void> {
-  await db.transaction('rw', db.tasks, db.syncState, async () => {
-    if ((await db.syncState.get(TASKS_SEEDED)) !== undefined) return;
+  await db.transaction('rw', db.tasks, db.opsOut, db.syncState, async () => {
+    const seeded = (await db.syncState.get(TASKS_SEEDED))?.value;
+    if (seeded === SEED_VERSION) return;
+    if (seeded === true) {
+      for (const old of LEGACY_BASE_TASKS) {
+        const t = await db.tasks.get(old.id);
+        if (t && t.deleted !== true && t.label === old.label && t.service === old.service) {
+          await writeShared<Task>('task', old.id, { ...withoutClock<Task>(t), deleted: true });
+        }
+      }
+    }
     for (const t of BASE_TASKS) if (!(await db.tasks.get(t.id))) await db.tasks.put({ ...t });
-    await db.syncState.put({ key: TASKS_SEEDED, value: true });
+    await db.syncState.put({ key: TASKS_SEEDED, value: SEED_VERSION });
   });
 }
 

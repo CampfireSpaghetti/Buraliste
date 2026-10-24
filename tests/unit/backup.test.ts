@@ -85,17 +85,17 @@ describe('sauvegarde de la liste « À faire »', () => {
   const tasks = [{ id: 'base:1', label: 'Vérifier stock grattage', service: 'matin' as const, order: 1, doneAt: 5 }, { id: 'x', label: 'Arroser', service: 'apres-midi' as const, order: 2, doneAt: 0 }];
   it('les tâches sont sauvegardées puis restaurées (les absentes supprimées)', async () => {
     await seedTasks();
-    await setTaskDone('base:2', true, 9);
+    await setTaskDone('base:matin-2', true, 9);
     const exported = JSON.parse(await exportBackupText(1));
-    expect(exported.tasks).toHaveLength(9);
-    expect(exported.tasks.find((t: { id: string }) => t.id === 'base:2')).toEqual({ id: 'base:2', label: 'Vérifier stock cigarettes', service: 'matin', order: 2, doneAt: 9 });
+    expect(exported.tasks).toHaveLength(18);
+    expect(exported.tasks.find((t: { id: string }) => t.id === 'base:matin-2')).toEqual({ id: 'base:matin-2', label: 'Vérifier stock cigarettes', service: 'matin', order: 2, doneAt: 9 });
     expect(await restoreFromText(serializeBackup({ ...data, tasks }, 1))).toEqual({ ok: true });
     expect((await listTasks()).sort((a, b) => a.order - b.order)).toEqual(tasks.map((t) => ({ ...t, deleted: false })));
   });
   it('une ancienne sauvegarde sans tâches est valide et laisse la liste telle quelle', async () => {
     await seedTasks();
     expect(await restoreFromText(serializeBackup(data, 1))).toEqual({ ok: true });
-    expect(await listTasks()).toHaveLength(9);
+    expect(await listTasks()).toHaveLength(18);
   });
   it('une tâche abîmée rend la sauvegarde invalide', () => {
     const bad = serializeBackup({ ...data, tasks: [{ ...tasks[0], service: 'nuit' as never }] }, 1);

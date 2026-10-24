@@ -15,7 +15,7 @@ L'outil de poche du buraliste, pour iPhone et Android :
 - **+ Tâche** : texte et service (Matin ou Après-midi), ajoutée en fin de service. Le bouton **…** d'une tâche permet de la renommer, de changer son service ou de la supprimer (« Annuler » quelques secondes).
 - **Ranger** : glisser la poignée ⠿ (ou, au clavier, flèches haut et bas sur la poignée).
 - **Export .jpg** : les deux services, cochés ou non, avec les heures, par le menu Partager.
-- Tout le monde dans le tabac peut cocher, ajouter, retirer et remettre à zéro. La liste de départ : vérifier stock grattage, cigarettes et tabletterie, remplir le linéaire, la vitrine et la machine à café (matin) ; vérifier stock grattage, nettoyer l'espace de travail et l'espace client (après-midi).
+- Tout le monde dans le tabac peut cocher, ajouter, retirer et remettre à zéro. La liste de départ est la même le matin et l'après-midi : vérifier stock grattage, vérifier stock cigarettes, remplir le linéaire, remplir la vitrine, nettoyer l'espace de travail, vérifier stock tabletterie, vérifier stock grattage, remplir la machine à café, nettoyer l'espace client.
 
 C'est une application web installable (PWA) : gratuite, sans App Store ni Play Store, elle fonctionne hors connexion. Les données sont enregistrées sur le téléphone. Dès que l'administrateur a mis le relais en service (voir plus bas), les données de chaque tabac sont envoyées automatiquement, **chiffrées**, pour être partagées avec les téléphones de ce tabac, et seulement eux.
 
