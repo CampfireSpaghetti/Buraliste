@@ -291,8 +291,9 @@ export function createSyncEngine(opts: SyncEngineOptions): SyncEngine {
   // ---------------------------------------------------------------- envoi
 
   /**
-   * Envoie la file. Renvoie true si le relais a numéroté un envoi sans dépasser le dernier numéro déjà vu ici : sur un
-   * relais sain, tout nouveau message reçoit un numéro plus grand que tous ceux du canal ; c'est donc une remise à zéro.
+   * Envoie la file. Renvoie true si le relais a numéroté un envoi sans dépasser le dernier numéro déjà vu ici (sur un
+   * relais sain, tout nouveau message reçoit un numéro plus grand que tous ceux du canal), ou s'il signale avoir créé le
+   * canal par cet envoi : c'est donc une remise à zéro.
    */
   async function send(canal: string, ecriture: string): Promise<boolean> {
     const rows = (await d.opsOut.orderBy('seq').toArray()).filter((r): r is Row => typeof r.seq === 'number');
@@ -311,6 +312,8 @@ export function createSyncEngine(opts: SyncEngineOptions): SyncEngine {
       for (const m of post) messages.push(await encryptJson(key, { v: 1, ops: m.ops }));
       const r = await relay.post(canal, { ecriture, messages });
       if (seen > 0 && typeof r?.dernier === 'number' && r.dernier <= seen) reset = true;
+      // Canal recréé par cet envoi alors qu'on en avait lu un : supprimé entre-temps (ménage d'un tabac abandonné).
+      if (seen > 0 && r?.nouveau === true) reset = true;
       // Exactement les opérations envoyées : d'autres ont pu être ajoutées entre-temps.
       await d.opsOut.bulkDelete(post.flatMap((m) => m.seqs));
     }

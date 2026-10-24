@@ -23,6 +23,8 @@ export interface D1Database {
  */
 /** Les compteurs d'une fenêtre de plus d'un jour sont supprimés. */
 const QUOTA_TTL = 24 * 3_600_000;
+/** Place des messages d'un canal, recalculée après un ménage. */
+const SUM_BYTES = '(SELECT COALESCE(SUM(LENGTH(iv) + LENGTH(data)), 0) FROM messages WHERE canal = ?)';
 
 export function createD1Store(db: D1Database): Store {
   return {
@@ -36,12 +38,16 @@ export function createD1Store(db: D1Database): Store {
         .prepare('INSERT OR IGNORE INTO canaux (canal, ecriture_hash, cree) VALUES (?, ?, ?)')
         .bind(canal, ecritureHash, now)
         .run();
-      return r.meta.changes > 0;
+      if (r.meta.changes === 0) return false;
+      // Volume repris à zéro (un canal supprimé par le ménage puis recréé).
+      await db.prepare('INSERT OR REPLACE INTO volumes (canal, octets, actif) VALUES (?, 0, ?)').bind(canal, now).run();
+      return true;
     },
 
     async appendMessages(canal, msgs, now) {
       // Une seule insertion pour tout l'envoi (jusqu'à 200 messages) : le tableau JSON est déplié par json_each,
       // dans l'ordre. Rien n'est inséré si le canal n'existe pas.
+      const bytes = msgs.reduce((t, m) => t + m.iv.length + m.data.length, 0);
       const [, updated] = await db.batch<{ dernier: number }>([
         db
           .prepare(
@@ -56,6 +62,12 @@ export function createD1Store(db: D1Database): Store {
              WHERE canal = ?1 RETURNING dernier`,
           )
           .bind(canal),
+        db
+          .prepare(
+            `INSERT INTO volumes (canal, octets, actif) SELECT ?1, ?2, ?3 WHERE EXISTS (SELECT 1 FROM canaux WHERE canal = ?1)
+             ON CONFLICT (canal) DO UPDATE SET octets = octets + ?2, actif = MAX(actif, ?3)`,
+          )
+          .bind(canal, bytes, now),
       ]);
       const row = updated.results[0];
       if (!row) throw new Error('canal inconnu');
@@ -83,6 +95,10 @@ export function createD1Store(db: D1Database): Store {
         )
         .bind(canal, photo.jusqua, photo.iv, photo.data, now)
         .run();
+      await db
+        .prepare('INSERT INTO volumes (canal, octets, actif) VALUES (?1, 0, ?2) ON CONFLICT (canal) DO UPDATE SET actif = MAX(actif, ?2)')
+        .bind(canal, now)
+        .run();
     },
 
     async getPhoto(canal) {
@@ -94,22 +110,53 @@ export function createD1Store(db: D1Database): Store {
     },
 
     async pruneBefore(canal, n, olderThan) {
-      await db.prepare('DELETE FROM messages WHERE canal = ? AND n <= ? AND recu < ?').bind(canal, n, olderThan).run();
+      await db.batch([
+        db.prepare('DELETE FROM messages WHERE canal = ? AND n <= ? AND recu < ?').bind(canal, n, olderThan),
+        db.prepare(`UPDATE volumes SET octets = ${SUM_BYTES} WHERE canal = ?`).bind(canal, canal),
+      ]);
     },
 
-    async bumpQuota(cle, fenetre) {
+    async bumpQuota(cle, fenetre, by = 1) {
       // Une seule transaction : ménage des vieux compteurs, puis incrément atomique (ou remise à 1 si la fenêtre a changé).
       const [, bumped] = await db.batch<{ n: number }>([
         db.prepare('DELETE FROM quotas WHERE fenetre < ?').bind(fenetre - QUOTA_TTL),
         db
           .prepare(
-            `INSERT INTO quotas (cle, n, fenetre) VALUES (?1, 1, ?2)
-             ON CONFLICT (cle) DO UPDATE SET n = CASE WHEN fenetre = ?2 THEN n + 1 ELSE 1 END, fenetre = MAX(fenetre, ?2)
+            `INSERT INTO quotas (cle, n, fenetre) VALUES (?1, ?3, ?2)
+             ON CONFLICT (cle) DO UPDATE SET n = CASE WHEN fenetre = ?2 THEN n + ?3 ELSE ?3 END, fenetre = MAX(fenetre, ?2)
              RETURNING n`,
           )
-          .bind(cle, fenetre),
+          .bind(cle, fenetre, by),
       ]);
-      return Number(bumped.results[0]?.n ?? 1);
+      return Number(bumped.results[0]?.n ?? by);
+    },
+
+    async channelBytes(canal) {
+      const row = await db.prepare('SELECT octets FROM volumes WHERE canal = ?').bind(canal).first<{ octets: number }>();
+      return row ? Number(row.octets) : 0;
+    },
+
+    async totalBytes() {
+      const row = await db
+        .prepare('SELECT (SELECT COALESCE(SUM(octets), 0) FROM volumes) + (SELECT COALESCE(SUM(LENGTH(iv) + LENGTH(data)), 0) FROM photos) AS t')
+        .first<{ t: number }>();
+      return Number(row?.t ?? 0);
+    },
+
+    async cleanup(inactiveBefore, coveredBefore) {
+      // Canaux sans écriture depuis `inactiveBefore` (un canal d'avant la table volumes compte par sa date de création).
+      const old = await db
+        .prepare('SELECT c.canal FROM canaux c LEFT JOIN volumes v ON v.canal = c.canal WHERE COALESCE(v.actif, c.cree) < ?')
+        .bind(inactiveBefore)
+        .all<{ canal: string }>();
+      const list = JSON.stringify(old.results.map((r) => r.canal));
+      const inList = 'canal IN (SELECT value FROM json_each(?))';
+      await db.batch([
+        ...['messages', 'photos', 'volumes', 'canaux'].map((t) => db.prepare(`DELETE FROM ${t} WHERE ${inList}`).bind(list)),
+        db.prepare('DELETE FROM messages WHERE recu < ? AND n <= (SELECT jusqua FROM photos p WHERE p.canal = messages.canal)').bind(coveredBefore),
+        db.prepare(`UPDATE volumes SET octets = ${SUM_BYTES.replace('canal = ?', 'canal = volumes.canal')}`),
+      ]);
+      return { canaux: old.results.length };
     },
   };
 }

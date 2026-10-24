@@ -6,6 +6,10 @@ compatibility_date = "2026-09-01"
 # Variables données par le workflow au déploiement (wrangler deploy --var) : ALLOWED_ORIGINS (adresse de l'app
 # publiée, CORS) et GITHUB_REPO (projet qui reçoit les codes-barres), tirées du nom du projet GitHub.
 
+# Ménage quotidien (tabacs abandonnés depuis 90 jours, messages couverts par une photographie depuis 30 jours).
+[triggers]
+crons = ["43 3 * * *"]
+
 [[d1_databases]]
 binding = "DB"
 database_name = "la-carotte"

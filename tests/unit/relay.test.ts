@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect, vi } from 'vitest';
-import { handle } from '../../relay/src/handlers.ts';
+import { handle, housekeeping } from '../../relay/src/handlers.ts';
 import { DEFAULT_LIMITS } from '../../relay/src/handlers.ts';
 import type { RelayEnv, Store } from '../../relay/src/handlers.ts';
 import { createMemoryStore } from '../../relay/src/memoryStore.ts';
@@ -37,7 +37,7 @@ describe('relais : messages', () => {
     const { env } = makeEnv();
     const r = await post(env, 'c1', 'w1', [{ iv: 'a', data: 'b' }]);
     expect(r.status).toBe(200);
-    expect(await r.json()).toEqual({ dernier: 1 });
+    expect(await r.json()).toEqual({ dernier: 1, nouveau: true }); // canal créé par cet envoi
     const g = await call(env, 'GET', '/v1/canaux/c1/messages?apres=0');
     expect(g.status).toBe(200);
     expect(await g.json()).toEqual({ messages: [{ n: 1, iv: 'a', data: 'b' }], dernier: 1 });
@@ -102,8 +102,8 @@ describe('relais : messages', () => {
 
   it('deux canaux entrelacés : numéros communs, donc des trous dans chaque canal (comme D1)', async () => {
     const { env } = makeEnv();
-    expect(await (await post(env, 'c1', 'w1', [{ iv: 'a', data: '1' }, { iv: 'b', data: '2' }])).json()).toEqual({ dernier: 2 });
-    expect(await (await post(env, 'c2', 'w2', [{ iv: 'c', data: '3' }])).json()).toEqual({ dernier: 3 });
+    expect(await (await post(env, 'c1', 'w1', [{ iv: 'a', data: '1' }, { iv: 'b', data: '2' }])).json()).toEqual({ dernier: 2, nouveau: true });
+    expect(await (await post(env, 'c2', 'w2', [{ iv: 'c', data: '3' }])).json()).toEqual({ dernier: 3, nouveau: true });
     expect(await (await post(env, 'c1', 'w1', [{ iv: 'd', data: '4' }])).json()).toEqual({ dernier: 4 });
     const j1 = (await (await call(env, 'GET', '/v1/canaux/c1/messages?apres=0')).json()) as { messages: { n: number }[]; dernier: number };
     expect(j1.messages.map((m) => m.n)).toEqual([1, 2, 4]);
@@ -407,7 +407,11 @@ describe('relais : codes-barres', () => {
 
 describe('relais : limites par adresse IP', () => {
   it('valeurs par défaut (R28)', () => {
-    expect(DEFAULT_LIMITS).toEqual({ requetesParCanalMinute: 120, ecrituresParIpMinute: 300, canauxParIpHeure: 20, codesParIpHeure: 20, issuesParHeure: 10 });
+    const MB = 1024 * 1024;
+    expect(DEFAULT_LIMITS).toEqual({
+      requetesParCanalMinute: 120, ecrituresParIpMinute: 300, canauxParIpHeure: 20, codesParIpHeure: 20, issuesParHeure: 10,
+      octetsParCanal: 20 * MB, octetsParIpHeure: 20 * MB, octetsReserve: 400 * MB,
+    });
   });
 
   it('écritures (messages, photographie) : au-delà de la limite par minute et par IP, 429 ; les lectures passent', async () => {
@@ -446,6 +450,66 @@ describe('relais : limites par adresse IP', () => {
     expect((await call(env, 'POST', '/v1/canaux/k20/messages', body, { 'CF-Connecting-IP': '5.6.7.8' })).status).toBe(200);
     clock.t += 3600_000;
     expect((await call(env, 'POST', '/v1/canaux/k22/messages', body, ip)).status).toBe(200);
+  });
+});
+
+describe('relais : place et volume (un tabac ou une adresse ne peut pas remplir le relais)', () => {
+  const big = (k: number) => ({ iv: 'iv', data: 'x'.repeat(k) });
+
+  it('place maximum par tabac : au-delà, seul ce tabac est refusé', async () => {
+    const { env } = makeEnv({ limits: { octetsParCanal: 1000 } });
+    expect((await post(env, 'plein', 'w', [big(600)])).status).toBe(200);
+    const r = await post(env, 'plein', 'w', [big(600)]);
+    expect(r.status).toBe(507);
+    expect(await r.json()).toEqual({ erreur: 'place du tabac épuisée sur le relais' });
+    expect((await post(env, 'autre', 'w', [big(600)])).status).toBe(200);
+  });
+
+  it('un ménage (photographie, vieux messages) rend de la place au tabac', async () => {
+    const { env, clock } = makeEnv({ limits: { octetsParCanal: 1000 } });
+    await post(env, 'c1', 'w', [big(600)]);
+    await call(env, 'PUT', '/v1/canaux/c1/photo', { ecriture: 'w', jusqua: 1, iv: 'i', data: 'd' });
+    clock.t += 31 * DAY;
+    await call(env, 'PUT', '/v1/canaux/c1/photo', { ecriture: 'w', jusqua: 1, iv: 'i', data: 'd2' });
+    expect((await post(env, 'c1', 'w', [big(600)])).status).toBe(200);
+  });
+
+  it('volume par adresse IP et par heure, messages et photographies comptés', async () => {
+    const { env, clock } = makeEnv({ limits: { octetsParIpHeure: 1000 } });
+    const ip = { 'CF-Connecting-IP': '1.2.3.4' };
+    const postIp = (canal: string, msgs: unknown[], h = ip) => call(env, 'POST', `/v1/canaux/${canal}/messages`, { ecriture: 'w', messages: msgs }, h);
+    expect((await postIp('a', [big(500)])).status).toBe(200);
+    expect((await call(env, 'PUT', '/v1/canaux/a/photo', { ecriture: 'w', jusqua: 1, iv: 'i', data: 'x'.repeat(300) }, ip)).status).toBe(200);
+    // Contourner par un autre tabac ne sert à rien : c'est l'adresse qui compte.
+    const r = await postIp('b', [big(300)]);
+    expect(r.status).toBe(429);
+    expect(await r.json()).toEqual({ erreur: 'trop de données envoyées depuis cette adresse' });
+    expect((await postIp('b', [big(300)], { 'CF-Connecting-IP': '5.6.7.8' })).status).toBe(200);
+    clock.t += 3_600_000;
+    expect((await postIp('b', [big(300)])).status).toBe(200);
+  });
+
+  it('réserve : relais presque plein, plus de nouveau tabac, les tabacs existants continuent', async () => {
+    const { env } = makeEnv({ limits: { octetsReserve: 1000 } });
+    expect((await post(env, 'existant', 'w', [big(1200)])).status).toBe(200);
+    const r = await post(env, 'nouveau', 'w', [big(10)]);
+    expect(r.status).toBe(507);
+    expect(await r.json()).toEqual({ erreur: 'relais presque plein : nouveau tabac refusé' });
+    expect((await post(env, 'existant', 'w', [big(10)])).status).toBe(200);
+  });
+
+  it('ménage quotidien : tabac sans écriture depuis 90 jours supprimé ; recréé, il est signalé « nouveau »', async () => {
+    const { env, clock } = makeEnv();
+    await post(env, 'abandonne', 'w', [{ iv: 'a', data: 'b' }]);
+    await post(env, 'actif', 'w', [{ iv: 'a', data: 'b' }]);
+    clock.t += 60 * DAY;
+    await post(env, 'actif', 'w', [{ iv: 'c', data: 'd' }]);
+    clock.t += 31 * DAY;
+    expect(await housekeeping(env.store, clock.t)).toEqual({ canaux: 1 });
+    expect(await env.store.getChannel('abandonne')).toBeNull();
+    expect(await env.store.getChannel('actif')).not.toBeNull();
+    expect(await (await post(env, 'abandonne', 'w', [{ iv: 'e', data: 'f' }])).json()).toMatchObject({ nouveau: true });
+    expect(await (await post(env, 'actif', 'w', [{ iv: 'g', data: 'h' }])).json()).not.toHaveProperty('nouveau');
   });
 });
 

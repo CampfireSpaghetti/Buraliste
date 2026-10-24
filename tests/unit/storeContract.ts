@@ -116,5 +116,56 @@ export function storeContract(name: string, makeStore: () => Store | Promise<Sto
       // un compteur d'une vieille fenêtre ne gêne pas : il repart à 1
       expect(await s.bumpQuota('autre', 7_200_000)).toBe(1);
     });
+
+    it('bumpQuota ajoute « by » (volume envoyé)', async () => {
+      const s = await makeStore();
+      expect(await s.bumpQuota('octets', 3_600_000, 500)).toBe(500);
+      expect(await s.bumpQuota('octets', 3_600_000, 250)).toBe(750);
+      expect(await s.bumpQuota('octets', 7_200_000, 10)).toBe(10);
+    });
+
+    it('place prise : par canal (messages), au total (messages et photographies), recalculée après le ménage', async () => {
+      const s = await makeStore();
+      expect(await s.channelBytes('c1')).toBe(0);
+      expect(await s.totalBytes()).toBe(0);
+      await s.createChannel('c1', 'h', 1);
+      await s.createChannel('c2', 'h', 1);
+      const last = await s.appendMessages('c1', [{ iv: 'ab', data: 'cdef' }, { iv: 'g', data: 'hi' }], 100); // 6 + 3
+      await s.appendMessages('c2', [{ iv: 'x', data: 'y' }], 100); // 2
+      expect(await s.channelBytes('c1')).toBe(9);
+      expect(await s.channelBytes('c2')).toBe(2);
+      await s.putPhoto('c1', { jusqua: last, iv: 'pp', data: 'photo' }, 200); // 7
+      expect(await s.channelBytes('c1')).toBe(9);
+      expect(await s.totalBytes()).toBe(9 + 2 + 7);
+      await s.pruneBefore('c1', last, 1000);
+      expect(await s.channelBytes('c1')).toBe(0);
+      expect(await s.totalBytes()).toBe(2 + 7);
+    });
+
+    it('cleanup : canaux sans écriture supprimés en entier, messages couverts et vieux supprimés, les autres gardés', async () => {
+      const s = await makeStore();
+      await s.createChannel('vieux', 'h', 1);
+      await s.appendMessages('vieux', [m('v')], 10);
+      await s.putPhoto('vieux', { jusqua: await s.lastN('vieux'), iv: 'i', data: 'd' }, 20);
+      await s.createChannel('actif', 'h', 1);
+      const couvert = await s.appendMessages('actif', [m('couvert')], 100);
+      await s.putPhoto('actif', { jusqua: couvert, iv: 'i', data: 'd' }, 600);
+      const apres = await s.appendMessages('actif', [m('apres')], 150);
+      await s.createChannel('sans-photo', 'h', 1);
+      await s.appendMessages('sans-photo', [m('seul')], 100);
+
+      expect(await s.cleanup(50, 500)).toEqual({ canaux: 1 });
+      expect(await s.getChannel('vieux')).toBeNull();
+      expect(await s.getPhoto('vieux')).toBeNull();
+      expect(await s.listMessages('vieux', 0, 10)).toEqual([]);
+      expect(await s.channelBytes('vieux')).toBe(0);
+      expect((await s.listMessages('actif', 0, 10)).map((x) => x.n)).toEqual([apres]);
+      expect(await s.channelBytes('actif')).toBe(m('apres').iv.length + m('apres').data.length);
+      expect((await s.listMessages('sans-photo', 0, 10)).map((x) => x.data)).toEqual(['data-seul']);
+      // Recréé après le ménage : repart de zéro.
+      expect(await s.createChannel('vieux', 'h2', 700)).toBe(true);
+      expect(await s.channelBytes('vieux')).toBe(0);
+      expect(await s.cleanup(550, 0)).toEqual({ canaux: 1 }); // « sans-photo » (dernière écriture à 100) ; « actif » à 600
+    });
   });
 }

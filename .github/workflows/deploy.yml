@@ -156,6 +156,23 @@ jobs:
             echo
             echo "Elle est transmise automatiquement à l'app : rien à copier."
           } >> "$GITHUB_STEP_SUMMARY"
+      - name: Place utilisée sur le relais
+        if: steps.check.outputs.enabled == 'true'
+        continue-on-error: true
+        working-directory: relay
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          # Même calcul que la réserve du relais (400 Mo : plus de nouveau tabac au-delà ; base gratuite : 500 Mo).
+          set -o pipefail
+          mo=$(npx wrangler d1 execute la-carotte --remote --json --command \
+            "SELECT (SELECT COALESCE(SUM(octets), 0) FROM volumes) + (SELECT COALESCE(SUM(LENGTH(iv) + LENGTH(data)), 0) FROM photos) AS t" |
+            node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const a=JSON.parse(s.slice(s.search(/^\[/m)));process.stdout.write((Number(a[0].results[0].t)/1048576).toFixed(1))})')
+          echo "Place utilisée sur le relais : $mo Mo sur 400 Mo de réserve." >> "$GITHUB_STEP_SUMMARY"
+          if node -e "process.exit(Number('$mo') >= 320 ? 0 : 1)"; then
+            echo "::warning::Relais rempli à $mo Mo : à 400 Mo, plus aucun nouveau tabac ne pourra être créé."
+          fi
 
   build-deploy:
     needs: relay

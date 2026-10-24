@@ -20,11 +20,20 @@ export interface Store {
   /** Supprime les messages de numéro ≤ n reçus avant `olderThan`. */
   pruneBefore(canal: string, n: number, olderThan: number): Promise<void>;
   /**
-   * Compteur partagé par toutes les instances du relais (D1) : ajoute 1 au compteur `cle` pour la fenêtre qui commence
-   * à `fenetre` (ms) et renvoie sa nouvelle valeur. Une fenêtre plus récente remet le compteur à 1. Les compteurs d'une
-   * fenêtre de plus d'un jour sont supprimés au passage.
+   * Compteur partagé par toutes les instances du relais (D1) : ajoute `by` (1 par défaut) au compteur `cle` pour la
+   * fenêtre qui commence à `fenetre` (ms) et renvoie sa nouvelle valeur. Une fenêtre plus récente remet le compteur à
+   * `by`. Les compteurs d'une fenêtre de plus d'un jour sont supprimés au passage.
    */
-  bumpQuota(cle: string, fenetre: number): Promise<number>;
+  bumpQuota(cle: string, fenetre: number, by?: number): Promise<number>;
+  /** Place prise par les messages du canal (octets de iv + data), tenue à jour à chaque envoi et chaque ménage. */
+  channelBytes(canal: string): Promise<number>;
+  /** Place prise par tous les canaux : messages et photographies (octets). */
+  totalBytes(): Promise<number>;
+  /**
+   * Ménage de tout le relais : supprime les canaux sans écriture depuis `inactiveBefore` (messages, photographie,
+   * fiche), puis, dans chaque canal qui a une photographie, les messages qu'elle couvre reçus avant `coveredBefore`.
+   */
+  cleanup(inactiveBefore: number, coveredBefore: number): Promise<{ canaux: number }>;
 }
 
 /** Limites du relais (R28). Le faux relais des tests de bout en bout les relève (tout vient de la même adresse). */
@@ -39,7 +48,15 @@ export type RelayLimits = {
   codesParIpHeure: number;
   /** Issues GitHub ouvertes par heure, tous téléphones confondus, compteur partagé (D1). */
   issuesParHeure: number;
+  /** Place maximum des messages d'un canal (octets) : au-delà, seul ce canal est refusé. */
+  octetsParCanal: number;
+  /** Octets envoyés par heure depuis une même adresse IP (messages et photographies), compteur partagé (D1). */
+  octetsParIpHeure: number;
+  /** Place totale au-delà de laquelle plus aucun canal n'est créé (réserve pour les tabacs existants). */
+  octetsReserve: number;
 };
+
+const MB = 1024 * 1024;
 
 export const DEFAULT_LIMITS: RelayLimits = {
   requetesParCanalMinute: 120,
@@ -47,6 +64,10 @@ export const DEFAULT_LIMITS: RelayLimits = {
   canauxParIpHeure: 20,
   codesParIpHeure: 20,
   issuesParHeure: 10,
+  // Un tabac actif prend quelques Mo (messages des 30 derniers jours) ; la base gratuite de Cloudflare fait 500 Mo.
+  octetsParCanal: 20 * MB,
+  octetsParIpHeure: 20 * MB,
+  octetsReserve: 400 * MB,
 };
 
 export type RelayEnv = {
@@ -69,7 +90,10 @@ const MAX_CODES = 200;
 const DEFAULT_PAGE = 500;
 const MINUTE = 60_000;
 const HOUR = 3_600_000;
-const PRUNE_AGE = 30 * 24 * HOUR;
+const DAY = 24 * HOUR;
+const PRUNE_AGE = 30 * DAY;
+/** Un canal sans aucune écriture depuis 90 jours est supprimé : ses téléphones gardent tout et republient en revenant. */
+const ABANDON_AGE = 90 * DAY;
 const CANAL_RE = /^[A-Za-z0-9_-]{1,64}$/;
 
 /**
@@ -96,10 +120,17 @@ function hit(env: RelayEnv, key: string, limit: number, windowMs: number): boole
 const limit = (env: RelayEnv, k: keyof RelayLimits): number => env.limits?.[k] ?? DEFAULT_LIMITS[k];
 const clientIp = (req: Request): string => req.headers.get('CF-Connecting-IP') ?? 'inconnue';
 
-/** Compteur partagé (D1) sur une fenêtre fixe ; false au-delà de `max`. */
-async function quota(env: RelayEnv, cle: string, max: number, windowMs: number): Promise<boolean> {
+/** Compteur partagé (D1) sur une fenêtre fixe, augmenté de `by` ; false au-delà de `max`. */
+async function quota(env: RelayEnv, cle: string, max: number, windowMs: number, by = 1): Promise<boolean> {
   const fenetre = Math.floor(env.now() / windowMs) * windowMs;
-  return (await env.store.bumpQuota(cle, fenetre)) <= max;
+  return (await env.store.bumpQuota(cle, fenetre, by)) <= max;
+}
+
+/** Volume envoyé depuis cette adresse IP (messages et photographies), compté avant l'écriture. */
+async function chargeIp(req: Request, env: RelayEnv, bytes: number): Promise<void> {
+  if (!(await quota(env, 'octets-ip:' + clientIp(req), limit(env, 'octetsParIpHeure'), HOUR, bytes))) {
+    throw new HttpError(429, 'trop de données envoyées depuis cette adresse');
+  }
 }
 
 async function sha256Hex(text: string): Promise<string> {
@@ -146,10 +177,11 @@ async function readJson(req: Request, maxBytes = MAX_BODY_BYTES): Promise<Record
 }
 
 /**
- * Vérifie la clé d'écriture ; le premier envoi dans un canal enregistre son empreinte. Créer un canal est limité par
- * adresse IP (compteur partagé), pour qu'on ne puisse pas remplir la base de canaux vides.
+ * Vérifie la clé d'écriture ; le premier envoi dans un canal enregistre son empreinte et renvoie true (canal créé par
+ * cet envoi). Créer un canal est limité par adresse IP (compteur partagé), pour qu'on ne puisse pas remplir la base de
+ * canaux vides, et refusé quand la base atteint la réserve : les tabacs existants gardent la place restante.
  */
-async function authorize(req: Request, env: RelayEnv, canal: string, ecriture: unknown): Promise<void> {
+async function authorize(req: Request, env: RelayEnv, canal: string, ecriture: unknown): Promise<boolean> {
   if (!isStr(ecriture) || !ecriture) throw new HttpError(400, 'ecriture manquante');
   const hash = await sha256Hex(ecriture);
   let channel = await env.store.getChannel(canal);
@@ -157,12 +189,16 @@ async function authorize(req: Request, env: RelayEnv, canal: string, ecriture: u
     if (!(await quota(env, 'canaux-ip:' + clientIp(req), limit(env, 'canauxParIpHeure'), HOUR))) {
       throw new HttpError(429, 'trop de tabacs créés depuis cette adresse');
     }
-    if (await env.store.createChannel(canal, hash, env.now())) return;
+    if ((await env.store.totalBytes()) >= limit(env, 'octetsReserve')) throw new HttpError(507, 'relais presque plein : nouveau tabac refusé');
+    if (await env.store.createChannel(canal, hash, env.now())) return true;
     // Un autre premier envoi a créé le canal entre-temps : on compare à son empreinte.
     channel = await env.store.getChannel(canal);
   }
   if (!channel || channel.ecritureHash !== hash) throw new HttpError(403, 'clé d’écriture refusée');
+  return false;
 }
+
+const sizeOf = (m: Message): number => m.iv.length + m.data.length;
 
 const shortStr = (v: unknown, max: number): v is string => isStr(v) && v.length <= max;
 
@@ -184,8 +220,13 @@ async function postMessages(req: Request, env: RelayEnv, canal: string): Promise
     if (!isObj(m) || !isStr(m.iv) || !isStr(m.data)) throw new HttpError(400, 'message invalide');
     msgs.push({ iv: m.iv, data: m.data });
   }
-  await authorize(req, env, canal, body.ecriture);
-  return { dernier: await env.store.appendMessages(canal, msgs, env.now()) };
+  const created = await authorize(req, env, canal, body.ecriture);
+  const bytes = msgs.reduce((t, m) => t + sizeOf(m), 0);
+  await chargeIp(req, env, bytes);
+  if ((await env.store.channelBytes(canal)) + bytes > limit(env, 'octetsParCanal')) throw new HttpError(507, 'place du tabac épuisée sur le relais');
+  const dernier = await env.store.appendMessages(canal, msgs, env.now());
+  // Canal créé par cet envoi alors que le téléphone en avait lu un : le relais l'avait perdu (ménage, remise à zéro).
+  return created ? { dernier, nouveau: true } : { dernier };
 }
 
 async function getMessages(url: URL, env: RelayEnv, canal: string): Promise<Record<string, unknown>> {
@@ -207,6 +248,7 @@ async function putPhoto(req: Request, env: RelayEnv, canal: string): Promise<Rec
     throw new HttpError(400, 'photographie invalide');
   }
   await authorize(req, env, canal, body.ecriture);
+  await chargeIp(req, env, iv.length + data.length);
   // Une photographie ne peut pas couvrir des messages qui n'existent pas encore.
   if (jusqua > (await env.store.lastN(canal))) throw new HttpError(400, 'photographie au-delà du dernier message');
   const previous = await env.store.getPhoto(canal);
@@ -251,6 +293,11 @@ async function postCodes(req: Request, env: RelayEnv): Promise<{ status: number;
   }
   if (!res.ok) throw new HttpError(502, 'GitHub a refusé la contribution');
   return { status: 202, body: { ok: true } };
+}
+
+/** Ménage quotidien (tâche planifiée du Worker) : tabacs abandonnés, messages couverts par une photographie. */
+export function housekeeping(store: Store, now: number): Promise<{ canaux: number }> {
+  return store.cleanup(now - ABANDON_AGE, now - PRUNE_AGE);
 }
 
 export async function handle(req: Request, env: RelayEnv): Promise<Response> {
