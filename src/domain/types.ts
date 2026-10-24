@@ -99,3 +99,20 @@ export interface Task {
   doneAt: number; // heure où la tâche a été cochée (ms) ; 0 = pas faite
   deleted?: boolean; // supprimée (gardée pour la synchronisation, jamais affichée)
 }
+
+/** Ligne d'un comptage enregistré : `key` relie un jeu d'un comptage à l'autre (id du jeu, sinon son nom). */
+export interface SnapshotLine {
+  key: string;
+  name: string;
+  code: string;
+  linearQty: number;
+  stockQty: number;
+}
+
+/** Comptage enregistré par « Fin comptage » (historique des 8 derniers, partagé entre les téléphones du tabac). */
+export interface CountSnapshot {
+  id: string;
+  at: number; // date et heure de « Fin comptage » (ms)
+  lines: SnapshotLine[];
+  deleted?: boolean;
+}

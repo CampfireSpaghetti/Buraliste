@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import * as repo from './data/db';
 import { enqueueContributions, flushOutbox } from './data/sharingData';
-import type { CountLine, Product, ProductFields, Section, Service, Settings, Task } from './domain/types';
+import type { CountLine, CountSnapshot, Product, ProductFields, Section, Service, Settings, Task } from './domain/types';
 
 const DATA_EVENT = 'carotte:data';
 export const notifyDataChanged = () => window.dispatchEvent(new Event(DATA_EVENT));
@@ -28,6 +28,7 @@ export const useCountLines = () => useLive(repo.listCountLines);
 export const useSettings = () => useLive(repo.getSettings);
 export const useTasks = () => useLive(repo.listTasks);
 export const useSections = () => useLive(repo.listSections);
+export const useHistory = () => useLive(repo.listHistory);
 
 function withNotify<A extends unknown[], R>(fn: (...a: A) => Promise<R>) {
   return async (...a: A): Promise<R> => {
@@ -67,6 +68,9 @@ export const actions = {
   deleteCountLine: withNotify((id: string) => repo.deleteCountLine(id)),
   restoreCountLine: withNotify((l: CountLine) => repo.restoreCountLine(l)),
   resetCountLines: withNotify(() => repo.resetCountLines()),
+  saveSnapshot: withNotify(() => repo.saveSnapshot()),
+  deleteSnapshot: withNotify((id: string) => repo.deleteSnapshot(id)),
+  putSnapshots: withNotify((list: CountSnapshot[]) => repo.putSnapshots(list)),
   restoreCountLines: withNotify(async (ls: CountLine[]) => { for (const l of ls) await repo.restoreCountLine(l); }),
   saveSettings: withNotify((s: Partial<Settings>) => repo.saveSettings(s)),
   hideGame: withNotify((gameId: string) => repo.hideGame(gameId)),

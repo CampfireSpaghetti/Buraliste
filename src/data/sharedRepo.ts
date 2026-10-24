@@ -27,6 +27,7 @@ export const SHARED_KEYS: Record<Entity, readonly string[]> = {
   settings: ['shopName', 'sortCount', 'hiddenGames'],
   task: ['label', 'service', 'order', 'doneAt', 'deleted'],
   section: ['label', 'order', 'deleted'],
+  snapshot: ['at', 'lines', 'deleted'],
 };
 
 const MANUAL_ONLY = new Set(['source', 'base']);
@@ -46,7 +47,7 @@ const SYNCED_KEY = 'lastN';
 type Row = Clocked<Record<string, unknown>>;
 
 export const tableFor = (e: Entity, d: CarotteDB = db): Table<Row, string> =>
-  (e === 'line' ? d.countLines : e === 'product' ? d.products : e === 'task' ? d.tasks : e === 'section' ? d.sections : d.settings) as unknown as Table<Row, string>;
+  (e === 'line' ? d.countLines : e === 'product' ? d.products : e === 'task' ? d.tasks : e === 'section' ? d.sections : e === 'snapshot' ? d.countHistory : d.settings) as unknown as Table<Row, string>;
 
 /** Valeurs implicites d'un enregistrement sans horodatage (les réglages par défaut ne sont jamais stockés seuls). */
 const implicit = (e: Entity): Record<string, unknown> => (e === 'settings' ? { ...DEFAULT_SETTINGS } : {});
@@ -57,6 +58,7 @@ function blank(e: Entity, id: string): Row {
   if (e === 'product') return { id, base: {}, user: {}, outOfStock: false, pinnedSubstitutes: [], updatedAt: Date.now() };
   if (e === 'task') return { id, label: '', service: 'matin', order: 0, doneAt: 0 };
   if (e === 'section') return { id, label: '', order: 0 };
+  if (e === 'snapshot') return { id, at: 0, lines: [] };
   return { key: 'main', ...DEFAULT_SETTINGS };
 }
 
@@ -112,7 +114,7 @@ export async function writeShared<T extends object>(e: Entity, id: string, next:
     }
     const out = { ...record, ...sharedValues(before, keys, f) };
     for (const k of keys) if (k !== 'user' && before[k] === undefined && !(k in f)) delete out[k];
-    if ((e === 'line' || e === 'task' || e === 'section') && current) {
+    if ((e === 'line' || e === 'task' || e === 'section' || e === 'snapshot') && current) {
       for (const k of keys) if (!Object.hasOwn(clock, k) && out[k] !== undefined && !(k in f)) f[k] = out[k];
     }
 
@@ -134,7 +136,7 @@ export async function writeShared<T extends object>(e: Entity, id: string, next:
   return (e === 'settings' ? result : stored) as T;
 }
 
-const ENTITIES = new Set<string>(['line', 'product', 'settings', 'task', 'section']);
+const ENTITIES = new Set<string>(['line', 'product', 'settings', 'task', 'section', 'snapshot']);
 const STAMP = /^(\d{13})-\d{4}-.+$/;
 const MAX_AHEAD_MS = 24 * 3_600_000;
 
@@ -145,11 +147,15 @@ const isBool: Check = (v) => typeof v === 'boolean';
 const isStrList: Check = (v) => Array.isArray(v) && v.every(isStr);
 const isPlain: Check = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);
 const isScalar: Check = (v) => isStr(v) || isNum(v) || isBool(v) || isStrList(v);
+/** Lignes d'un comptage enregistré : clé, nom, code, quantités. */
+const isSnapshotLines: Check = (v) => Array.isArray(v) && v.length <= 2000 && v.every((l) => isPlain(l)
+  && isStr((l as Record<string, unknown>).key) && isStr((l as Record<string, unknown>).name) && isStr((l as Record<string, unknown>).code)
+  && isNum((l as Record<string, unknown>).linearQty) && isNum((l as Record<string, unknown>).stockQty));
 
 /** Type attendu de chaque champ partagé (`user.<champ>` : champs connus de ProductFields). */
 const VALUE_TYPES: Record<string, Check> = {
   linearQty: isNum, stockQty: isNum, updatedAt: isNum, order: isNum, doneAt: isNum,
-  label: isStr, service: (v) => isStr(v) && v !== '',
+  label: isStr, service: (v) => isStr(v) && v !== '', at: isNum, lines: isSnapshotLines,
   deleted: isBool, outOfStock: isBool,
   gameId: isStr, code: isStr, name: isStr, shopName: isStr, source: isStr,
   sortCount: (v) => v === 'name' || v === 'updatedAt',
@@ -282,7 +288,7 @@ async function applyReceived(entries: Received[], target: CarotteDB, replay = fa
   let future = 0;
   let parked = 0;
   let renamed: string | undefined;
-  const changes = await target.transaction('rw', [target.countLines, target.products, target.settings, target.tasks, target.sections, target.parkedOps], async () => {
+  const changes = await target.transaction('rw', [target.countLines, target.products, target.settings, target.tasks, target.sections, target.countHistory, target.parkedOps], async () => {
     const resolve = idResolver(target);
     const park: { op: Op; at: number }[] = [];
     let n = 0;
@@ -329,7 +335,7 @@ async function applyReceived(entries: Received[], target: CarotteDB, replay = fa
  * liste Douane, `previousRef`), appliqué avant de rejouer. Renvoie le nombre d'opérations qui ont changé quelque chose.
  */
 export async function replayParkedOps(target: CarotteDB = db, renames: IdMap = new Map()): Promise<number> {
-  return target.transaction('rw', [target.countLines, target.products, target.settings, target.tasks, target.sections, target.parkedOps], async () => {
+  return target.transaction('rw', [target.countLines, target.products, target.settings, target.tasks, target.sections, target.countHistory, target.parkedOps], async () => {
     const rows = await target.parkedOps.orderBy('seq').toArray();
     if (rows.length === 0) return 0;
     await target.parkedOps.clear();

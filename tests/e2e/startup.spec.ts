@@ -13,5 +13,6 @@ test('au démarrage, les listes Douane et FDJ publiées arrivent dans le catalog
   await page.getByPlaceholder('Nom, marque ou code').fill('marlboro gold collection');
   await expect(page.getByRole('button', { name: /Marlboro Gold Collection, en 20 unités/ })).toBeVisible({ timeout: 20_000 });
   await page.getByRole('navigation', { name: 'Onglets' }).getByRole('button', { name: 'Réglages' }).click();
+  await page.getByText('Données et sources').click();
   await expect(page.getByText(/Gamme en point de vente \(fdj\.fr\) · liste du .* · \d+ jeux/)).toBeVisible();
 });

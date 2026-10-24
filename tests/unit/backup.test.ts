@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { serializeBackup, parseBackup, needsBackupReminder, type BackupFile } from '../../src/domain/backup';
-import { db, listCountLines, upsertCountLine, getSettings, saveSettings, listTasks, seedTasks, setTaskDone, addSection, listSections } from '../../src/data/db';
+import { db, listCountLines, upsertCountLine, getSettings, saveSettings, listTasks, seedTasks, setTaskDone, addSection, listSections, saveSnapshot, listHistory } from '../../src/data/db';
 import { restoreFromText, exportBackupText } from '../../src/data/backupData';
 
 const data = {
@@ -120,5 +120,20 @@ describe('sauvegarde des titres « À faire »', () => {
   });
   it('un titre abîmé rend la sauvegarde invalide', () => {
     expect(parseBackup(serializeBackup({ ...data, sections: [{ id: 'x', label: 3 as never, order: 1 }] }, 1))).toEqual({ ok: false, error: 'Sauvegarde incomplète ou abîmée.' });
+  });
+});
+
+describe('sauvegarde de l’historique du grattage', () => {
+  it('historique sauvegardé et restauré ; ancienne sauvegarde sans historique : historique gardé ; comptage abîmé refusé', async () => {
+    await upsertCountLine({ id: 'l', code: '0417', name: 'Cash', linearQty: 3, stockQty: 40, updatedAt: 2 });
+    const { snapshot } = await saveSnapshot(7_000);
+    const exported = JSON.parse(await exportBackupText(1));
+    expect(exported.history).toEqual([snapshot]);
+    const other = { id: 'h', at: 1_000, lines: [{ key: 'nom:astro', name: 'Astro', code: '', linearQty: 1, stockQty: 1 }] };
+    expect(await restoreFromText(serializeBackup({ ...data, history: [other] }, 1))).toEqual({ ok: true });
+    expect((await listHistory()).map((s) => s.id)).toEqual(['h']);
+    expect(await restoreFromText(serializeBackup(data, 1))).toEqual({ ok: true });
+    expect((await listHistory()).map((s) => s.id)).toEqual(['h']);
+    expect(parseBackup(serializeBackup({ ...data, history: [{ ...other, lines: [{ key: 'x' } as never] }] }, 1)).ok).toBe(false);
   });
 });

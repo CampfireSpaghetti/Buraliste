@@ -181,7 +181,7 @@ test('accès refusé par le relais : message dans Réglages, point rouge, donné
   await A.ctx.close();
 });
 
-test('deux téléphones : la liste « À faire » se partage (cases cochées en même temps, tâche et titres ajoutés)', async ({ browser }) => {
+test('deux téléphones : la liste « À faire » se partage (cases cochées en même temps, tâche et titres ajoutés) et l’historique du grattage', async ({ browser }) => {
   test.setTimeout(120_000);
   const A = await phone(browser);
   const B = await phone(browser);
@@ -235,6 +235,13 @@ test('deux téléphones : la liste « À faire » se partage (cases cochées en 
     await expect(A.page.getByRole('region', { name: /^Fermeture/ })).toBeVisible({ timeout: 1_000 });
     await expect(A.page.getByRole('region', { name: /^Soir/ })).toContainText('Commander les tickets', { timeout: 1_000 });
   });
+
+  // A termine un comptage → B le voit dans son historique.
+  await tabs(A.page).getByRole('button', { name: 'Grattage' }).click();
+  await A.page.getByRole('button', { name: 'Fin comptage' }).click();
+  await A.page.getByRole('dialog', { name: 'Fin comptage' }).getByRole('button', { name: 'Enregistrer seulement' }).click();
+  await tabs(B.page).getByRole('button', { name: 'Grattage' }).click();
+  await eventually([A.page, B.page], () => expect(B.page.getByRole('button', { name: 'Historique · 1 comptage' })).toBeVisible({ timeout: 1_000 }));
   await A.ctx.close();
   await B.ctx.close();
 });

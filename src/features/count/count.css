@@ -44,3 +44,18 @@
 }
 @keyframes stamp-in { from { transform: rotate(-8deg) scale(1.8); opacity: 0; } to { transform: rotate(-8deg) scale(1); opacity: 1; } }
 a.btn { text-decoration: none; color: inherit; }
+.history-btn { width: 100%; justify-content: flex-start; padding: 0 14px; }
+.history-btn svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.finish-btn { width: 100%; margin-top: 6px; }
+.finish-hint { margin: -2px 0 12px; text-align: center; font-size: 13.5px; }
+.history-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.history-item { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; align-items: center; }
+.history-when { font-weight: 700; }
+.history-item .muted { grid-column: 1; }
+.history-delta { grid-column: 2; grid-row: 1 / span 2; font-weight: 700; font-size: 20px; }
+.down { color: var(--accent); }
+.up { color: var(--ok); }
+.history-table th[scope='row'] { text-align: left; font-weight: 600; padding: 0 6px; font-size: 15.5px; }
+.history-table td { padding: 0 6px; font-size: 17px; font-weight: 700; }
+.history-table tbody tr { height: 46px; }
+.history-table td, .history-table tbody th { border-bottom: 1px solid var(--line); }
