@@ -61,7 +61,11 @@ test('guide d’installation et version de la liste officielle', async ({ page }
   await testMode(page);
   await page.goto('./#reglages');
   await seed(page, { settings: { referencesEffectiveDate: '2026-11-01', referencesVersion: '2026-11-01-abcd1234' } });
-  await expect(page.getByText('En vigueur au 1er novembre 2026')).toBeVisible();
+  // Blocs dans l'ordre ; « Données et sources » replié.
+  await expect(page.locator('.settings-block h3')).toHaveText(['Mon tabac', 'Sauvegarde', "Installer l'app", 'Données et sources']);
+  await expect(page.getByText(/En vigueur au 1er novembre 2026/)).toBeHidden();
+  await page.getByText('Données et sources').click();
+  await expect(page.getByText(/En vigueur au 1er novembre 2026/)).toBeVisible();
   await page.getByRole('button', { name: 'Installer sur mon téléphone' }).click();
   await expect(page.getByRole('heading', { name: 'iPhone (Safari)' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Android (Chrome)' })).toBeVisible();

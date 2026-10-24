@@ -67,63 +67,79 @@ export function SettingsScreen() {
 
   return (
     <div className="settings">
-      <span className="label">Tabac</span>
-      <label className="field-label">
-        Nom du tabac
-        <input className="input" id="shop-name" value={name ?? ''} onChange={(e) => setName(e.target.value)}
-          onFocus={() => { nameAtFocus.current = name; }} onBlur={saveName}
-          onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
-      </label>
-      <p className="muted hint">Partagé avec les téléphones du tabac et affiché en tête des exports du comptage.</p>
-      <TabacSection shopName={tabacDisplayName(settings.shopName)} />
-
-      <span className="label">Sauvegarde</span>
-      <div className="row">
-        <button type="button" className="btn accent" onClick={() => setBackup(true)}>Sauvegarde complète</button>
-        <label className="btn file-btn">
-          Restaurer…
-          <input ref={fileRef} type="file" accept="application/json,.json" aria-label="Choisir une sauvegarde" onChange={(e) => void onFile(e.target.files?.[0])} />
+      <section className="card settings-block" aria-labelledby="set-tabac">
+        <h3 id="set-tabac">Mon tabac</h3>
+        <label className="field-label">
+          Nom du tabac
+          <input className="input" id="shop-name" value={name ?? ''} onChange={(e) => setName(e.target.value)}
+            onFocus={() => { nameAtFocus.current = name; }} onBlur={saveName}
+            onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
         </label>
-      </div>
-      <p className="muted hint">{settings.lastBackupAt ? `Dernière sauvegarde : ${formatDateLong(settings.lastBackupAt)}` : 'Aucune sauvegarde pour l’instant.'}</p>
-      {error && <p className="error" role="alert">{error}</p>}
+        <p className="muted hint">Affiché en haut de l'écran et des images exportées (comptage, tâches du jour).</p>
+        <TabacSection shopName={tabacDisplayName(settings.shopName)} />
+        <p className="muted hint">
+          Partagé avec les téléphones du tabac : le comptage du grattage et son historique, la liste « À faire » (titres,
+          tâches, cases cochées), les ruptures et remplaçants, les fiches créées ou corrigées, le nom du tabac.
+        </p>
+      </section>
 
-      <span className="label">Liste officielle des tabacs</span>
-      <p className="muted hint">
-        Douane{settings.referencesEffectiveDate ? ` · En vigueur au ${formatIsoDateFr(settings.referencesEffectiveDate)}` : ''} · {official.toLocaleString('fr-FR')} références · mise à jour automatique chaque semaine
-      </p>
+      <section className="card settings-block" aria-labelledby="set-backup">
+        <h3 id="set-backup">Sauvegarde</h3>
+        <div className="row">
+          <button type="button" className="btn accent" onClick={() => setBackup(true)}>Sauvegarde complète</button>
+          <label className="btn file-btn">
+            Restaurer…
+            <input ref={fileRef} type="file" accept="application/json,.json" aria-label="Choisir une sauvegarde" onChange={(e) => void onFile(e.target.files?.[0])} />
+          </label>
+        </div>
+        <p className="muted hint">{settings.lastBackupAt ? `Dernière sauvegarde : ${formatDateLong(settings.lastBackupAt)}` : 'Aucune sauvegarde pour l’instant.'}</p>
+        {error && <p className="error" role="alert">{error}</p>}
+        <p className="muted hint">
+          Un fichier avec tout le tabac : catalogue, comptage du grattage et son historique, liste « À faire », réglages.
+          Envoyez-le sur Drive chaque semaine.
+        </p>
+      </section>
 
-      <span className="label">Jeux de grattage FDJ</span>
-      <p className="muted hint">
-        Gamme en point de vente (fdj.fr){settings.fdjFetchedAt ? ` · liste du ${formatIsoDateFr(settings.fdjFetchedAt)}` : ''} · {fdjGames} jeux · mise à jour automatique chaque semaine
-      </p>
+      <section className="card settings-block" aria-labelledby="set-install">
+        <h3 id="set-install">Installer l'app</h3>
+        <p className="muted hint">Sur l'écran d'accueil, l'app s'ouvre en plein écran, sans connexion, et garde mieux vos données.</p>
+        <button type="button" className="btn" onClick={() => setInstall(true)}>Installer sur mon téléphone</button>
+      </section>
 
-      {relayUrl() && (
-        <>
-          <span className="label">Codes-barres</span>
+      <details className="card settings-block settings-more">
+        <summary><h3>Données et sources</h3></summary>
+        <span className="label">Liste officielle des tabacs</span>
+        <p className="muted hint">
+          Douane{settings.referencesEffectiveDate ? ` · En vigueur au ${formatIsoDateFr(settings.referencesEffectiveDate)}` : ''} · {official.toLocaleString('fr-FR')} références · mise à jour automatique chaque semaine
+        </p>
+        <span className="label">Jeux de grattage FDJ</span>
+        <p className="muted hint">
+          Gamme en point de vente (fdj.fr){settings.fdjFetchedAt ? ` · liste du ${formatIsoDateFr(settings.fdjFetchedAt)}` : ''} · {fdjGames} jeux · mise à jour automatique chaque semaine
+        </p>
+        {relayUrl() && (
+          <>
+            <span className="label">Codes-barres</span>
+            <p className="muted hint">
+              Les codes-barres scannés enrichissent automatiquement la liste commune.
+              {settings.lastShareAt ? ` Dernier envoi : ${formatDateLong(settings.lastShareAt)}.` : ''}
+            </p>
+          </>
+        )}
+        <span className="label">Ce qui quitte ce téléphone</span>
+        {relayUrl() ? (
           <p className="muted hint">
-            Les codes-barres scannés enrichissent automatiquement la liste commune.
-            {settings.lastShareAt ? ` Dernier envoi : ${formatDateLong(settings.lastShareAt)}.` : ''}
+            Les données de votre tabac, chiffrées, vers les seuls téléphones du tabac (le relais ne peut pas les lire) ;
+            les liens « code-barres → produit officiel », qui rejoignent la liste commune publique ; et les fichiers que
+            vous partagez vous-même. Rien d’autre. Aucun compte, aucune clé à saisir.
           </p>
-        </>
-      )}
-
-      <button type="button" className="btn" onClick={() => setInstall(true)}>Installer sur mon téléphone</button>
-      {relayUrl() ? (
+        ) : (
+          <p className="muted hint">Vos données restent sur ce téléphone. Seuls partent les fichiers que vous partagez vous-même.</p>
+        )}
+        <span className="label">Sources</span>
         <p className="muted hint">
-          Ce qui quitte ce téléphone : les données de votre tabac, chiffrées, vers les seuls téléphones du tabac (le relais
-          ne peut pas les lire) ; les liens « code-barres → produit officiel », qui rejoignent la liste commune publique ;
-          et les fichiers que vous partagez vous-même. Rien d’autre. Aucun compte, aucune clé à saisir.
+          Lots des jeux : règlements FDJ (fdj.fr). Composition : déclarations des fabricants à l’ANSES (data.gouv.fr). Prix : Douane.
         </p>
-      ) : (
-        <p className="muted hint">
-          Vos données restent sur ce téléphone. Seuls partent les fichiers que vous partagez vous-même.
-        </p>
-      )}
-
-      <p className="muted hint">
-        Lots des jeux : règlements FDJ (fdj.fr). Composition : déclarations des fabricants à l’ANSES (data.gouv.fr). Prix : Douane.
-      </p>
+      </details>
 
       {backup && <BackupPanel onClose={() => setBackup(false)} />}
       {install && <InstallGuide onClose={() => setInstall(false)} />}

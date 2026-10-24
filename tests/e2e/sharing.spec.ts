@@ -41,6 +41,7 @@ test('Réglages : plus de clé GitHub à saisir, les codes-barres partent tout s
   await testMode(page);
   await page.goto('./#reglages');
   await seed(page, {});
+  await page.getByText('Données et sources').click();
   await expect(page.getByText('Les codes-barres scannés enrichissent automatiquement la liste commune.')).toBeVisible();
   await expect(page.getByRole('button', { name: /Activer le partage|Jumeler/ })).toHaveCount(0);
   await expect(page.getByText(/GitHub/)).toHaveCount(0);
