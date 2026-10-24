@@ -16,7 +16,7 @@ describe('Store D1', () => {
     expect(() => db.exec(schema)).not.toThrow();
   });
 
-  it('200 messages en un envoi, en au plus deux requêtes SQL (une transaction)', async () => {
+  it('200 messages en un envoi, en au plus trois requêtes SQL (une transaction : messages, dernier numéro, volume)', async () => {
     const { d1 } = createFakeD1();
     let queries = 0;
     const counting = {
@@ -31,7 +31,7 @@ describe('Store D1', () => {
     queries = 0;
     const msgs = Array.from({ length: 200 }, (_, k) => ({ iv: 'i' + k, data: 'd' + k }));
     const last = await s.appendMessages('c1', msgs, 100);
-    expect(queries).toBeLessThanOrEqual(2);
+    expect(queries).toBeLessThanOrEqual(3);
     const list = await s.listMessages('c1', 0, 500);
     expect(list).toHaveLength(200);
     expect(list[199]).toEqual({ n: last, iv: 'i199', data: 'd199' });

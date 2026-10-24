@@ -755,6 +755,26 @@ describe('moteur de synchronisation', () => {
     expect((await C.countLines.get('l2'))!).toMatchObject({ linearQty: 2 });
   });
 
+  it('tabac supprimé du relais par le ménage (abandonné), numérotation qui continue : détecté par « nouveau » à l’envoi', async () => {
+    const key = generateTabacKey();
+    const { canal } = await deriveChannel(key);
+    const r = fakeRelay();
+    const A = phone();
+    const now = Date.now();
+    await localWrite(A, lineOp('l1', { code: '0417', name: 'Cash', stockQty: 0, deleted: false, updatedAt: now, linearQty: 5 }, hlcAt(now - 5000)));
+    await createSyncEngine({ relay: r.client, key, db: A }).syncNow();
+    // un autre tabac écrit : la numérotation commune avance, le prochain numéro de A dépassera ce qu'il a vu
+    await r.client.post('autre-canal', { ecriture: 'x', messages: [{ iv: 'i', data: 'd' }] });
+    expect(await r.store.cleanup(Number.MAX_SAFE_INTEGER, 0)).toEqual({ canaux: 2 });
+    await localWrite(A, lineOp('l2', { code: '0418', name: 'Goal', stockQty: 0, deleted: false, updatedAt: now, linearQty: 2 }, hlcAt(now - 4000)));
+    await createSyncEngine({ relay: r.client, key, db: A }).syncNow();
+    expect(await r.store.getPhoto(canal)).not.toBeNull();
+    const C = phone();
+    await createSyncEngine({ relay: r.client, key, db: C }).syncNow();
+    expect((await C.countLines.get('l1'))!).toMatchObject({ linearQty: 5 });
+    expect((await C.countLines.get('l2'))!).toMatchObject({ linearQty: 2 });
+  });
+
   it('relais défaillant qui renvoie toujours la même page pleine : pas de boucle infinie ; seuls les messages nouveaux sont comptés', async () => {
     const page = Array.from({ length: 500 }, (_, i) => ({ n: i + 1, iv: 'x', data: 'y' }));
     let lists = 0;

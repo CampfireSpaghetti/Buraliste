@@ -18,7 +18,8 @@ export class RelayError extends Error {
 }
 
 export type RelayClient = {
-  post(canal: string, body: { ecriture: string; messages: Sealed[] }): Promise<{ dernier: number }>;
+  /** `nouveau` : le canal vient d'être créé par cet envoi (le relais l'avait perdu, ou premier envoi du tabac). */
+  post(canal: string, body: { ecriture: string; messages: Sealed[] }): Promise<{ dernier: number; nouveau?: boolean }>;
   list(canal: string, apres: number, max?: number): Promise<{ messages: RelayMessage[]; dernier: number }>;
   putPhoto(canal: string, body: { ecriture: string; jusqua: number } & Sealed): Promise<{ ok: boolean }>;
   /** `null` quand le canal n'a pas de photographie (404). */

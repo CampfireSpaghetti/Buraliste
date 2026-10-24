@@ -96,6 +96,8 @@ Ensuite :
 - quand la clé GitHub arrive à expiration, en créer une nouvelle (étape 3.2), remplacer le secret `RELAY_GITHUB_TOKEN`, puis relancer le workflow ;
 - pour **retirer au relais la clé GitHub** (clé divulguée, ou arrêt de l'envoi des codes) : la révoquer sur GitHub (**Settings** → **Developer settings** → **Fine-grained tokens** → la clé → **Delete**), puis, soit la supprimer du relais (dans le dossier `relay/` : `npx wrangler secret delete GITHUB_TOKEN`) et supprimer le secret `RELAY_GITHUB_TOKEN` du dépôt, soit remplacer ce secret par une nouvelle clé et relancer le workflow « Déploiement » ;
 - tant que ces secrets ne sont pas renseignés, l'app fonctionne comme avant et les options de partage affichent « Bientôt disponible ».
+- **Place sur le relais** : le relais n'est qu'une boîte aux lettres chiffrée, chaque téléphone garde toutes les données de son tabac. Pour qu'une personne ne puisse pas le remplir et bloquer tout le monde : 20 Mo au plus par tabac (un tabac actif en prend quelques-uns), 20 Mo envoyés par heure au plus depuis une même connexion, et plus aucun nouveau tabac au-delà de 400 Mo au total (les tabacs existants continuent). Chaque nuit, le relais efface les tabacs sans aucune écriture depuis 90 jours (leurs téléphones republient tout s'ils reviennent) et les messages de plus de 30 jours déjà couverts par une photographie. La place utilisée est affichée dans le résumé du job `relay`, avec une alerte à partir de 320 Mo.
+- **Vider le relais** (toutes les données des tabacs, même chiffrées) : onglet **Actions** → **Effacer le relais** → **Run workflow**, taper `EFFACER`.
 
 ## Partage des codes-barres (liste commune)
 

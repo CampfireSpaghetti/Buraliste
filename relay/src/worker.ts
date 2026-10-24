@@ -1,4 +1,4 @@
-import { handle } from './handlers.ts';
+import { handle, housekeeping } from './handlers.ts';
 import type { Store } from './handlers.ts';
 import { createD1Store } from './d1Store.ts';
 import type { D1Database } from './d1Store.ts';
@@ -39,6 +39,11 @@ export function createWorker() {
         fetch: (input, init) => fetch(input, init),
         allowedOrigins: parseOrigins(env.ALLOWED_ORIGINS),
       });
+    },
+    /** Tâche planifiée (relay/wrangler.toml, chaque jour) : ménage des tabacs abandonnés et des vieux messages. */
+    scheduled(_event: unknown, env: WorkerEnv, ctx: { waitUntil(p: Promise<unknown>): void }): void {
+      store ??= createD1Store(env.DB);
+      ctx.waitUntil(housekeeping(store, Date.now()).then((r) => console.log(`Ménage du relais : ${r.canaux} tabac(s) abandonné(s) supprimé(s).`)));
     },
   };
 }
