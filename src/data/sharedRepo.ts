@@ -26,6 +26,7 @@ export const SHARED_KEYS: Record<Entity, readonly string[]> = {
   product: ['user', 'outOfStock', 'pinnedSubstitutes', 'source', 'base'],
   settings: ['shopName', 'sortCount', 'hiddenGames'],
   task: ['label', 'service', 'order', 'doneAt', 'deleted'],
+  section: ['label', 'order', 'deleted'],
 };
 
 const MANUAL_ONLY = new Set(['source', 'base']);
@@ -45,7 +46,7 @@ const SYNCED_KEY = 'lastN';
 type Row = Clocked<Record<string, unknown>>;
 
 export const tableFor = (e: Entity, d: CarotteDB = db): Table<Row, string> =>
-  (e === 'line' ? d.countLines : e === 'product' ? d.products : e === 'task' ? d.tasks : d.settings) as unknown as Table<Row, string>;
+  (e === 'line' ? d.countLines : e === 'product' ? d.products : e === 'task' ? d.tasks : e === 'section' ? d.sections : d.settings) as unknown as Table<Row, string>;
 
 /** Valeurs implicites d'un enregistrement sans horodatage (les réglages par défaut ne sont jamais stockés seuls). */
 const implicit = (e: Entity): Record<string, unknown> => (e === 'settings' ? { ...DEFAULT_SETTINGS } : {});
@@ -55,6 +56,7 @@ function blank(e: Entity, id: string): Row {
   if (e === 'line') return { id, code: '', name: '', linearQty: 0, stockQty: 0, updatedAt: 0 };
   if (e === 'product') return { id, base: {}, user: {}, outOfStock: false, pinnedSubstitutes: [], updatedAt: Date.now() };
   if (e === 'task') return { id, label: '', service: 'matin', order: 0, doneAt: 0 };
+  if (e === 'section') return { id, label: '', order: 0 };
   return { key: 'main', ...DEFAULT_SETTINGS };
 }
 
@@ -110,7 +112,7 @@ export async function writeShared<T extends object>(e: Entity, id: string, next:
     }
     const out = { ...record, ...sharedValues(before, keys, f) };
     for (const k of keys) if (k !== 'user' && before[k] === undefined && !(k in f)) delete out[k];
-    if ((e === 'line' || e === 'task') && current) {
+    if ((e === 'line' || e === 'task' || e === 'section') && current) {
       for (const k of keys) if (!Object.hasOwn(clock, k) && out[k] !== undefined && !(k in f)) f[k] = out[k];
     }
 
@@ -132,7 +134,7 @@ export async function writeShared<T extends object>(e: Entity, id: string, next:
   return (e === 'settings' ? result : stored) as T;
 }
 
-const ENTITIES = new Set<string>(['line', 'product', 'settings', 'task']);
+const ENTITIES = new Set<string>(['line', 'product', 'settings', 'task', 'section']);
 const STAMP = /^(\d{13})-\d{4}-.+$/;
 const MAX_AHEAD_MS = 24 * 3_600_000;
 
@@ -147,7 +149,7 @@ const isScalar: Check = (v) => isStr(v) || isNum(v) || isBool(v) || isStrList(v)
 /** Type attendu de chaque champ partagé (`user.<champ>` : champs connus de ProductFields). */
 const VALUE_TYPES: Record<string, Check> = {
   linearQty: isNum, stockQty: isNum, updatedAt: isNum, order: isNum, doneAt: isNum,
-  label: isStr, service: (v) => v === 'matin' || v === 'apres-midi',
+  label: isStr, service: (v) => isStr(v) && v !== '',
   deleted: isBool, outOfStock: isBool,
   gameId: isStr, code: isStr, name: isStr, shopName: isStr, source: isStr,
   sortCount: (v) => v === 'name' || v === 'updatedAt',
@@ -280,7 +282,7 @@ async function applyReceived(entries: Received[], target: CarotteDB, replay = fa
   let future = 0;
   let parked = 0;
   let renamed: string | undefined;
-  const changes = await target.transaction('rw', [target.countLines, target.products, target.settings, target.tasks, target.parkedOps], async () => {
+  const changes = await target.transaction('rw', [target.countLines, target.products, target.settings, target.tasks, target.sections, target.parkedOps], async () => {
     const resolve = idResolver(target);
     const park: { op: Op; at: number }[] = [];
     let n = 0;
@@ -327,7 +329,7 @@ async function applyReceived(entries: Received[], target: CarotteDB, replay = fa
  * liste Douane, `previousRef`), appliqué avant de rejouer. Renvoie le nombre d'opérations qui ont changé quelque chose.
  */
 export async function replayParkedOps(target: CarotteDB = db, renames: IdMap = new Map()): Promise<number> {
-  return target.transaction('rw', [target.countLines, target.products, target.settings, target.tasks, target.parkedOps], async () => {
+  return target.transaction('rw', [target.countLines, target.products, target.settings, target.tasks, target.sections, target.parkedOps], async () => {
     const rows = await target.parkedOps.orderBy('seq').toArray();
     if (rows.length === 0) return 0;
     await target.parkedOps.clear();

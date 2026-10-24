@@ -1,5 +1,6 @@
 import { parseBackup, serializeBackup, withStableIds } from '../domain/backup';
-import type { CountLine, Product, Task } from '../domain/types';
+import { visibleSections } from '../domain/tasks';
+import type { CountLine, Product, Section, Task } from '../domain/types';
 import { withoutClock, type Clocked } from '../sync/merge';
 import { syncRegistryName } from '../tabacs/registry';
 import { db, dbTabacId, DEFAULT_SETTINGS, getSettings } from './db';
@@ -7,10 +8,13 @@ import { writeShared } from './sharedRepo';
 
 /** Sauvegarde : les lignes visibles et les produits, sans les horodatages internes de la synchronisation. */
 export async function exportBackupText(now: number): Promise<string> {
-  const [products, lines, { shareToken: _secret, ...settings }, allTasks] = await Promise.all([db.products.toArray(), db.countLines.toArray(), getSettings(), db.tasks.toArray()]);
+  const [products, lines, { shareToken: _secret, ...settings }, allTasks, allSections] = await Promise.all([
+    db.products.toArray(), db.countLines.toArray(), getSettings(), db.tasks.toArray(), db.sections.toArray(),
+  ]);
   const countLines = lines.filter((l) => l.deleted !== true).map(({ _clock: _c, deleted: _d, ...l }) => l as CountLine);
   const tasks = allTasks.filter((t) => t.deleted !== true).map(({ _clock: _c, deleted: _d, ...t }) => t as Task);
-  return serializeBackup({ products: products.map((p) => withoutClock<Product>(p)), countLines, settings, tasks }, now);
+  const sections = visibleSections(allSections).map(({ _clock: _c, deleted: _d, ...s }: Clocked<Section>) => s as Section);
+  return serializeBackup({ products: products.map((p) => withoutClock<Product>(p)), countLines, settings, tasks, sections }, now);
 }
 
 /**
@@ -21,8 +25,8 @@ export async function exportBackupText(now: number): Promise<string> {
 export async function restoreFromText(text: string): Promise<{ ok: true } | { ok: false; error: string }> {
   const parsed = parseBackup(text);
   if (!parsed.ok) return parsed;
-  const { products, countLines, settings, tasks } = withStableIds(parsed.data);
-  await db.transaction('rw', [db.products, db.countLines, db.settings, db.tasks, db.opsOut, db.syncState], async () => {
+  const { products, countLines, settings, tasks, sections } = withStableIds(parsed.data);
+  await db.transaction('rw', [db.products, db.countLines, db.settings, db.tasks, db.sections, db.opsOut, db.syncState], async () => {
     // Produits : pas de suppression partagée ; ceux qui manquent à la sauvegarde ne sont retirés que d'ici.
     const keepProducts = new Set(products.map((p) => p.id));
     await db.products.bulkDelete((await db.products.toCollection().primaryKeys()).filter((id) => !keepProducts.has(id)));
@@ -41,6 +45,15 @@ export async function restoreFromText(text: string): Promise<{ ok: true } | { ok
         if (!keepTasks.has(t.id) && t.deleted !== true) await writeShared('task', t.id, { ...withoutClock<Task>(t), deleted: true });
       }
       for (const t of tasks) await writeShared('task', t.id, { ...withoutClock<Task>(t), deleted: false });
+    }
+
+    // Titres : de même, remplacés seulement si la sauvegarde en contient.
+    if (sections) {
+      const keepSections = new Set(sections.map((s) => s.id));
+      for (const s of await db.sections.toArray()) {
+        if (!keepSections.has(s.id) && s.deleted !== true) await writeShared('section', s.id, { ...withoutClock<Section>(s), deleted: true });
+      }
+      for (const s of sections) await writeShared('section', s.id, { ...withoutClock<Section>(s), deleted: false });
     }
 
     // La version de la liste officielle est oubliée : la prochaine ouverture refusionne la liste à jour.

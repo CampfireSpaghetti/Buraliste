@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { BASE_TASKS, doneCount, isDoneToday, nextOrder, orderAt, serviceTasks, SERVICES } from '../../src/domain/tasks';
+import { BASE_SECTIONS, BASE_TASKS, doneCount, isDoneToday, nextOrder, orderAt, sectionNeighbour, serviceTasks, visibleSections, visibleTasks } from '../../src/domain/tasks';
+import type { Section } from '../../src/domain/types';
 import type { Task } from '../../src/domain/types';
 
 const at = (h: number, m = 0, day = 23) => new Date(2026, 9, day, h, m).getTime();
@@ -18,14 +19,16 @@ describe('tâches', () => {
     expect(serviceTasks(list, 'matin').map((x) => x.id)).toEqual(['a', 'b', 'c']);
     expect(serviceTasks(list, 'apres-midi').map((x) => x.id)).toEqual(['x']);
   });
-  it('liste de base : 6 le matin, 3 l’après-midi, ids fixes', () => {
-    expect(BASE_TASKS.map((x) => x.id)).toEqual(['base:1', 'base:2', 'base:3', 'base:4', 'base:5', 'base:6', 'base:7', 'base:8', 'base:9']);
-    expect(serviceTasks(BASE_TASKS, 'matin').map((x) => x.label)).toEqual([
-      'Vérifier stock grattage', 'Vérifier stock cigarettes', 'Vérifier stock tabletterie', 'Remplir le linéaire', 'Remplir la vitrine', 'Remplir la machine à café',
-    ]);
-    expect(serviceTasks(BASE_TASKS, 'apres-midi').map((x) => x.label)).toEqual(['Vérifier stock grattage', "Nettoyer l'espace de travail", "Nettoyer l'espace client"]);
+  it('liste de base : la même liste le matin et l’après-midi (9 tâches chacun, le grattage deux fois), ids fixes', () => {
+    const LIST = ['Vérifier stock grattage', 'Vérifier stock cigarettes', 'Remplir le linéaire', 'Remplir la vitrine', "Nettoyer l'espace de travail", 'Vérifier stock tabletterie', 'Vérifier stock grattage', 'Remplir la machine à café', "Nettoyer l'espace client"];
+    expect(BASE_TASKS).toHaveLength(18);
+    expect(serviceTasks(BASE_TASKS, 'matin').map((x) => x.label)).toEqual(LIST);
+    expect(serviceTasks(BASE_TASKS, 'apres-midi').map((x) => x.label)).toEqual(LIST);
+    expect(BASE_TASKS.map((x) => x.id).slice(0, 2)).toEqual(['base:matin-1', 'base:matin-2']);
+    expect(BASE_TASKS.at(-1)!.id).toBe('base:apres-midi-9');
+    expect(new Set(BASE_TASKS.map((x) => x.id)).size).toBe(18);
     expect(BASE_TASKS.every((x) => x.doneAt === 0)).toBe(true);
-    expect(SERVICES).toEqual([{ id: 'matin', label: 'Matin' }, { id: 'apres-midi', label: 'Après-midi' }]);
+    expect(BASE_SECTIONS).toEqual([{ id: 'matin', label: 'Matin', order: 1 }, { id: 'apres-midi', label: 'Après-midi', order: 2 }]);
   });
   it('déplacer : milieu des voisines, avant la première, après la dernière', () => {
     const list = [t('a', 1), t('b', 2), t('c', 3)];
@@ -44,5 +47,22 @@ describe('tâches', () => {
     expect(nextOrder([t('a', 1), t('b', 7.5)])).toBe(8.5);
     const now = at(12);
     expect(doneCount([t('a', 1, { doneAt: at(9) }), t('b', 2), t('c', 3, { doneAt: at(9), deleted: true })], now)).toEqual({ done: 1, total: 2 });
+  });
+});
+
+describe('titres', () => {
+  const sec = (id: string, order: number, deleted = false): Section => ({ id, label: id, order, deleted });
+  it('titres visibles, dans l’ordre ; tâches d’un titre supprimé ou inconnu cachées', () => {
+    const sections = [sec('b', 2), sec('a', 1), sec('x', 0, true)];
+    expect(visibleSections(sections).map((s) => s.id)).toEqual(['a', 'b']);
+    const tasks = [t('1', 1, { service: 'a' }), t('2', 1, { service: 'x' }), t('3', 1, { service: 'perdu' }), t('4', 2, { service: 'b', deleted: true })];
+    expect(visibleTasks(tasks, sections).map((x) => x.id)).toEqual(['1']);
+  });
+  it('voisin pour Monter / Descendre (aucun au bord)', () => {
+    const sections = [sec('a', 1), sec('b', 2), sec('c', 3), sec('d', 2.5, true)];
+    expect(sectionNeighbour(sections, 'b', -1)?.id).toBe('a');
+    expect(sectionNeighbour(sections, 'b', 1)?.id).toBe('c');
+    expect(sectionNeighbour(sections, 'a', -1)).toBeUndefined();
+    expect(sectionNeighbour(sections, 'c', 1)).toBeUndefined();
   });
 });
