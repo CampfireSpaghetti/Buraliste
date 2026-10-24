@@ -196,7 +196,7 @@ describe('titres de la liste « À faire »', () => {
     old.close();
     const up = new CarotteDB(name);
     await up.open();
-    expect(up.verno).toBe(8);
+    expect(up.verno).toBe(9);
     expect((await up.syncState.get(REJOIN_ASKED))?.value).toBe(true);
     expect(await up.tasks.count()).toBe(1);
     up.close();

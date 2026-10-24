@@ -20,11 +20,11 @@ import type { Op } from './merge';
 
 type Rec = Record<string, unknown>;
 export type EtatRecord = Rec & { id: string; _clock: Record<string, string> };
-export type Etat = { line: EtatRecord[]; product: EtatRecord[]; settings: EtatRecord[]; task: EtatRecord[]; section: EtatRecord[] };
+export type Etat = { line: EtatRecord[]; product: EtatRecord[]; settings: EtatRecord[]; task: EtatRecord[]; section: EtatRecord[]; snapshot: EtatRecord[] };
 
 const isObj = (v: unknown): v is Rec => typeof v === 'object' && v !== null && !Array.isArray(v);
 const FORBIDDEN = new Set(['__proto__', 'constructor', 'prototype']);
-const ENTITIES: Entity[] = ['settings', 'product', 'section', 'line', 'task'];
+const ENTITIES: Entity[] = ['settings', 'product', 'section', 'line', 'task', 'snapshot'];
 
 /**
  * Partie « appareil » des horodatages d'origine enregistrés localement. Les horodatages se comparent comme des chaînes
@@ -112,12 +112,13 @@ function etatRecord(e: Entity, r: Rec): EtatRecord {
   return out as EtatRecord;
 }
 
-async function readAll(d: CarotteDB): Promise<{ line: Rec[]; product: Rec[]; settings: Rec[]; task: Rec[]; section: Rec[] }> {
-  return d.transaction('r', [d.countLines, d.products, d.settings, d.tasks, d.sections], async () => {
-    const [lines, products, settings, tasks, sections] = await Promise.all([
-      d.countLines.toArray(), d.products.toArray(), d.settings.get('main'), d.tasks.toArray(), d.sections.toArray(),
+async function readAll(d: CarotteDB): Promise<{ line: Rec[]; product: Rec[]; settings: Rec[]; task: Rec[]; section: Rec[]; snapshot: Rec[] }> {
+  return d.transaction('r', [d.countLines, d.products, d.settings, d.tasks, d.sections, d.countHistory], async () => {
+    const [lines, products, settings, tasks, sections, history] = await Promise.all([
+      d.countLines.toArray(), d.products.toArray(), d.settings.get('main'), d.tasks.toArray(), d.sections.toArray(), d.countHistory.toArray(),
     ]);
     return {
+      snapshot: history as unknown as Rec[],
       task: tasks as unknown as Rec[],
       section: sections as unknown as Rec[],
       line: lines as unknown as Rec[],
@@ -136,13 +137,14 @@ export async function buildEtat(d: CarotteDB): Promise<Etat> {
     settings: all.settings.map((r) => etatRecord('settings', r)),
     task: all.task.map((r) => etatRecord('task', r)),
     section: all.section.map((r) => etatRecord('section', r)),
+    snapshot: all.snapshot.map((r) => etatRecord('snapshot', r)),
   };
 }
 
 /** La base a des données à partager (premier contact d'un tabac existant avec le relais). */
 export async function hasLocalData(d: CarotteDB): Promise<boolean> {
   const all = await readAll(d);
-  return all.line.some(lineHasData) || all.product.length > 0 || all.task.some(taskHasData) || all.section.some(sectionHasData)
+  return all.line.some(lineHasData) || all.product.length > 0 || all.task.some(taskHasData) || all.section.some(sectionHasData) || all.snapshot.length > 0
     || all.settings.some((s) => isObj(s._clock) && Object.keys(s._clock).length > 0);
 }
 
@@ -153,7 +155,7 @@ export async function hasLocalData(d: CarotteDB): Promise<boolean> {
  * à heure égale (réglages, lignes jamais comptées : heure 0), c'est la photographie qui gagne.
  */
 export async function stampLegacy(d: CarotteDB): Promise<void> {
-  await d.transaction('rw', [d.countLines, d.products, d.settings, d.tasks, d.sections], async () => {
+  await d.transaction('rw', [d.countLines, d.products, d.settings, d.tasks, d.sections, d.countHistory], async () => {
     const all = await readAll(d);
     for (const e of ENTITIES) {
       const table = tableFor(e, d) as unknown as { put(r: Rec): Promise<unknown> };

@@ -8,7 +8,7 @@
  * Les horodatages se comparent comme des chaînes (voir hlc.ts).
  */
 
-export type Op = { e: 'line' | 'product' | 'settings' | 'task' | 'section'; id: string; f: Record<string, unknown>; t: string };
+export type Op = { e: 'line' | 'product' | 'settings' | 'task' | 'section' | 'snapshot'; id: string; f: Record<string, unknown>; t: string };
 
 export type Clocked<T> = T & { _clock?: Record<string, string> };
 

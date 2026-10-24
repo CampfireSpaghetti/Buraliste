@@ -1,5 +1,6 @@
 import Dexie, { type Table, type Transaction } from 'dexie';
-import type { CountLine, Product, ProductFields, Section, Service, Settings, Task } from '../domain/types';
+import type { CountLine, CountSnapshot, Product, ProductFields, Section, Service, Settings, Task } from '../domain/types';
+import { overflow, takeSnapshot, visibleHistory } from '../domain/history';
 import { BASE_SECTIONS, BASE_TASKS, LEGACY_BASE_TASKS, isDoneToday, nextOrder, orderAt, sectionNeighbour, serviceTasks, visibleSections, visibleTasks } from '../domain/tasks';
 import { officialRef, type Contribution } from '../domain/sharing';
 import { productIdMap, remapIdList, remapOp, remapProductIds, type IdMap } from '../domain/productId';
@@ -39,6 +40,7 @@ export class CarotteDB extends Dexie {
   parkedOps!: Table<ParkedOp, number>;
   tasks!: Table<Clocked<Task>, string>;
   sections!: Table<Clocked<Section>, string>;
+  countHistory!: Table<Clocked<CountSnapshot>, string>;
   constructor(name = 'la-carotte') {
     super(name);
     this.version(1).stores({
@@ -78,6 +80,8 @@ export class CarotteDB extends Dexie {
     this.version(7).stores({ tasks: 'id' }).upgrade(askRejoin);
     // v8 : titres de la liste « À faire » (Matin, Après-midi, ajoutés). La version d'avant les ignorait : on rejoint.
     this.version(8).stores({ sections: 'id' }).upgrade(askRejoin);
+    // v9 : historique des comptages du grattage (« Fin comptage »), ignoré par la version d'avant : on rejoint.
+    this.version(9).stores({ countHistory: 'id, at' }).upgrade(askRejoin);
   }
 }
 
@@ -470,4 +474,41 @@ export const restoreSection = (section: Section, tasks: Task[]): Promise<void> =
   sectionTx(async () => {
     await writeShared<Section>('section', section.id, { ...withoutClock<Section>(section), deleted: false });
     for (const t of tasks) await writeShared<Task>('task', t.id, { ...withoutClock<Task>(t), deleted: false });
+  });
+
+// ---------------------------------------------------------------- historique du grattage
+
+const historyTx = <T>(fn: () => Promise<T>) => db.transaction('rw', [db.countHistory, db.countLines, db.opsOut, db.syncState], fn);
+
+/** Comptages enregistrés, les plus récents d'abord (8 au plus). */
+export const listHistory = async (): Promise<CountSnapshot[]> => visibleHistory((await db.countHistory.toArray()).map((s) => withoutClock<CountSnapshot>(s)));
+
+/**
+ * « Fin comptage » : enregistre le tableau tel qu'il est (partagé). Au-delà de 8 comptages, les plus anciens sont
+ * supprimés ; ils sont renvoyés avec le nouveau, pour « Annuler ».
+ */
+export const saveSnapshot = (at = Date.now()): Promise<{ snapshot: CountSnapshot; pruned: CountSnapshot[] }> =>
+  historyTx(async () => {
+    const snapshot = takeSnapshot(await listCountLines(), at, newId());
+    await writeShared<CountSnapshot>('snapshot', snapshot.id, snapshot);
+    const all = (await db.countHistory.toArray()).map((s) => withoutClock<CountSnapshot>(s));
+    const pruned = overflow(all);
+    for (const s of pruned) await writeShared<CountSnapshot>('snapshot', s.id, { ...s, deleted: true });
+    return { snapshot, pruned };
+  });
+
+/** Supprime un comptage de l'historique (partagé) et le renvoie, pour « Annuler ». */
+export const deleteSnapshot = (id: string): Promise<CountSnapshot> =>
+  historyTx(async () => {
+    const s = await db.countHistory.get(id);
+    if (!s || s.deleted === true) throw new Error(`Comptage introuvable : ${id}`);
+    const before = withoutClock<CountSnapshot>(s);
+    await writeShared<CountSnapshot>('snapshot', id, { ...before, deleted: true });
+    return before;
+  });
+
+/** Remet des comptages tels qu'ils étaient (ou les retire : `deleted: true`), pour « Annuler ». */
+export const putSnapshots = (list: CountSnapshot[]): Promise<void> =>
+  historyTx(async () => {
+    for (const s of list) await writeShared<CountSnapshot>('snapshot', s.id, { ...withoutClock<CountSnapshot>(s), deleted: s.deleted === true });
   });
