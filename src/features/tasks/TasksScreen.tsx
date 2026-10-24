@@ -1,17 +1,19 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
-import { SERVICES, doneCount, isDoneToday, serviceTasks } from '../../domain/tasks';
+import { doneCount, isDoneToday, serviceTasks, visibleSections, visibleTasks } from '../../domain/tasks';
 import { layoutTasksExport } from '../../domain/tasksExportLayout';
-import type { Service, Task } from '../../domain/types';
-import { actions, useSettings, useTasks } from '../../store';
+import type { Section, Service, Task } from '../../domain/types';
+import { actions, useSections, useSettings, useTasks } from '../../store';
 import { Sheet } from '../../ui/Panel';
 import { Toast } from '../../ui/Toast';
 import { ImageExportPanel } from '../../ui/ImageExportPanel';
 import { TaskSheet } from './TaskSheet';
+import { SectionSheet } from './SectionSheet';
 import { renderTasksJpg } from './exportTasksJpg';
 import './tasks.css';
 
-type ToastState = { message: string; undo?: Task[] };
+type ToastState = { message: string; undo?: Task[]; undoSection?: { section: Section; tasks: Task[] } };
 type SheetState = { mode: 'new' } | { mode: 'edit'; task: Task };
+type SectionSheetState = { mode: 'new' } | { mode: 'edit'; section: Section };
 /** Glisser une tâche par sa poignée : `from` (index de départ) → `to` (index visé), dans son service. */
 type Drag = { id: string; service: Service; pointerId: number; startY: number; dy: number; from: number; to: number; tops: number[]; heights: number[] };
 
@@ -46,22 +48,33 @@ function useNow(): number {
 }
 
 export function TasksScreen() {
-  const tasks = useTasks();
+  const allTasks = useTasks();
+  const allSections = useSections();
   const settings = useSettings();
   const now = useNow();
   const [sheet, setSheet] = useState<SheetState | null>(null);
+  const [sectionSheet, setSectionSheet] = useState<SectionSheetState | null>(null);
   const [resetting, setResetting] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [toast, setToast] = useState<ToastState | null>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
   // Déplacement en cours d'enregistrement : la tâche est montrée tout de suite à sa nouvelle place.
   const [moving, setMoving] = useState<{ id: string; to: number } | null>(null);
-  useEffect(() => setMoving(null), [tasks]);
+  useEffect(() => setMoving(null), [allTasks]);
   const rows = useRef(new Map<string, HTMLLIElement>());
   const closeToast = useCallback(() => setToast(null), []);
 
-  if (!tasks) return null;
+  if (!allTasks || !allSections) return null;
+  const sections = visibleSections(allSections);
+  // Tâches affichées : sous un titre visible (un titre supprimé sur un autre téléphone cache ses tâches).
+  const tasks = visibleTasks(allTasks, sections);
   const { done, total } = doneCount(tasks, now);
+
+  const removeSection = async (s: Section) => {
+    setSectionSheet(null);
+    const before = await actions.deleteSection(s.id);
+    setToast({ message: `Titre supprimé : ${s.label}`, undoSection: before });
+  };
 
   const toggle = (t: Task) => {
     vibrate();
@@ -141,7 +154,8 @@ export function TasksScreen() {
         <span className="tasks-bar" aria-hidden="true"><span style={{ width: total ? `${(done / total) * 100}%` : 0 }} /></span>
       </div>
       <div className="count-actions">
-        <button type="button" className="btn accent" onClick={() => setSheet({ mode: 'new' })}>+ Tâche</button>
+        <button type="button" className="btn accent" disabled={sections.length === 0} onClick={() => setSheet({ mode: 'new' })}>+ Tâche</button>
+        <button type="button" className="btn" onClick={() => setSectionSheet({ mode: 'new' })}>+ Titre</button>
         <button type="button" className="btn primary" disabled={total === 0} onClick={() => setExporting(true)}>Export .jpg</button>
       </div>
       <div className="tasks-tools">
@@ -149,15 +163,21 @@ export function TasksScreen() {
         <button type="button" className="chip reset-chip" disabled={done === 0} onClick={() => setResetting(true)}>Remettre à zéro</button>
       </div>
 
-      {SERVICES.map((s) => {
+      {sections.length === 0 && <p className="muted tasks-empty">Aucun titre. Touchez « + Titre » pour commencer.</p>}
+      {sections.map((s) => {
         const list = ordered(s.id);
         const n = list.filter((t) => isDoneToday(t, now)).length;
         return (
           <section key={s.id} className="tasks-service" aria-labelledby={`service-${s.id}`}>
-            <h3 id={`service-${s.id}`}>
-              <span>{s.label}</span>
-              <span className="num tasks-count">{n} / {list.length}</span>
-            </h3>
+            <div className="tasks-service-head">
+              <h3 id={`service-${s.id}`}>
+                <span>{s.label}</span>
+                <span className="num tasks-count">{n} / {list.length}</span>
+              </h3>
+              <button type="button" className="task-more" aria-label={`Modifier le titre « ${s.label} »`} onClick={() => setSectionSheet({ mode: 'edit', section: s })}>
+                <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" /></svg>
+              </button>
+            </div>
             {list.length === 0 && <p className="muted tasks-empty">Aucune tâche. Touchez « + Tâche ».</p>}
             <ul className={'task-list' + (drag?.service === s.id ? ' dragging-list' : '')}>
               {list.map((t, i) => {
@@ -207,6 +227,7 @@ export function TasksScreen() {
       {sheet && (
         <TaskSheet
           task={sheet.mode === 'edit' ? sheet.task : undefined}
+          sections={sections}
           onClose={() => setSheet(null)}
           onSave={async (label, service) => {
             if (sheet.mode === 'edit') await actions.updateTask(sheet.task.id, { label, service });
@@ -214,6 +235,22 @@ export function TasksScreen() {
             setSheet(null);
           }}
           onDelete={sheet.mode === 'edit' ? () => void remove(sheet.task) : undefined}
+        />
+      )}
+      {sectionSheet && (
+        <SectionSheet
+          section={sectionSheet.mode === 'edit' ? sectionSheet.section : undefined}
+          taskCount={sectionSheet.mode === 'edit' ? tasks.filter((t) => t.service === sectionSheet.section.id).length : 0}
+          canUp={sectionSheet.mode === 'edit' && sections[0]?.id !== sectionSheet.section.id}
+          canDown={sectionSheet.mode === 'edit' && sections.at(-1)?.id !== sectionSheet.section.id}
+          onMove={(dir) => { if (sectionSheet.mode === 'edit') void actions.moveSection(sectionSheet.section.id, dir); }}
+          onClose={() => setSectionSheet(null)}
+          onSave={async (label) => {
+            if (sectionSheet.mode === 'edit') await actions.renameSection(sectionSheet.section.id, label);
+            else await actions.addSection(label);
+            setSectionSheet(null);
+          }}
+          onDelete={sectionSheet.mode === 'edit' ? () => void removeSection(sectionSheet.section) : undefined}
         />
       )}
       {resetting && (
@@ -237,16 +274,17 @@ export function TasksScreen() {
           alt={`Tâches du ${today(now)}`}
           note="les deux services, avec les heures"
           doneLabel="Tâches exportées ✓"
-          render={(at) => renderTasksJpg(layoutTasksExport(tasks, settings?.shopName ?? '', at))}
+          render={(at) => renderTasksJpg(layoutTasksExport(tasks, sections, settings?.shopName ?? '', at))}
           onClose={() => setExporting(false)}
         />
       )}
       {toast && (
         <Toast
           message={toast.message}
-          action={toast.undo?.length ? 'Annuler' : undefined}
+          action={toast.undo?.length || toast.undoSection ? 'Annuler' : undefined}
           onAction={() => {
             if (toast.undo) void actions.restoreTasks(toast.undo);
+            if (toast.undoSection) void actions.restoreSection(toast.undoSection.section, toast.undoSection.tasks);
             setToast(null);
           }}
           onDone={closeToast}

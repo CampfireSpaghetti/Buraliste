@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto';
 import Dexie from 'dexie';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
-  CarotteDB, db, REJOIN_ASKED, addTask, deleteTask, listTasks, moveTask, resetTasks, restoreTask, seedTasks, setTaskDone, updateTask,
+  CarotteDB, db, REJOIN_ASKED, addSection, deleteSection, listSections, moveSection, renameSection, restoreSection, addTask, deleteTask, listTasks, moveTask, resetTasks, restoreTask, seedTasks, setTaskDone, updateTask,
 } from '../../src/data/db';
 import { applyRemoteOps } from '../../src/data/sharedRepo';
 import { buildEtat, hasLocalData } from '../../src/sync/snapshot';
@@ -103,7 +103,7 @@ describe('liste « À faire » : synchronisation', () => {
   it('tâche reçue d’un autre téléphone : créée, puis cochée ; valeur de mauvais type ignorée', async () => {
     const now = Date.now();
     await applyRemoteOps([{ e: 'task', id: 't1', f: { label: 'Arroser les plantes', service: 'matin', order: 3, doneAt: 0, deleted: false }, t: hlcAt(now - 2000) }]);
-    await applyRemoteOps([{ e: 'task', id: 't1', f: { doneAt: now, service: 'nuit' }, t: hlcAt(now - 1000) }]);
+    await applyRemoteOps([{ e: 'task', id: 't1', f: { doneAt: now, service: 42 }, t: hlcAt(now - 1000) }]);
     expect(await listTasks()).toEqual([{ id: 't1', label: 'Arroser les plantes', service: 'matin', order: 3, doneAt: now, deleted: false }]);
   });
   it('la photographie contient les tâches', async () => {
@@ -129,5 +129,77 @@ describe('liste « À faire » : synchronisation', () => {
       up.close();
       await up.delete();
     }
+  });
+});
+
+describe('titres de la liste « À faire »', () => {
+  const titles = async () => (await listSections()).map((x) => x.label);
+  it('titres de départ créés une fois, sans opération ; un titre de départ supprimé ne revient pas', async () => {
+    await seedTasks();
+    expect(await titles()).toEqual(['Matin', 'Après-midi']);
+    expect(await db.opsOut.count()).toBe(0);
+    expect(await hasLocalData(db)).toBe(false);
+    await deleteSection('apres-midi');
+    await seedTasks();
+    expect(await titles()).toEqual(['Matin']);
+  });
+  it('ajouter (vide, en bas), renommer, monter, descendre', async () => {
+    await seedTasks();
+    const f = await addSection('  Fermeture  ');
+    expect(await titles()).toEqual(['Matin', 'Après-midi', 'Fermeture']);
+    expect((await listTasks()).filter((t) => t.service === f.id)).toEqual([]);
+    await renameSection('matin', 'Ouverture');
+    await moveSection(f.id, -1);
+    expect(await titles()).toEqual(['Ouverture', 'Fermeture', 'Après-midi']);
+    await moveSection('matin', -1); // déjà en haut : rien
+    await moveSection('apres-midi', 1); // déjà en bas : rien
+    await moveSection('matin', 1);
+    expect(await titles()).toEqual(['Fermeture', 'Ouverture', 'Après-midi']);
+  });
+  it('supprimer un titre supprime ses tâches (partagé) ; « Annuler » rend tout ; la remise à zéro ignore les titres supprimés', async () => {
+    await seedTasks();
+    await setTaskDone('base:apres-midi-1', true);
+    await db.opsOut.clear();
+    const { section, tasks } = await deleteSection('apres-midi');
+    expect(tasks).toHaveLength(9);
+    expect(await titles()).toEqual(['Matin']);
+    const ops = (await db.opsOut.toArray()).map((r) => r.op);
+    expect(ops.filter((o) => o.e === 'task' && o.f.deleted === true)).toHaveLength(9);
+    expect(ops.find((o) => o.e === 'section')).toMatchObject({ id: 'apres-midi', f: expect.objectContaining({ deleted: true }) });
+    expect(await resetTasks()).toEqual([]);
+    await restoreSection(section, tasks);
+    expect(await titles()).toEqual(['Matin', 'Après-midi']);
+    expect((await listTasks()).filter((t) => t.service === 'apres-midi')).toHaveLength(9);
+    expect((await listTasks()).find((t) => t.id === 'base:apres-midi-1')!.doneAt).toBeGreaterThan(0);
+  });
+  it('titre et tâche reçus d’un autre téléphone ; la photographie contient les titres', async () => {
+    const now = Date.now();
+    await applyRemoteOps([
+      { e: 'section', id: 's1', f: { label: 'Fermeture', order: 3, deleted: false }, t: hlcAt(now - 2000) },
+      { e: 'task', id: 't1', f: { label: 'Baisser le rideau', service: 's1', order: 1, doneAt: 0, deleted: false }, t: hlcAt(now - 1000) },
+    ]);
+    expect(await listSections()).toEqual([{ id: 's1', label: 'Fermeture', order: 3, deleted: false }]);
+    expect((await listTasks())[0]).toMatchObject({ service: 's1' });
+    const etat = await buildEtat(db);
+    expect(etat.section.find((r) => r.id === 's1')).toMatchObject({ label: 'Fermeture', order: 3 });
+  });
+  it('mise à niveau v8 d’une base déjà synchronisée : le téléphone rejoindra le canal', async () => {
+    const name = 'la-carotte-v7-synchro';
+    const old = new Dexie(name);
+    old.version(7).stores({
+      products: 'id, douaneRef, source, updatedAt', countLines: 'id, gameId, updatedAt', settings: 'key',
+      outbox: '++id, createdAt', opsOut: '++seq', syncState: 'key', parkedOps: '++seq, at', tasks: 'id',
+    });
+    await old.open();
+    await old.table('syncState').put({ key: 'lastN', value: 7 });
+    await old.table('tasks').put({ id: 'base:matin-1', label: 'Vérifier stock grattage', service: 'matin', order: 1, doneAt: 0 });
+    old.close();
+    const up = new CarotteDB(name);
+    await up.open();
+    expect(up.verno).toBe(8);
+    expect((await up.syncState.get(REJOIN_ASKED))?.value).toBe(true);
+    expect(await up.tasks.count()).toBe(1);
+    up.close();
+    await up.delete();
   });
 });

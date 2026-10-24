@@ -181,7 +181,7 @@ test('accès refusé par le relais : message dans Réglages, point rouge, donné
   await A.ctx.close();
 });
 
-test('deux téléphones : la liste « À faire » se partage (cases cochées en même temps, tâche ajoutée)', async ({ browser }) => {
+test('deux téléphones : la liste « À faire » se partage (cases cochées en même temps, tâche et titres ajoutés)', async ({ browser }) => {
   test.setTimeout(120_000);
   const A = await phone(browser);
   const B = await phone(browser);
@@ -221,6 +221,20 @@ test('deux téléphones : la liste « À faire » se partage (cases cochées en 
     });
   }
   await expect(B.page.getByText('2 / 19 faites')).toBeVisible();
+
+  // B ajoute le titre « Fermeture » et renomme « Après-midi » → A voit les deux.
+  await B.page.getByRole('button', { name: '+ Titre' }).click();
+  const title = B.page.getByRole('dialog', { name: 'Nouveau titre' });
+  await title.getByLabel('Titre').fill('Fermeture');
+  await title.getByRole('button', { name: 'Ajouter' }).click();
+  await B.page.getByRole('button', { name: 'Modifier le titre « Après-midi »' }).click();
+  const edit = B.page.getByRole('dialog', { name: 'Modifier le titre' });
+  await edit.getByLabel('Titre').fill('Soir');
+  await edit.getByRole('button', { name: 'Enregistrer' }).click();
+  await eventually([B.page, A.page], async () => {
+    await expect(A.page.getByRole('region', { name: /^Fermeture/ })).toBeVisible({ timeout: 1_000 });
+    await expect(A.page.getByRole('region', { name: /^Soir/ })).toContainText('Commander les tickets', { timeout: 1_000 });
+  });
   await A.ctx.close();
   await B.ctx.close();
 });

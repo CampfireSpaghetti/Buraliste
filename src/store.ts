@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import * as repo from './data/db';
 import { enqueueContributions, flushOutbox } from './data/sharingData';
-import type { CountLine, Product, ProductFields, Service, Settings, Task } from './domain/types';
+import type { CountLine, Product, ProductFields, Section, Service, Settings, Task } from './domain/types';
 
 const DATA_EVENT = 'carotte:data';
 export const notifyDataChanged = () => window.dispatchEvent(new Event(DATA_EVENT));
@@ -27,6 +27,7 @@ export const useProducts = () => useLive(repo.listProducts);
 export const useCountLines = () => useLive(repo.listCountLines);
 export const useSettings = () => useLive(repo.getSettings);
 export const useTasks = () => useLive(repo.listTasks);
+export const useSections = () => useLive(repo.listSections);
 
 function withNotify<A extends unknown[], R>(fn: (...a: A) => Promise<R>) {
   return async (...a: A): Promise<R> => {
@@ -77,6 +78,11 @@ export const actions = {
   resetTasks: withNotify(() => repo.resetTasks()),
   restoreTasks: withNotify(async (ts: Task[]) => { for (const t of ts) await repo.restoreTask(t); }),
   moveTask: withNotify((id: string, toIndex: number) => repo.moveTask(id, toIndex)),
+  addSection: withNotify((label: string) => repo.addSection(label)),
+  renameSection: withNotify((id: string, label: string) => repo.renameSection(id, label)),
+  moveSection: withNotify((id: string, dir: -1 | 1) => repo.moveSection(id, dir)),
+  deleteSection: withNotify((id: string) => repo.deleteSection(id)),
+  restoreSection: withNotify((s: Section, ts: Task[]) => repo.restoreSection(s, ts)),
   unhideGame: withNotify((gameId: string) => repo.unhideGame(gameId)),
 };
 

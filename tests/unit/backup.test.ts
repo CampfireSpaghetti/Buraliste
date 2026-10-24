@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { serializeBackup, parseBackup, needsBackupReminder, type BackupFile } from '../../src/domain/backup';
-import { db, listCountLines, upsertCountLine, getSettings, saveSettings, listTasks, seedTasks, setTaskDone } from '../../src/data/db';
+import { db, listCountLines, upsertCountLine, getSettings, saveSettings, listTasks, seedTasks, setTaskDone, addSection, listSections } from '../../src/data/db';
 import { restoreFromText, exportBackupText } from '../../src/data/backupData';
 
 const data = {
@@ -98,7 +98,27 @@ describe('sauvegarde de la liste « À faire »', () => {
     expect(await listTasks()).toHaveLength(18);
   });
   it('une tâche abîmée rend la sauvegarde invalide', () => {
-    const bad = serializeBackup({ ...data, tasks: [{ ...tasks[0], service: 'nuit' as never }] }, 1);
+    const bad = serializeBackup({ ...data, tasks: [{ ...tasks[0], service: '' }] }, 1);
     expect(parseBackup(bad)).toEqual({ ok: false, error: 'Sauvegarde incomplète ou abîmée.' });
+  });
+});
+
+describe('sauvegarde des titres « À faire »', () => {
+  it('titres sauvegardés et restaurés (un titre ajouté et ses tâches) ; ancienne sauvegarde sans titres : titres inchangés', async () => {
+    await seedTasks();
+    const f = await addSection('Fermeture');
+    const exported = JSON.parse(await exportBackupText(1));
+    expect(exported.sections.map((s: { label: string }) => s.label)).toEqual(['Matin', 'Après-midi', 'Fermeture']);
+    const sections = [{ id: 'ouv', label: 'Ouverture', order: 1 }];
+    const tasks = [{ id: 't', label: 'Lever le rideau', service: 'ouv', order: 1, doneAt: 0 }];
+    expect(await restoreFromText(serializeBackup({ ...data, sections, tasks }, 1))).toEqual({ ok: true });
+    expect((await listSections()).map((s) => s.label)).toEqual(['Ouverture']);
+    expect((await listTasks()).map((t) => t.service)).toEqual(['ouv']);
+    expect(await restoreFromText(serializeBackup(data, 1))).toEqual({ ok: true });
+    expect((await listSections()).map((s) => s.label)).toEqual(['Ouverture']);
+    expect(f.id).toBeTruthy();
+  });
+  it('un titre abîmé rend la sauvegarde invalide', () => {
+    expect(parseBackup(serializeBackup({ ...data, sections: [{ id: 'x', label: 3 as never, order: 1 }] }, 1))).toEqual({ ok: false, error: 'Sauvegarde incomplète ou abîmée.' });
   });
 });

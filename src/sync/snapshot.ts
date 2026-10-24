@@ -13,15 +13,18 @@
 import { DEFAULT_SETTINGS, type CarotteDB } from '../data/db';
 import { applyRemoteOps, sharedKeysFor, tableFor, type Entity } from '../data/sharedRepo';
 import { deviceId } from './clock';
+import { BASE_SECTIONS } from '../domain/tasks';
+
+const BASE_SECTION_IDS = new Set(BASE_SECTIONS.map((s) => s.id));
 import type { Op } from './merge';
 
 type Rec = Record<string, unknown>;
 export type EtatRecord = Rec & { id: string; _clock: Record<string, string> };
-export type Etat = { line: EtatRecord[]; product: EtatRecord[]; settings: EtatRecord[]; task: EtatRecord[] };
+export type Etat = { line: EtatRecord[]; product: EtatRecord[]; settings: EtatRecord[]; task: EtatRecord[]; section: EtatRecord[] };
 
 const isObj = (v: unknown): v is Rec => typeof v === 'object' && v !== null && !Array.isArray(v);
 const FORBIDDEN = new Set(['__proto__', 'constructor', 'prototype']);
-const ENTITIES: Entity[] = ['settings', 'product', 'line', 'task'];
+const ENTITIES: Entity[] = ['settings', 'product', 'section', 'line', 'task'];
 
 /**
  * Partie « appareil » des horodatages d'origine enregistrés localement. Les horodatages se comparent comme des chaînes
@@ -79,6 +82,11 @@ function taskHasData(t: Rec): boolean {
   return !String(t.id).startsWith('base:') || (isObj(t._clock) && Object.keys(t._clock).length > 0);
 }
 
+/** Titre ajouté ou modifié ici (pas seulement un titre de départ, que chaque téléphone crée lui-même). */
+function sectionHasData(s: Rec): boolean {
+  return !BASE_SECTION_IDS.has(String(s.id)) || (isObj(s._clock) && Object.keys(s._clock).length > 0);
+}
+
 function etatRecord(e: Entity, r: Rec): EtatRecord {
   const out: Rec = { id: e === 'settings' ? 'main' : String(r.id) };
   const keys = sharedKeysFor(e, r);
@@ -104,11 +112,14 @@ function etatRecord(e: Entity, r: Rec): EtatRecord {
   return out as EtatRecord;
 }
 
-async function readAll(d: CarotteDB): Promise<{ line: Rec[]; product: Rec[]; settings: Rec[]; task: Rec[] }> {
-  return d.transaction('r', [d.countLines, d.products, d.settings, d.tasks], async () => {
-    const [lines, products, settings, tasks] = await Promise.all([d.countLines.toArray(), d.products.toArray(), d.settings.get('main'), d.tasks.toArray()]);
+async function readAll(d: CarotteDB): Promise<{ line: Rec[]; product: Rec[]; settings: Rec[]; task: Rec[]; section: Rec[] }> {
+  return d.transaction('r', [d.countLines, d.products, d.settings, d.tasks, d.sections], async () => {
+    const [lines, products, settings, tasks, sections] = await Promise.all([
+      d.countLines.toArray(), d.products.toArray(), d.settings.get('main'), d.tasks.toArray(), d.sections.toArray(),
+    ]);
     return {
       task: tasks as unknown as Rec[],
+      section: sections as unknown as Rec[],
       line: lines as unknown as Rec[],
       product: (products as unknown as Rec[]).filter(productHasData),
       settings: settings ? [settings as unknown as Rec] : [],
@@ -124,13 +135,14 @@ export async function buildEtat(d: CarotteDB): Promise<Etat> {
     product: all.product.map((r) => etatRecord('product', r)),
     settings: all.settings.map((r) => etatRecord('settings', r)),
     task: all.task.map((r) => etatRecord('task', r)),
+    section: all.section.map((r) => etatRecord('section', r)),
   };
 }
 
 /** La base a des données à partager (premier contact d'un tabac existant avec le relais). */
 export async function hasLocalData(d: CarotteDB): Promise<boolean> {
   const all = await readAll(d);
-  return all.line.some(lineHasData) || all.product.length > 0 || all.task.some(taskHasData)
+  return all.line.some(lineHasData) || all.product.length > 0 || all.task.some(taskHasData) || all.section.some(sectionHasData)
     || all.settings.some((s) => isObj(s._clock) && Object.keys(s._clock).length > 0);
 }
 
@@ -141,7 +153,7 @@ export async function hasLocalData(d: CarotteDB): Promise<boolean> {
  * à heure égale (réglages, lignes jamais comptées : heure 0), c'est la photographie qui gagne.
  */
 export async function stampLegacy(d: CarotteDB): Promise<void> {
-  await d.transaction('rw', [d.countLines, d.products, d.settings, d.tasks], async () => {
+  await d.transaction('rw', [d.countLines, d.products, d.settings, d.tasks, d.sections], async () => {
     const all = await readAll(d);
     for (const e of ENTITIES) {
       const table = tableFor(e, d) as unknown as { put(r: Rec): Promise<unknown> };

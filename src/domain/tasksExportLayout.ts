@@ -1,7 +1,7 @@
 import { EXPORT_WIDTH, IOS_MAX_CANVAS_PIXELS } from './exportLayout';
 import { formatDateLong } from './format';
-import { SERVICES, isDoneToday, serviceTasks } from './tasks';
-import type { Task } from './types';
+import { isDoneToday, serviceTasks, visibleSections } from './tasks';
+import type { Section, Task } from './types';
 
 /** Mesures (en pixels logiques, avant `scale`) ; en-tête et pied comme l'export du comptage. */
 export const TASKS_EXPORT_METRICS = { pad: 48, headerH: 210, gap: 28, sectionH: 76, rowH: 68, totalH: 80, footerH: 64, boxX: 48, labelX: 116, timeRight: 1032 };
@@ -23,17 +23,17 @@ const hhmm = (ms: number) => {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 };
 
-export function layoutTasksExport(tasks: Task[], shop: string, now: number, maxPixels = IOS_MAX_CANVAS_PIXELS): TasksExportLayout {
+export function layoutTasksExport(tasks: Task[], sections: Section[], shop: string, now: number, maxPixels = IOS_MAX_CANVAS_PIXELS): TasksExportLayout {
   const m = TASKS_EXPORT_METRICS;
   let y = m.headerH + m.gap;
-  const sections: TasksExportLayout['sections'] = [];
+  const heads: TasksExportLayout['sections'] = [];
   const rows: TasksExportLayout['rows'] = [];
   let done = 0;
   let total = 0;
-  for (const s of SERVICES) {
+  for (const s of visibleSections(sections)) {
     const list = serviceTasks(tasks, s.id);
     const n = list.filter((t) => isDoneToday(t, now)).length;
-    sections.push({ y, label: s.label, count: `${n} / ${list.length}` });
+    heads.push({ y, label: s.label, count: `${n} / ${list.length}` });
     y += m.sectionH;
     for (const t of list) {
       const ok = isDoneToday(t, now);
@@ -52,7 +52,7 @@ export function layoutTasksExport(tasks: Task[], shop: string, now: number, maxP
     height,
     scale: Math.min(2, Math.floor(fit * 100) / 100),
     header: { shop, title: 'Tâches du jour', stamp: formatDateLong(now) },
-    sections,
+    sections: heads,
     rows,
     totalY,
     totalLabel: `${done} / ${total} faites`,

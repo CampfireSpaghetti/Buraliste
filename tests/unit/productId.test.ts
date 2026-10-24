@@ -203,7 +203,7 @@ describe('base de données', () => {
 
     const up = new CarotteDB(name);
     await up.open();
-    expect(up.verno).toBe(7);
+    expect(up.verno).toBe(8);
     expect((await up.products.toCollection().primaryKeys()).sort()).toEqual(['d:a|1', 'f:fdj|ITGC9K', 'u1']);
     expect(await up.products.get('d:a|1')).toEqual({
       id: 'd:a|1', source: 'douane', douaneRef: 'a|1', base: { kind: 'cigarette', name: 'Un' }, user: { notes: 'fort' }, outOfStock: true,
@@ -239,7 +239,7 @@ describe('base de données', () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const up = new CarotteDB(name);
     await up.open();
-    expect(up.verno).toBe(7);
+    expect(up.verno).toBe(8);
     expect(await up.products.count()).toBe(1);
     expect((await up.products.get('d:a|9'))!.pinnedSubstitutes).toBe('abîmé');
     up.close();

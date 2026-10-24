@@ -1,6 +1,6 @@
-import Dexie, { type Table } from 'dexie';
-import type { CountLine, Product, ProductFields, Service, Settings, Task } from '../domain/types';
-import { BASE_TASKS, LEGACY_BASE_TASKS, isDoneToday, nextOrder, orderAt, serviceTasks } from '../domain/tasks';
+import Dexie, { type Table, type Transaction } from 'dexie';
+import type { CountLine, Product, ProductFields, Section, Service, Settings, Task } from '../domain/types';
+import { BASE_SECTIONS, BASE_TASKS, LEGACY_BASE_TASKS, isDoneToday, nextOrder, orderAt, sectionNeighbour, serviceTasks, visibleSections, visibleTasks } from '../domain/tasks';
 import { officialRef, type Contribution } from '../domain/sharing';
 import { productIdMap, remapIdList, remapOp, remapProductIds, type IdMap } from '../domain/productId';
 import { withoutClock, type Clocked, type Op } from '../sync/merge';
@@ -21,6 +21,11 @@ type SettingsRow = Settings & { key: 'main' };
 /** Demande au moteur de synchronisation de rejoindre le canal à sa prochaine synchronisation (voir engine.ts). */
 export const REJOIN_ASKED = 'rejoindre';
 
+/** Base déjà synchronisée : le moteur rejoindra le canal (opérations qu'une version précédente a ignorées). */
+async function askRejoin(tx: Transaction): Promise<void> {
+  if ((await tx.table('syncState').get('lastN')) !== undefined) await tx.table('syncState').put({ key: REJOIN_ASKED, value: true });
+}
+
 export const DEFAULT_SETTINGS: Settings = { shopName: DEFAULT_TABAC_NAME, sortCount: 'name' };
 
 export class CarotteDB extends Dexie {
@@ -33,6 +38,7 @@ export class CarotteDB extends Dexie {
   syncState!: Table<SyncStateRow, string>;
   parkedOps!: Table<ParkedOp, number>;
   tasks!: Table<Clocked<Task>, string>;
+  sections!: Table<Clocked<Section>, string>;
   constructor(name = 'la-carotte') {
     super(name);
     this.version(1).stores({
@@ -69,9 +75,9 @@ export class CarotteDB extends Dexie {
     this.version(6).stores({ parkedOps: '++seq, at' });
     // v7 : liste « À faire ». Une version précédente de l'app ignorait les opérations des tâches : ce téléphone rejoint
     // de nouveau le canal (photographie puis messages qui la suivent) pour récupérer celles déjà créées ailleurs.
-    this.version(7).stores({ tasks: 'id' }).upgrade(async (tx) => {
-      if ((await tx.table('syncState').get('lastN')) !== undefined) await tx.table('syncState').put({ key: REJOIN_ASKED, value: true });
-    });
+    this.version(7).stores({ tasks: 'id' }).upgrade(askRejoin);
+    // v8 : titres de la liste « À faire » (Matin, Après-midi, ajoutés). La version d'avant les ignorait : on rejoint.
+    this.version(8).stores({ sections: 'id' }).upgrade(askRejoin);
   }
 }
 
@@ -312,6 +318,7 @@ export async function requestPersistence(): Promise<boolean> {
 // ---------------------------------------------------------------- liste « À faire »
 
 const TASKS_SEEDED = 'tasksSeeded';
+const SECTIONS_SEEDED = 'sectionsSeeded';
 const taskTx = <T>(fn: () => Promise<T>) => db.transaction('rw', db.tasks, db.opsOut, db.syncState, fn);
 
 /** Tâches visibles (une tâche supprimée reste comme pierre tombale pour la synchronisation). */
@@ -329,7 +336,12 @@ const SEED_VERSION = 2;
  * renommées restent.
  */
 export async function seedTasks(): Promise<void> {
-  await db.transaction('rw', db.tasks, db.opsOut, db.syncState, async () => {
+  await db.transaction('rw', [db.tasks, db.sections, db.opsOut, db.syncState], async () => {
+    // Titres de départ, une seule fois (un titre de départ supprimé ne revient pas).
+    if ((await db.syncState.get(SECTIONS_SEEDED)) === undefined) {
+      for (const s of BASE_SECTIONS) if (!(await db.sections.get(s.id))) await db.sections.put({ ...s });
+      await db.syncState.put({ key: SECTIONS_SEEDED, value: true });
+    }
     const seeded = (await db.syncState.get(TASKS_SEEDED))?.value;
     if (seeded === SEED_VERSION) return;
     if (seeded === true) {
@@ -382,10 +394,10 @@ export const deleteTask = (id: string): Promise<Task> =>
 /** Remet une tâche telle qu'elle était (annulation d'une suppression ou d'une remise à zéro). */
 export const restoreTask = (t: Task): Promise<Task> => taskTx(() => writeShared<Task>('task', t.id, { ...withoutClock<Task>(t), deleted: false }));
 
-/** Décoche les tâches faites aujourd'hui ; renvoie-les telles qu'elles étaient, pour « Annuler ». */
+/** Décoche les tâches faites aujourd'hui (titres visibles) ; renvoie-les telles qu'elles étaient, pour « Annuler ». */
 export const resetTasks = (now = Date.now()): Promise<Task[]> =>
-  taskTx(async () => {
-    const done = (await listTasks()).filter((t) => isDoneToday(t, now));
+  db.transaction('rw', [db.tasks, db.sections, db.opsOut, db.syncState], async () => {
+    const done = visibleTasks(await listTasks(), await listSections()).filter((t) => isDoneToday(t, now));
     for (const t of done) await writeShared<Task>('task', t.id, { ...t, doneAt: 0 });
     return done;
   });
@@ -404,4 +416,58 @@ export const moveTask = (id: string, toIndex: number): Promise<void> =>
       const o = list.find((x) => x.id === other)!;
       if (o.order !== order) await writeShared<Task>('task', other, { ...o, order });
     }
+  });
+
+// ---------------------------------------------------------------- titres de la liste « À faire »
+
+const sectionTx = <T>(fn: () => Promise<T>) => db.transaction('rw', [db.sections, db.tasks, db.opsOut, db.syncState], fn);
+
+/** Titres visibles, dans l'ordre. */
+export const listSections = async (): Promise<Section[]> => visibleSections((await db.sections.toArray()).map((s) => withoutClock<Section>(s)));
+
+const cleanLabel = (label: string) => label.trim().slice(0, 40);
+
+async function storedSection(id: string): Promise<Section> {
+  const s = await db.sections.get(id);
+  if (!s || s.deleted === true) throw new Error(`Titre introuvable : ${id}`);
+  return withoutClock<Section>(s);
+}
+
+/** Nouveau titre, vide, en bas. */
+export const addSection = (label: string): Promise<Section> =>
+  sectionTx(async () => {
+    const id = newId();
+    return writeShared<Section>('section', id, { id, label: cleanLabel(label), order: nextOrder(await listSections()) });
+  });
+
+export const renameSection = (id: string, label: string): Promise<Section> =>
+  sectionTx(async () => writeShared<Section>('section', id, { ...(await storedSection(id)), label: cleanLabel(label) }));
+
+/** Monter (-1) ou descendre (1) : échange de rang avec le titre voisin (rien au bord). */
+export const moveSection = (id: string, dir: -1 | 1): Promise<void> =>
+  sectionTx(async () => {
+    const s = await storedSection(id);
+    const other = sectionNeighbour(await listSections(), id, dir);
+    if (!other) return;
+    // Rangs égaux (titres créés en même temps sur deux téléphones) : on les écarte d'un rang.
+    const [a, b] = other.order === s.order ? [s.order + dir, s.order] : [other.order, s.order];
+    await writeShared<Section>('section', id, { ...s, order: a });
+    await writeShared<Section>('section', other.id, { ...other, order: b });
+  });
+
+/** Supprime le titre et ses tâches (partagé) ; renvoie-les tels qu'ils étaient, pour « Annuler ». */
+export const deleteSection = (id: string): Promise<{ section: Section; tasks: Task[] }> =>
+  sectionTx(async () => {
+    const section = await storedSection(id);
+    const tasks = (await listTasks()).filter((t) => t.service === id);
+    for (const t of tasks) await writeShared<Task>('task', t.id, { ...t, deleted: true });
+    await writeShared<Section>('section', id, { ...section, deleted: true });
+    return { section, tasks };
+  });
+
+/** Annule une suppression : le titre et ses tâches reviennent tels qu'ils étaient. */
+export const restoreSection = (section: Section, tasks: Task[]): Promise<void> =>
+  sectionTx(async () => {
+    await writeShared<Section>('section', section.id, { ...withoutClock<Section>(section), deleted: false });
+    for (const t of tasks) await writeShared<Task>('task', t.id, { ...withoutClock<Task>(t), deleted: false });
   });

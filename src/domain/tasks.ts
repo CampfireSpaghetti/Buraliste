@@ -1,8 +1,9 @@
-import type { Service, Task } from './types';
+import type { Section, Service, Task } from './types';
 
-export const SERVICES: { id: Service; label: string }[] = [
-  { id: 'matin', label: 'Matin' },
-  { id: 'apres-midi', label: 'Après-midi' },
+/** Titres de départ (ids fixes : les tâches de base et celles déjà créées y restent rattachées). */
+export const BASE_SECTIONS: Section[] = [
+  { id: 'matin', label: 'Matin', order: 1 },
+  { id: 'apres-midi', label: 'Après-midi', order: 2 },
 ];
 
 /** Liste de base, la même le matin et l'après-midi, dans l'ordre donné par le gérant (le grattage deux fois). */
@@ -22,7 +23,7 @@ const BASE = [
  * Liste de base : ids fixes (`base:matin-1`… `base:apres-midi-9`), la même sur chaque téléphone (créée sans opération
  * partagée, comme les lignes de jeu).
  */
-export const BASE_TASKS: Task[] = SERVICES.flatMap((s) => BASE.map((label, i) => ({ id: `base:${s.id}-${i + 1}`, label, service: s.id, order: i + 1, doneAt: 0 })));
+export const BASE_TASKS: Task[] = BASE_SECTIONS.flatMap((s) => BASE.map((label, i) => ({ id: `base:${s.id}-${i + 1}`, label, service: s.id, order: i + 1, doneAt: 0 })));
 
 /** Première liste de base (6 le matin, 3 l'après-midi, ids `base:1`… `base:9`), remplacée par BASE_TASKS. */
 export const LEGACY_BASE_TASKS: Pick<Task, 'id' | 'label' | 'service'>[] = ([
@@ -43,8 +44,26 @@ export function serviceTasks(tasks: Task[], s: Service): Task[] {
   return tasks.filter((t) => t.service === s && t.deleted !== true).sort((a, b) => a.order - b.order || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 }
 
-/** Rang d'une tâche ajoutée en fin de service. */
-export function nextOrder(list: Task[]): number {
+/** Titres visibles, dans l'ordre. */
+export function visibleSections(sections: Section[]): Section[] {
+  return sections.filter((s) => s.deleted !== true).sort((a, b) => a.order - b.order || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+}
+
+/** Tâches affichées : pas supprimées, et rangées sous un titre visible (un titre supprimé ailleurs cache ses tâches). */
+export function visibleTasks(tasks: Task[], sections: Section[]): Task[] {
+  const shown = new Set(visibleSections(sections).map((s) => s.id));
+  return tasks.filter((t) => t.deleted !== true && shown.has(t.service));
+}
+
+/** Titre voisin (au-dessus : -1, en dessous : 1), pour Monter / Descendre ; aucun au bord. */
+export function sectionNeighbour(sections: Section[], id: string, dir: -1 | 1): Section | undefined {
+  const list = visibleSections(sections);
+  const i = list.findIndex((s) => s.id === id);
+  return i < 0 ? undefined : list[i + dir];
+}
+
+/** Rang d'un élément ajouté en fin de liste (tâche dans son titre, ou titre). */
+export function nextOrder(list: { order: number }[]): number {
   return list.length ? Math.max(...list.map((t) => t.order)) + 1 : 1;
 }
 

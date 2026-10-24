@@ -79,7 +79,16 @@ export interface Settings {
 export const TASTES = ['doux', 'léger', 'équilibré', 'corsé', 'intense', 'boisé', 'épicé', 'terreux', 'vanillé', 'fruité', 'crémeux', 'torréfié', 'herbacé'] as const;
 export const GAME_TYPES = ['classique', 'gros lot', 'thématique', 'multi-chances'] as const;
 
-export type Service = 'matin' | 'apres-midi';
+/** Id du titre d'une tâche (« matin », « apres-midi », ou titre ajouté par le gérant). */
+export type Service = string;
+
+/** Titre de la liste « À faire » (Matin, Après-midi…), partagé entre les téléphones du tabac. */
+export interface Section {
+  id: string;
+  label: string;
+  order: number; // rang des titres
+  deleted?: boolean; // supprimé (gardé pour la synchronisation, jamais affiché)
+}
 
 /** Tâche de la liste « À faire » (partagée entre les téléphones du tabac). */
 export interface Task {

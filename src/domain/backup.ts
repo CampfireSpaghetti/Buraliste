@@ -1,9 +1,9 @@
 import { migrateLegacyLine } from './count';
 import { productIdMap, remapProductIds } from './productId';
-import type { CountLine, Product, Settings, Task } from './types';
+import type { CountLine, Product, Section, Settings, Task } from './types';
 
 /** `tasks` : liste « À faire » (absente des sauvegardes d'avant, qui restent valides). */
-export type BackupData = { products: Product[]; countLines: CountLine[]; settings: Settings; tasks?: Task[] };
+export type BackupData = { products: Product[]; countLines: CountLine[]; settings: Settings; tasks?: Task[]; sections?: Section[] };
 export type BackupFile = { app: 'la-carotte'; schema: 2; exportedAt: number } & BackupData;
 
 const SCHEMA = 2;
@@ -27,8 +27,12 @@ function validLine(l: unknown): boolean {
 }
 
 function validTask(t: unknown): boolean {
-  return isObj(t) && typeof t.id === 'string' && typeof t.label === 'string' && (t.service === 'matin' || t.service === 'apres-midi')
+  return isObj(t) && typeof t.id === 'string' && typeof t.label === 'string' && typeof t.service === 'string' && t.service !== ''
     && Number.isFinite(t.order) && Number.isFinite(t.doneAt);
+}
+
+function validSection(s: unknown): boolean {
+  return isObj(s) && typeof s.id === 'string' && s.id !== '' && typeof s.label === 'string' && Number.isFinite(s.order);
 }
 
 function validProduct(p: unknown): boolean {
@@ -55,7 +59,8 @@ export function parseBackup(text: string): { ok: true; data: BackupFile } | { ok
     Array.isArray(raw.products) && raw.products.every(validProduct)
     && Array.isArray(raw.countLines) && raw.countLines.every(validLine)
     && isObj(raw.settings) && typeof raw.settings.shopName === 'string'
-    && (raw.tasks === undefined || (Array.isArray(raw.tasks) && raw.tasks.every(validTask)));
+    && (raw.tasks === undefined || (Array.isArray(raw.tasks) && raw.tasks.every(validTask)))
+    && (raw.sections === undefined || (Array.isArray(raw.sections) && raw.sections.every(validSection)));
   if (!ok) return { ok: false, error: BROKEN };
   return { ok: true, data: raw as unknown as BackupFile };
 }
@@ -69,7 +74,7 @@ export function withStableIds(data: BackupData): BackupData {
   if (map.size === 0) return data;
   const c = remapProductIds({ products: data.products, lines: data.countLines, hiddenGames: data.settings.hiddenGames }, map);
   const settings = c.hiddenChanged ? { ...data.settings, hiddenGames: c.hiddenGames } : data.settings;
-  return { products: c.products, countLines: c.lines, settings, tasks: data.tasks };
+  return { products: c.products, countLines: c.lines, settings, tasks: data.tasks, sections: data.sections };
 }
 
 /** Rappel si la dernière sauvegarde a plus de 7 jours, ou s'il n'y en a jamais eu alors que des données existent. */

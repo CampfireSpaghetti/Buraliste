@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { seed, testMode } from './helpers';
 
-const service = (page: Page, name: 'Matin' | 'Après-midi') => page.getByRole('region', { name: new RegExp(`^${name}`) });
+const service = (page: Page, name: string) => page.getByRole('region', { name: new RegExp(`^${name}`) });
 const labels = (page: Page, name: 'Matin' | 'Après-midi') => service(page, name).locator('.task-label').allTextContents();
 const box = (page: Page, label: string, s: 'Matin' | 'Après-midi' = 'Matin') => service(page, s).getByRole('checkbox', { name: label });
 const tap = (page: Page, label: string, s: 'Matin' | 'Après-midi' = 'Matin') => service(page, s).getByText(label, { exact: true }).click();
@@ -122,4 +122,67 @@ test('le lendemain, la liste est décochée toute seule', async ({ browser }) =>
   await expect(page.getByText(/^Samedi 24 octobre$/)).toBeVisible();
   await expect(box(page, 'Remplir la vitrine')).not.toBeChecked();
   await ctx.close();
+});
+
+test('titres : renommer, ajouter (vide, en bas), y ajouter une tâche, monter, supprimer avec ses tâches puis annuler', async ({ page }) => {
+  const titles = () => page.locator('.tasks-service h3 > span:first-child').allTextContents();
+  // Renommer « Matin » ; texte vide refusé.
+  await page.getByRole('button', { name: 'Modifier le titre « Matin »' }).click();
+  let sheet = page.getByRole('dialog', { name: 'Modifier le titre' });
+  await expect(sheet.getByRole('button', { name: '↑ Monter' })).toBeDisabled();
+  await sheet.getByLabel('Titre').fill('  ');
+  await expect(sheet.getByRole('button', { name: 'Enregistrer' })).toBeDisabled();
+  await sheet.getByLabel('Titre').fill('Ouverture');
+  await sheet.getByRole('button', { name: 'Enregistrer' }).click();
+  await expect.poll(titles).toEqual(['Ouverture', 'Après-midi']);
+
+  // Ajouter « Fermeture » : en bas, vide.
+  await page.getByRole('button', { name: '+ Titre' }).click();
+  sheet = page.getByRole('dialog', { name: 'Nouveau titre' });
+  await sheet.getByLabel('Titre').fill('Fermeture');
+  await sheet.getByRole('button', { name: 'Ajouter' }).click();
+  await expect.poll(titles).toEqual(['Ouverture', 'Après-midi', 'Fermeture']);
+  await expect(service(page, 'Fermeture')).toContainText('Aucune tâche');
+
+  // Une tâche dans « Fermeture ».
+  await page.getByRole('button', { name: '+ Tâche' }).click();
+  const add = page.getByRole('dialog', { name: 'Nouvelle tâche' });
+  await add.getByLabel('Tâche à faire').fill('Baisser le rideau');
+  await add.getByRole('button', { name: 'Fermeture' }).click();
+  await add.getByRole('button', { name: 'Ajouter' }).click();
+  await expect(service(page, 'Fermeture').getByText('Baisser le rideau')).toBeVisible();
+  await expect(page.getByText('0 / 19 faites')).toBeVisible();
+
+  // Monter « Fermeture » au-dessus d'« Après-midi » ; « Descendre » désactivé une fois en bas… puis plus.
+  await page.getByRole('button', { name: 'Modifier le titre « Fermeture »' }).click();
+  sheet = page.getByRole('dialog', { name: 'Modifier le titre' });
+  await expect(sheet.getByRole('button', { name: '↓ Descendre' })).toBeDisabled();
+  await sheet.getByRole('button', { name: '↑ Monter' }).click();
+  await expect.poll(titles).toEqual(['Ouverture', 'Fermeture', 'Après-midi']);
+  await expect(sheet.getByRole('button', { name: '↓ Descendre' })).toBeEnabled();
+  await sheet.getByRole('button', { name: 'Annuler' }).click();
+
+  // Supprimer « Après-midi » et ses 9 tâches, puis annuler.
+  await page.getByRole('button', { name: 'Modifier le titre « Après-midi »' }).click();
+  await page.getByRole('dialog', { name: 'Modifier le titre' }).getByRole('button', { name: 'Supprimer le titre et ses 9 tâches' }).click();
+  const confirm = page.getByRole('dialog', { name: 'Supprimer le titre' });
+  await expect(confirm.getByRole('heading')).toHaveText('Supprimer « Après-midi » et ses 9 tâches ?');
+  await confirm.getByRole('button', { name: 'Supprimer' }).click();
+  await expect.poll(titles).toEqual(['Ouverture', 'Fermeture']);
+  await expect(page.getByText('0 / 10 faites')).toBeVisible();
+  await page.getByRole('status').getByRole('button', { name: 'Annuler' }).click();
+  await expect.poll(titles).toEqual(['Ouverture', 'Fermeture', 'Après-midi']);
+  await expect(page.getByText('0 / 19 faites')).toBeVisible();
+});
+
+test('tous les titres supprimés : message, « + Tâche » désactivé', async ({ page }) => {
+  for (const name of ['Matin', 'Après-midi']) {
+    await page.getByRole('button', { name: `Modifier le titre « ${name} »` }).click();
+    await page.getByRole('dialog', { name: 'Modifier le titre' }).getByRole('button', { name: /^Supprimer le titre/ }).click();
+    await page.getByRole('dialog', { name: 'Supprimer le titre' }).getByRole('button', { name: 'Supprimer' }).click();
+    await expect(page.getByRole('region', { name: new RegExp(`^${name}`) })).toHaveCount(0);
+  }
+  await expect(page.getByText('Aucun titre. Touchez « + Titre » pour commencer.')).toBeVisible();
+  await expect(page.getByRole('button', { name: '+ Tâche' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Export .jpg' })).toBeDisabled();
 });
