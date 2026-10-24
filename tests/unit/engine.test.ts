@@ -29,7 +29,7 @@ function fakeRelay() {
   let t = 1_000_000;
   const env: RelayEnv = {
     store,
-    githubRepo: 'wongmichel2048/Buraliste',
+    githubRepo: 'exemple/Buraliste',
     now: () => (t += 1000),
     fetch: (async () => new Response('{}', { status: 201 })) as unknown as typeof fetch,
     allowedOrigins: [],

@@ -5,7 +5,7 @@ import { scan, seed, testMode } from './helpers';
 // l'invitation de tabac les remplace (voir tabacs.spec.ts). Ici : ce qui reste côté téléphone.
 
 function legacyPairingPayload() {
-  const json = JSON.stringify({ token: 'github_pat_TEST', repo: 'wongmichel2048/Buraliste', shop: 'Tabac du Centre' });
+  const json = JSON.stringify({ token: 'github_pat_TEST', repo: 'exemple/Buraliste', shop: 'Tabac du Centre' });
   return 'LACAROTTE1:' + Buffer.from(json).toString('base64url');
 }
 

@@ -5,7 +5,7 @@ import { buildIssue, type SharedCodesFile } from '../../src/domain/sharing';
 const refs = { items: [{ ref: 'pmi|marlboro' }] };
 const fdj = { items: [{ ref: 'fdj|ITGC9K' }, { ref: 'fdj|AUTRE' }] };
 const empty: SharedCodesFile = { version: '0', updatedAt: '', barcodes: {}, fdjPrefixes: {} };
-const issue = (items: Parameters<typeof buildIssue>[0], login = 'wongmichel2048') => ({ issue: { number: 7, user: { login }, ...buildIssue(items) }, repository: { owner: { login: 'wongmichel2048' } } });
+const issue = (items: Parameters<typeof buildIssue>[0], login = 'exemple') => ({ issue: { number: 7, user: { login }, ...buildIssue(items) }, repository: { owner: { login: 'exemple' } } });
 
 describe('collectFromIssue (robot)', () => {
   it('ajoute les codes d’un message du propriétaire et résume le résultat', () => {
@@ -20,7 +20,7 @@ describe('collectFromIssue (robot)', () => {
     expect(r.summary).toContain('ignoré');
   });
   it('message sans contenu lisible : ignoré', () => {
-    const ev = { issue: { number: 8, user: { login: 'wongmichel2048' }, title: '[codes-barres] 0 code', body: 'texte' }, repository: { owner: { login: 'wongmichel2048' } } };
+    const ev = { issue: { number: 8, user: { login: 'exemple' }, title: '[codes-barres] 0 code', body: 'texte' }, repository: { owner: { login: 'exemple' } } };
     expect(collectFromIssue(ev, refs, fdj, empty, '2026-10-16').file).toBeUndefined();
   });
   it('un message sans conflit est à fermer (review: false)', () => {

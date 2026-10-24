@@ -161,7 +161,7 @@ type Op = {
   - `/v1/codes` : en-tête `Origin` obligatoire et autorisé (403 sinon), 20 requêtes par heure et par adresse IP, 200 codes par requête, et **10 issues par heure au total** (R28, compteur D1) : au-delà, 429 et les codes restent en file sur le téléphone ;
   - une photographie ne peut pas couvrir des messages qui n'existent pas : `jusqua` au-delà du dernier numéro du canal → 400.
 - **Ménage** : les messages couverts par une photographie de plus de 30 jours sont supprimés.
-- **CORS** : seule l'origine `https://wongmichel2048.github.io` est autorisée.
+- **CORS** : seule l'origine `https://exemple.github.io` est autorisée.
 
 ### 4.2 Base D1
 
@@ -200,7 +200,7 @@ Quotas gratuits de Cloudflare D1, à titre indicatif : 5 millions de lectures et
 - **L'adresse du relais n'est pas à recopier** : le workflow la lit dans le résultat du déploiement et la transmet à la construction de l'app (`VITE_RELAY_URL`). Une variable de dépôt `RELAY_URL` reste possible comme solution de repli. La CSP n'autorise que cette adresse en plus.
 - **R29 : une construction ne perd jamais le relais.** Ordre : relais tout juste déployé, variable `RELAY_URL`, adresse `workers.dev` du compte (API Cloudflare), puis, si les secrets Cloudflare existent mais que rien n'a répondu, l'adresse du relais de la version en ligne, lue dans sa CSP (`connect-src`). Sinon, avertissement ; la publication n'est jamais bloquée.
 - Le relais est déployé à chaque publication et **chaque lundi** (planification) : une modification du relais sautée par la file d'attente du workflow part au plus tard la semaine suivante.
-- Le Worker connaît le dépôt cible (`wongmichel2048/Buraliste`) en dur : un seul dépôt est servi.
+- Le Worker connaît le dépôt cible (`exemple/Buraliste`) en dur : un seul dépôt est servi.
 - **`/v1/codes`** : le relais reconstruit chaque contribution avec des longueurs plafonnées avant de l'envoyer à GitHub.
 - **Tant que le relais n'est pas configuré**, l'app fonctionne exactement comme aujourd'hui, et les options de partage affichent « Bientôt disponible ».
 

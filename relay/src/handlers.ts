@@ -222,7 +222,7 @@ async function putPhoto(req: Request, env: RelayEnv, canal: string): Promise<Rec
 async function postCodes(req: Request, env: RelayEnv): Promise<{ status: number; body: Record<string, unknown> }> {
   // Envoi anonyme (aucune clé) : seulement depuis l'app publiée (Origin obligatoire ici), et en nombre limité.
   if (req.headers.get('Origin') === null) throw new HttpError(403, 'origine manquante');
-  if (!env.githubToken) throw new HttpError(503, 'envoi des codes indisponible');
+  if (!env.githubToken || !env.githubRepo) throw new HttpError(503, 'envoi des codes indisponible');
   if (!hit(env, 'codes-ip:' + clientIp(req), limit(env, 'codesParIpHeure'), HOUR)) throw new HttpError(429, 'trop de requêtes');
   const body = await readJson(req);
   const items = body.items;

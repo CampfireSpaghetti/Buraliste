@@ -13,7 +13,7 @@ const mockGithub = process.env.MOCK_GITHUB === '1';
 const env: RelayEnv = {
   store: createMemoryStore(),
   githubToken: mockGithub ? 'faux-jeton' : undefined,
-  githubRepo: 'wongmichel2048/Buraliste',
+  githubRepo: 'exemple/Buraliste',
   now: () => Date.now(),
   fetch: async (_url, init) => {
     console.log('[faux relais] issue GitHub (non envoyée) :', init?.body);

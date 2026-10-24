@@ -143,7 +143,9 @@ jobs:
           else
             echo "::warning::Secret RELAY_GITHUB_TOKEN absent : les codes-barres des téléphones ne partiront pas vers la liste commune."
           fi
-          npx wrangler deploy "${args[@]}" 2>&1 | tee "$RUNNER_TEMP/relay-deploy.log"
+          # Adresse de l'app (CORS) et projet des codes-barres : tirés du projet GitHub, suivent un changement de nom.
+          origin="https://$(printf '%s' "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]').github.io"
+          npx wrangler deploy --var "ALLOWED_ORIGINS:$origin" --var "GITHUB_REPO:$GITHUB_REPOSITORY" "${args[@]}" 2>&1 | tee "$RUNNER_TEMP/relay-deploy.log"
           url=$(grep -oE 'https://la-carotte-relais\.[A-Za-z0-9-]+\.workers\.dev' "$RUNNER_TEMP/relay-deploy.log" | head -n 1 || true)
           if [ -z "$url" ]; then url="https://la-carotte-relais.$SUBDOMAIN.workers.dev"; fi
           echo "url=$url" >> "$GITHUB_OUTPUT"
@@ -241,7 +243,8 @@ jobs:
               # 4. (R29) adresse du relais de la version en ligne, lue dans sa CSP (connect-src) : une construction ne doit
               # jamais perdre le relais, sinon les modifications des téléphones resteraient sur chaque téléphone. Les anciennes
               # versions (avant le relais) y avaient api.github.com : ignoré.
-              live=$(curl -fsS --retry 3 https://wongmichel2048.github.io/Buraliste/ 2>/dev/null | grep -oE 'connect-src[^";]*' | head -n 1 |
+              app="https://$(printf '%s' "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]').github.io/${GITHUB_REPOSITORY#*/}/"
+              live=$(curl -fsS --retry 3 "$app" 2>/dev/null | grep -oE 'connect-src[^";]*' | head -n 1 |
                 grep -oE 'https://[A-Za-z0-9.-]+(:[0-9]+)?' | grep -vx 'https://api.github.com' | head -n 1 || true)
               if [[ "$live" =~ ^https://[A-Za-z0-9.-]+(:[0-9]+)?(/[A-Za-z0-9._~/-]*)?$ ]]; then
                 url="$live"

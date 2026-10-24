@@ -23,7 +23,7 @@ C'est une application web installable (PWA) : gratuite, sans App Store ni Play S
 
 ## Installer l'app
 
-Adresse : **https://wongmichel2048.github.io/Buraliste/**
+Adresse : **https://&lt;compte GitHub&gt;.github.io/Buraliste/** (le compte qui héberge le projet ; l'adresse exacte est dans GitHub → Settings → Pages).
 
 - **iPhone (Safari, iOS 26 et suivants)** : ouvrir l'adresse dans Safari → bouton **Menu de la page** (•••, à côté de l'adresse) → **Partager** → faire défiler → **« Sur l'écran d'accueil »** → laisser **« Ouvrir comme app web »** activé → **Ajouter**. Si « Sur l'écran d'accueil » n'apparaît pas : tout en bas de la liste, « Modifier les actions ». Un lien ouvert depuis WhatsApp, Messages ou Gmail doit d'abord être ouvert dans Safari. iOS 18 et avant : bouton Partager en bas de l'écran → « Sur l'écran d'accueil ». Le guide pas à pas est aussi dans l'app : **Réglages** → **Installer sur mon téléphone**.
 - **Android (Chrome)** : ouvrir l'adresse → menu ⋮ → « Installer l'application ».

@@ -5,7 +5,7 @@ import { DEFAULT_LIMITS } from '../../relay/src/handlers.ts';
 import type { RelayEnv, Store } from '../../relay/src/handlers.ts';
 import { createMemoryStore } from '../../relay/src/memoryStore.ts';
 
-const ORIGIN = 'https://wongmichel2048.github.io';
+const ORIGIN = 'https://exemple.github.io';
 const DAY = 24 * 3600 * 1000;
 
 function makeEnv(over: Partial<RelayEnv> = {}) {
@@ -14,7 +14,7 @@ function makeEnv(over: Partial<RelayEnv> = {}) {
   const env: RelayEnv = {
     store: createMemoryStore(),
     githubToken: 'tok',
-    githubRepo: 'wongmichel2048/Buraliste',
+    githubRepo: 'exemple/Buraliste',
     now: () => clock.t,
     fetch: fetchMock as unknown as typeof fetch,
     allowedOrigins: [ORIGIN],
@@ -284,7 +284,7 @@ describe('relais : codes-barres', () => {
     expect(r.status).toBe(202);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe('https://api.github.com/repos/wongmichel2048/Buraliste/issues');
+    expect(url).toBe('https://api.github.com/repos/exemple/Buraliste/issues');
     expect(init.method).toBe('POST');
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer tok');
     const body = JSON.parse(init.body as string);

@@ -10,7 +10,7 @@ import {
 import { db, DEFAULT_SETTINGS, openTabacDb, saveSettings } from '../../src/data/db';
 
 const KEY = 'K'.repeat(43);
-const BASE = 'https://wongmichel2048.github.io/Buraliste/';
+const BASE = 'https://exemple.github.io/Buraliste/';
 const payload = encodeTabacInvite({ name: 'Tabac de la Gare', key: KEY });
 
 beforeEach(async () => {

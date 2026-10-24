@@ -281,7 +281,7 @@ describe('avec relais', () => {
   });
 
   it('« Rejoindre un tabac » : coller le lien d’invitation ouvre la même question ; un texte abîmé est refusé', () => {
-    const link = 'https://wongmichel2048.github.io/Buraliste/#rejoindre=' + encodeTabacInvite({ name: 'Tabac de la Gare', key: 'B'.repeat(43) }).slice('LACAROTTE2:'.length);
+    const link = 'https://exemple.github.io/Buraliste/#rejoindre=' + encodeTabacInvite({ name: 'Tabac de la Gare', key: 'B'.repeat(43) }).slice('LACAROTTE2:'.length);
     render(<><TabacSwitcher name="Mon tabac" /><PairingPrompt /></>);
     fireEvent.click(screen.getByRole('button', { name: 'Mes tabacs : Mon tabac' }));
     fireEvent.click(screen.getByRole('button', { name: 'Rejoindre un tabac' }));

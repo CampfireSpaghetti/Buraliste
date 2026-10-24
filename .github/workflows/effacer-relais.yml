@@ -1,0 +1,77 @@
+name: Effacer le relais
+
+# Vide la base du relais (messages, photographies, canaux, compteurs) : plus aucune donnée de tabac n'y reste, même
+# chiffrée. À lancer à la main (Actions → « Effacer le relais » → Run workflow), en tapant EFFACER. Les téléphones qui
+# gardent un tabac le republient en entier à leur prochaine synchronisation ; ceux qui ont tout effacé repartent de zéro.
+# Facultatif : nouveau nom de l'adresse workers.dev du compte Cloudflare (https://la-carotte-relais.<nom>.workers.dev).
+# L'ancienne adresse cesse aussitôt de répondre : relancer ensuite « Déploiement » pour que l'app prenne la nouvelle.
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: 'Taper EFFACER pour vider la base du relais'
+        required: true
+      sous_domaine:
+        description: 'Facultatif : nouveau nom workers.dev du compte Cloudflare (minuscules, chiffres, tirets)'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  effacer:
+    if: inputs.confirmation == 'EFFACER'
+    runs-on: ubuntu-latest
+    env:
+      WRANGLER_SEND_METRICS: 'false'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: relay/package-lock.json
+      - name: Installation de wrangler
+        working-directory: relay
+        run: npm ci
+      - name: Vidage de la base D1
+        working-directory: relay
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -o pipefail
+          id=$(npx wrangler d1 list --json | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const a=JSON.parse(s.slice(s.search(/^\[/m),s.lastIndexOf("]")+1));const db=a.find(d=>d.name==="la-carotte");process.stdout.write(db?db.uuid:"")})')
+          if ! [[ "$id" =~ ^[0-9a-f-]{36}$ ]]; then
+            echo "::error::Base D1 « la-carotte » introuvable."
+            exit 1
+          fi
+          sed -i "s/A_REMPLACER_AU_DEPLOIEMENT/$id/" wrangler.toml
+          npx wrangler d1 execute la-carotte --remote --yes --command "DELETE FROM messages; DELETE FROM photos; DELETE FROM canaux; DELETE FROM quotas;"
+          echo "### Base du relais vidée" >> "$GITHUB_STEP_SUMMARY"
+      - name: Nouvelle adresse workers.dev
+        if: inputs.sous_domaine != ''
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          SUB: ${{ inputs.sous_domaine }}
+        run: |
+          if ! [[ "$SUB" =~ ^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$ ]]; then
+            echo "::error::Nom refusé ($SUB) : minuscules, chiffres et tirets seulement."
+            exit 1
+          fi
+          res=$(curl -sS --retry 3 -X PUT -H "Authorization: Bearer $CF_TOKEN" -H "Content-Type: application/json" \
+            --data "{\"subdomain\":\"$SUB\"}" "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT/workers/subdomain" |
+            node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const j=JSON.parse(s);console.log(j.success?"ok "+j.result.subdomain:"err "+JSON.stringify(j.errors))}catch{console.log("err illisible")}})')
+          case "$res" in
+            "ok "*) echo "### Adresse du relais : https://la-carotte-relais.${res#ok }.workers.dev (relancer « Déploiement »)" >> "$GITHUB_STEP_SUMMARY" ;;
+            *) echo "::error::Changement refusé par Cloudflare : $res"; exit 1 ;;
+          esac
