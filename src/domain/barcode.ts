@@ -3,14 +3,25 @@ export function normalizeCode(raw: string): string {
   return raw.replace(/[^0-9A-Za-z]/g, '').toUpperCase();
 }
 
-/** EAN-8 ou EAN-13 avec clé de contrôle valide. */
-export function isValidEan(code: string): boolean {
-  if (!/^(\d{8}|\d{13})$/.test(code)) return false;
+/** Clé de contrôle GS1 juste : poids 3 sur le chiffre le plus proche de la clé, puis alternance 1/3. */
+function checkDigitOk(code: string): boolean {
   const digits = code.split('').map(Number);
   const check = digits.pop()!;
-  // Poids 3 sur le chiffre le plus proche de la clé, puis alternance 1/3.
   const sum = digits.reverse().reduce((acc, d, i) => acc + d * (i % 2 === 0 ? 3 : 1), 0);
   return (10 - (sum % 10)) % 10 === check;
+}
+
+/** EAN-8 ou EAN-13 avec clé de contrôle valide. */
+export function isValidEan(code: string): boolean {
+  return /^(\d{8}|\d{13})$/.test(code) && checkDigitOk(code);
+}
+
+/**
+ * Code de commerce tout en chiffres (EAN-8, UPC-A, EAN-13, GTIN-14) dont la clé de contrôle est fausse : faute de
+ * frappe ou code inventé. Les autres codes (lettres, autres longueurs) n'ont pas de clé connue : jamais « faux » ici.
+ */
+export function hasBadCheckDigit(code: string): boolean {
+  return /^(\d{8}|\d{12,14})$/.test(code) && !checkDigitOk(code);
 }
 
 /**

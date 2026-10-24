@@ -1,7 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeCode, isValidEan, commonPrefix, retailCode, barcodeVariants } from '../../src/domain/barcode';
+import { normalizeCode, isValidEan, commonPrefix, retailCode, barcodeVariants, hasBadCheckDigit } from '../../src/domain/barcode';
 
 describe('barcode', () => {
+  it('clé de contrôle fausse : EAN-13, UPC-A, EAN-8, GTIN-14 ; les autres codes ne sont jamais « faux »', () => {
+    for (const ok of ['3017620422003', '036000291452', '96385074', '10036000291459']) expect(hasBadCheckDigit(ok)).toBe(false);
+    for (const bad of ['3017620422004', '036000291453', '96385075', '10036000291458']) expect(hasBadCheckDigit(bad)).toBe(true);
+    for (const other of ['ABC123456', '1234567', '12345678901', '123456789012345']) expect(hasBadCheckDigit(other)).toBe(false);
+  });
+
   it('valide la clé EAN-13', () => {
     expect(isValidEan('3017620422003')).toBe(true);
     expect(isValidEan('3017620422004')).toBe(false);
