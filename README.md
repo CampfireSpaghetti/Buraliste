@@ -106,7 +106,7 @@ Les codes-barres rattachés à un produit officiel (et les codes de jeux FDJ app
 Aucun compte et aucune clé sur les téléphones : l'app envoie les codes au relais, qui détient la clé GitHub (secret `RELAY_GITHUB_TOKEN`, voir plus haut). Tout est automatique :
 
 - chaque code part tout seul vers le relais, qui ouvre un message (issue `[codes-barres]`) ;
-- le robot vérifie que le code est valide et que la référence existe ;
+- le robot vérifie que le code est valide (clé de contrôle des codes EAN et UPC comprise : un code mal tapé ou inventé est refusé, et le téléphone ne l'envoie même pas) et que la référence existe ;
 - il ajoute le code à `public/data/codes-barres.json` (public) et republie l'app ;
 - tous les téléphones le reçoivent à la prochaine ouverture.
 

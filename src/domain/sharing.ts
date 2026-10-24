@@ -1,4 +1,4 @@
-import { barcodeVariants, normalizeCode } from './barcode.ts';
+import { barcodeVariants, hasBadCheckDigit, normalizeCode } from './barcode.ts';
 import { effectiveFields, layerPrefixes } from './matching.ts';
 import type { Product } from './types';
 
@@ -40,7 +40,8 @@ export function contributionsFor(before: Product, after: Product): Contribution[
   const known = new Set([...(effectiveFields(before).barcodes ?? []), ...(after.base.barcodes ?? [])]);
   const out: Contribution[] = [];
   const game = effectiveFields(after).kind === 'jeu-fdj';
-  if (!game) for (const code of after.user.barcodes ?? []) if (!known.has(code)) out.push({ kind: 'barcode', code, ref });
+  // Un code à clé de contrôle fausse (faute de frappe) reste sur ce téléphone : il serait refusé par la liste commune.
+  if (!game) for (const code of after.user.barcodes ?? []) if (!known.has(code) && !hasBadCheckDigit(normalizeCode(code))) out.push({ kind: 'barcode', code, ref });
   const knownPrefixes = new Set([
     ...layerPrefixes(before.user), ...layerPrefixes(after.base), ...(after.sharedFdjPrefixes ?? []), ...(after.sharedFdjPrefix ? [after.sharedFdjPrefix] : []),
   ]);
@@ -130,6 +131,7 @@ export function mergeContributions(
       const officialOwners = new Set(barcodeVariants(code).map((v) => officialRef.get(v)).filter((r): r is string => !!r));
       const officialOther = [...officialOwners].find((r) => r !== item.ref);
       if (!/^[0-9A-Z]{6,24}$/.test(code)) rejected.push({ item, reason: 'code invalide' });
+      else if (hasBadCheckDigit(code)) rejected.push({ item, reason: 'clé de contrôle fausse' });
       else if (!knownRefs.has(item.ref)) rejected.push({ item, reason: 'référence inconnue' });
       else if (officialOther) held.push({ item, reason: `code-barres officiel de ${officialOther}` });
       else if (officialOwners.size) continue; // déjà officiel pour cette référence

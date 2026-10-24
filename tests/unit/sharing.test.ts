@@ -39,6 +39,10 @@ describe('contributionsFor : ce qui part du téléphone', () => {
     const shared = p({ sharedBarcodes: ['3017620422003'] });
     expect(contributionsFor(shared, { ...shared, user: { barcodes: ['3017620422003'] } })).toEqual([]);
   });
+  it('un code à clé de contrôle fausse (faute de frappe) ne part pas ; un code sans clé connue, si', () => {
+    expect(contributionsFor(p({}), p({ user: { barcodes: ['3017620422004'] } }))).toEqual([]);
+    expect(contributionsFor(p({}), p({ user: { barcodes: ['ABC123456'] } }))).toEqual([{ kind: 'barcode', code: 'ABC123456', ref: 'pmi|marlboro' }]);
+  });
   it('rien d’autre ne part : ni rupture, ni goût, ni prix', () => {
     const before = p({});
     expect(contributionsFor(before, { ...before, outOfStock: true, user: { tasteTags: ['doux'], price: 14 } })).toEqual([]);
@@ -102,6 +106,18 @@ describe('robot : vérification et fusion', () => {
     expect(r.rejected.map((x) => x.reason)).toEqual(['code invalide', 'référence inconnue', 'code de jeu trop court']);
     expect(r.held).toEqual([]);
   });
+  it('refuse un code-barres à clé de contrôle fausse (code inventé ou mal tapé)', () => {
+    const r = mergeContributions(empty, [
+      { kind: 'barcode', code: '3017620422004', ref: 'pmi|marlboro' },
+      { kind: 'barcode', code: '036000291453', ref: 'pmi|marlboro' },
+      { kind: 'barcode', code: '036000291452', ref: 'pmi|marlboro' },
+    ], known, '2026-10-16');
+    expect(r.rejected.map((x) => [x.item.kind === 'barcode' && x.item.code, x.reason])).toEqual([
+      ['3017620422004', 'clé de contrôle fausse'], ['036000291453', 'clé de contrôle fausse'],
+    ]);
+    expect(r.accepted).toBe(1);
+  });
+
   it('R28 : n’applique jamais un changement de ce qui est déjà publié (code réattribué, code de jeu pris par un autre jeu) : à vérifier', () => {
     const start = { ...empty, barcodes: { '3017620422003': 'pmi|marlboro' }, fdjPrefixes: { 'fdj|ITGC9K': '0417' } };
     const r = mergeContributions(start, [
