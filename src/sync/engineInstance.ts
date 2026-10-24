@@ -7,6 +7,7 @@ import { listTabacs } from '../tabacs/registry';
 import { createSyncEngine, type SyncEngine } from './engine';
 import { createRelayClient } from './relayClient';
 import { relayUrl } from './relayConfig';
+import { handleRotation } from '../tabacs/members';
 
 let engine: SyncEngine | undefined;
 
@@ -19,7 +20,7 @@ export function startSyncEngine(): SyncEngine | undefined {
   // registre, ou retirer ce tabac) : sans elle, pas de synchronisation.
   const key = listTabacs().find((t) => t.id === dbTabacId)?.key;
   if (!key) return undefined;
-  engine = createSyncEngine({ relay: createRelayClient(base), key });
+  engine = createSyncEngine({ relay: createRelayClient(base), key, onRotation: (r) => handleRotation(r) });
   engine.start();
   return engine;
 }

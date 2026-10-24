@@ -32,15 +32,24 @@ describe('membres et rôles', () => {
     expect(visibleMembers(list).map((x) => x.id)).toEqual(['1', '5', '2', '3']);
   });
   it('sans gérant, tout le monde gère ; avec un gérant, lui seul ; le dernier gérant garde son rôle', () => {
+    const now = 100 * 86_400_000;
+    const g = (id: string, over: Partial<Member> = {}) => m(id, { role: 'gerant', lastSeen: now, ...over });
     const none = [m('a'), m('b')];
-    expect(hasManager(none)).toBe(false);
-    expect(canManage(none, 'b')).toBe(true);
-    const one = [m('a', { role: 'gerant' }), m('b')];
-    expect(canManage(one, 'a')).toBe(true);
-    expect(canManage(one, 'b')).toBe(false);
-    expect(canDemote(one, 'a')).toBe(false);
-    const two = [m('a', { role: 'gerant' }), m('b', { role: 'gerant' }), m('c', { role: 'gerant', removed: true })];
-    expect(canDemote(two, 'a')).toBe(true);
+    expect(hasManager(none, now)).toBe(false);
+    expect(canManage(none, 'b', now)).toBe(true);
+    const one = [g('a'), m('b')];
+    expect(canManage(one, 'a', now)).toBe(true);
+    expect(canManage(one, 'b', now)).toBe(false);
+    expect(canDemote(one, 'a', now)).toBe(false);
+    const two = [g('a'), g('b'), g('c', { removed: true })];
+    expect(canDemote(two, 'a', now)).toBe(true);
+  });
+  it('un gérant absent depuis 30 jours ne compte plus : le tabac n’est pas bloqué', () => {
+    const now = 100 * 86_400_000;
+    const list = [m('a', { role: 'gerant', lastSeen: now - 29 * 86_400_000 }), m('b', { lastSeen: now })];
+    expect(canManage(list, 'b', now)).toBe(false);
+    expect(hasManager(list, now + 2 * 86_400_000)).toBe(false);
+    expect(canManage(list, 'b', now + 2 * 86_400_000)).toBe(true);
   });
   it('dernière activité en mots', () => {
     const now = 10 * 86_400_000;

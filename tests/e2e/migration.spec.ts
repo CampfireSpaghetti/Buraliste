@@ -143,7 +143,8 @@ test('migration v4 → v5 dans le navigateur : ids au hasard remplacés par les 
   expect(JSON.stringify([db.products, db.countLines, db.settings, db.opsOut])).not.toContain('rnd-');
 
   expect(db.settings.find((s: any) => s.key === 'main')).toMatchObject({ shopName: 'Tabac de la Migration', hiddenGames: ['depart:astro'] });
-  expect(db.opsOut.map((r: any) => r.op)).toEqual([{ e: 'product', id: 'd:pmi|marlboro red', f: { outOfStock: true }, t: CLOCK }]);
+  // L'enregistrement du téléphone (« member », écrit au démarrage) peut arriver avant ou après cette lecture : hors sujet ici.
+  expect(db.opsOut.map((r: any) => r.op).filter((op: any) => op.e !== 'member')).toEqual([{ e: 'product', id: 'd:pmi|marlboro red', f: { outOfStock: true }, t: CLOCK }]);
   expect(db.recent).toEqual(['d:pmi|marlboro red', 'f:fdj|ITGC9K', 'depart:goal']);
 
   // Catalogue : les produits récemment consultés sont retrouvés sous leurs nouveaux ids.

@@ -16,6 +16,7 @@ import { SettingsScreen } from './features/settings/SettingsScreen';
 import { UpdateBanner } from './ui/UpdateBanner';
 import { StorageBanner } from './ui/StorageBanner';
 import { PairingPrompt } from './ui/PairingPrompt';
+import { AccessGuard } from './ui/AccessGuard';
 import { TabacSwitcher } from './ui/TabacSwitcher';
 import { tabacDisplayName } from './tabacs/pageTabac';
 import { useSettings } from './store';
@@ -107,6 +108,7 @@ function Shell() {
       <TabBar current={tab} onChange={go} />
       {nav.stack.map((v, i) => <ViewLayer key={i} view={v} />)}
       <PairingPrompt />
+      <AccessGuard />
     </div>
   );
 }

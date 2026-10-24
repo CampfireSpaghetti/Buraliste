@@ -55,3 +55,4 @@
 .tasks-service-head h3 { flex: 1; min-width: 0; margin-top: 0; border-bottom: 0; overflow-wrap: anywhere; }
 .tasks-service-head .task-more { min-height: 44px; }
 .field-label .chips { text-transform: none; letter-spacing: 0; }
+.task-check:first-child { padding-left: 12px; }

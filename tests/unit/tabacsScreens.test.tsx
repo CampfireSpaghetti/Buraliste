@@ -11,6 +11,7 @@ import { db, getSettings, openTabacDb, saveSettings } from '../../src/data/db';
 
 beforeEach(async () => {
   localStorage.clear();
+  localStorage.setItem('carotte:nom', 'Test');
   resetRegistryMemoryForTests();
   await db.settings.clear();
   sessionStorage.clear();

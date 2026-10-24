@@ -17,15 +17,17 @@ import { Toast } from '../../ui/Toast';
  * Réglages, partage du tabac : inviter un employé (QR code ou lien par message, qui contiennent la clé du tabac) et état
  * de la synchronisation. Le nom du tabac (partagé) se change dans le champ « Nom du tabac » au-dessus.
  */
-export function TabacSection({ shopName }: { shopName: string }) {
+export function TabacSection({ shopName, canInvite = true }: { shopName: string; canInvite?: boolean }) {
   const relay = !!relayUrl();
   const [invite, setInvite] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   return (
     <>
-      <button type="button" className="btn" onClick={() => (relay ? setInvite(true) : setToast('Bientôt disponible'))}>
-        Inviter un employé
-      </button>
+      {canInvite && (
+        <button type="button" className="btn" onClick={() => (relay ? setInvite(true) : setToast('Bientôt disponible'))}>
+          Inviter un employé
+        </button>
+      )}
       {relay ? <SyncState /> : <p className="muted hint">Partage entre téléphones : bientôt disponible</p>}
       {invite && <InvitePanel shopName={shopName} onClose={() => setInvite(false)} />}
       {toast && <Toast message={toast} onDone={() => setToast(null)} ms={3000} />}

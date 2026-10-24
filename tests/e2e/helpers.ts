@@ -4,6 +4,7 @@ import type { Page } from '@playwright/test';
 export async function testMode(page: Page) {
   await page.addInitScript(() => {
     localStorage.setItem('carotte:test', '1');
+    if (!localStorage.getItem('carotte:nom')) localStorage.setItem('carotte:nom', 'Test');
     localStorage.setItem('carotte:nosync', '1');
   });
 }

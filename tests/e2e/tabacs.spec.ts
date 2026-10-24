@@ -13,7 +13,7 @@ const CONTEXT = {
 
 async function phone(browser: Browser) {
   const ctx = await browser.newContext(CONTEXT);
-  await ctx.addInitScript(() => localStorage.setItem('carotte:test', '1'));
+  await ctx.addInitScript(() => { localStorage.setItem('carotte:test', '1'); if (!localStorage.getItem('carotte:nom')) localStorage.setItem('carotte:nom', 'Test'); });
   const page = await ctx.newPage();
   return { ctx, page };
 }
@@ -244,4 +244,87 @@ test('deux téléphones : la liste « À faire » se partage (cases cochées en 
   await eventually([A.page, B.page], () => expect(B.page.getByRole('button', { name: 'Historique · 1 comptage' })).toBeVisible({ timeout: 1_000 }));
   await A.ctx.close();
   await B.ctx.close();
+});
+
+test('employés : gérant déclaré, droits de l’employé, retrait d’un employé (changement de clé) : le retiré perd l’accès, l’autre continue', async ({ browser }) => {
+  test.setTimeout(240_000);
+  const A = await phone(browser);
+  const B = await phone(browser);
+  const C = await phone(browser);
+  await A.page.goto('./#reglages');
+  const sheet = await openTabacs(A.page);
+  await sheet.getByRole('button', { name: 'Créer un tabac' }).click();
+  await sheet.getByLabel('Nom du nouveau tabac').fill('Tabac du Port');
+  await sheet.getByRole('button', { name: 'Créer', exact: true }).click();
+  await expect(shopName(A.page)).toHaveText('Tabac du Port');
+  await engineReady(A.page);
+  await A.page.getByRole('button', { name: 'Inviter un employé' }).click();
+  const invite = await A.page.locator('[data-invite]').getAttribute('data-invite');
+  await A.page.getByRole('button', { name: 'Fermer' }).click();
+
+  // B (Julie) et C (Karim) rejoignent avec leur nom.
+  for (const [P, name] of [[B, 'Julie'], [C, 'Karim']] as const) {
+    await P.page.goto('./#scanner');
+    await scan(P.page, invite!);
+    const ask = P.page.getByRole('dialog', { name: 'Rejoindre « Tabac du Port » ?' });
+    await ask.getByLabel('Votre nom (affiché au gérant)').fill('');
+    await expect(ask.getByRole('button', { name: 'Rejoindre' })).toBeDisabled(); // nom obligatoire
+    await ask.getByLabel('Votre nom (affiché au gérant)').fill(name);
+    await ask.getByRole('button', { name: 'Rejoindre' }).click();
+    await expect(shopName(P.page)).toHaveText('Tabac du Port');
+    await engineReady(P.page);
+  }
+
+  // A se déclare gérant (sous le nom qu'il choisit) ; la liste montre les trois téléphones.
+  await A.page.getByRole('button', { name: /^Employés · / }).click();
+  const panel = A.page.getByRole('dialog', { name: 'Employés' });
+  await eventually([B.page, C.page, A.page], () => expect(panel.getByRole('button', { name: /^Julie/ })).toBeVisible({ timeout: 1_000 }));
+  await expect(panel.getByRole('button', { name: /^Karim/ })).toBeVisible();
+  await panel.getByRole('button', { name: 'Je suis le gérant' }).click();
+  const claim = A.page.getByRole('dialog', { name: 'Je suis le gérant' });
+  await claim.getByLabel('Nom').fill('La patronne');
+  await claim.getByRole('button', { name: 'Devenir gérant' }).click();
+  await expect(panel.getByRole('button', { name: 'La patronne, gérant, ce téléphone' })).toBeVisible();
+
+  // Chez B (employée) : liste « À faire » en lecture et cases cochables, pas d'invitation, nom du tabac en lecture seule.
+  await eventually([A.page, B.page], async () => {
+    await tabs(B.page).getByRole('button', { name: 'À faire' }).click();
+    await expect(B.page.getByRole('button', { name: '+ Tâche' })).toHaveCount(0, { timeout: 1_000 });
+  });
+  await B.page.getByRole('region', { name: /^Matin/ }).getByText('Remplir la vitrine').click();
+  await expect(B.page.getByRole('region', { name: /^Matin/ }).getByRole('checkbox', { name: 'Remplir la vitrine' })).toBeChecked();
+  await tabs(B.page).getByRole('button', { name: 'Réglages' }).click();
+  await expect(B.page.getByRole('button', { name: 'Inviter un employé' })).toHaveCount(0);
+  await expect(B.page.getByLabel('Nom du tabac')).toHaveAttribute('readonly', '');
+  await syncNow(B.page);
+  await syncNow(C.page);
+
+  // A retire Julie : la clé change.
+  await panel.getByRole('button', { name: /^Julie/ }).click();
+  await A.page.getByRole('dialog', { name: 'Julie' }).getByRole('button', { name: 'Retirer du tabac' }).click();
+  await A.page.getByRole('dialog', { name: 'Retirer du tabac' }).getByRole('button', { name: 'Retirer' }).click();
+  await A.page.waitForEvent('load');
+  await engineReady(A.page);
+
+  // Karim suit la nouvelle clé tout seul ; Julie n'a plus accès.
+  await expect(async () => {
+    await C.page.evaluate(() => (window as any).__carotteSync?.()).catch(() => undefined);
+    await engineReady(C.page);
+    await syncNow(C.page);
+  }).toPass({ timeout: 30_000 });
+  await expect(async () => {
+    await syncNow(B.page).catch(() => undefined);
+    await expect(B.page.getByRole('heading', { name: 'Vous n’avez plus accès au tabac « Tabac du Port »'.replace('’', "'") })).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 30_000 });
+
+  // A renomme le tabac sur la nouvelle clé → Karim le voit ; Julie, non.
+  await tabs(A.page).getByRole('button', { name: 'Réglages' }).click();
+  await A.page.getByLabel('Nom du tabac').fill('Tabac du Port (nouveau)');
+  await A.page.getByLabel('Nom du tabac').press('Enter');
+  await eventually([A.page, C.page], () => expect(shopName(C.page)).toHaveText('Tabac du Port (nouveau)', { timeout: 1_000 }));
+  // Julie touche « OK » : les données de ce tabac sont effacées de son téléphone.
+  await B.page.getByRole('button', { name: 'OK' }).click();
+  await B.page.waitForEvent('load');
+  await expect(shopName(B.page)).not.toHaveText(/Tabac du Port/);
+  for (const P of [A, B, C]) await P.ctx.close();
 });

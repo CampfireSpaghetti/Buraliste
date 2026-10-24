@@ -24,6 +24,9 @@ tabac, base64url), `joinedAt`, `lastSeen` (ms), `removed` (booléen).
   un tabac, et une fois après la mise à jour (« Plus tard » possible) ; modifiable dans « Employés ».
 - Aucun gérant : tout le monde garde tous les droits, et « Employés » propose « Je suis le gérant » (le nom est
   demandé s'il manque). Un gérant peut nommer un autre gérant, ou retirer ce rôle (jamais au dernier gérant).
+- Un gérant qui n'a pas ouvert l'app depuis 30 jours ne compte plus (ajout du 24/10) : la clé du tabac n'est pas dans
+  la sauvegarde, donc un seul gérant au téléphone perdu ou réinstallé bloquerait les invitations pour toujours. Après
+  30 jours, « Je suis le gérant » réapparaît. Conseil donné au gérant : nommer un second gérant.
 - Les rôles sont appliqués par l'app : ce n'est pas une barrière contre un employé qui modifierait son app. Le retrait,
   lui, est garanti par le chiffrement.
 

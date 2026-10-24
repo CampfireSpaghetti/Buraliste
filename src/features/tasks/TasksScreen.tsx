@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type Poin
 import { doneCount, isDoneToday, serviceTasks, visibleSections, visibleTasks } from '../../domain/tasks';
 import { layoutTasksExport } from '../../domain/tasksExportLayout';
 import type { Section, Service, Task } from '../../domain/types';
-import { actions, useSections, useSettings, useTasks } from '../../store';
+import { actions, useRole, useSections, useSettings, useTasks } from '../../store';
 import { Sheet } from '../../ui/Panel';
 import { Toast } from '../../ui/Toast';
 import { ImageExportPanel } from '../../ui/ImageExportPanel';
@@ -50,6 +50,8 @@ function useNow(): number {
 export function TasksScreen() {
   const allTasks = useTasks();
   const allSections = useSections();
+  // Modifier la liste (tâches, titres, ordre, remise à zéro) : réservé au gérant ; cocher reste ouvert à tous.
+  const { canManage } = useRole();
   const settings = useSettings();
   const now = useNow();
   const [sheet, setSheet] = useState<SheetState | null>(null);
@@ -154,13 +156,13 @@ export function TasksScreen() {
         <span className="tasks-bar" aria-hidden="true"><span style={{ width: total ? `${(done / total) * 100}%` : 0 }} /></span>
       </div>
       <div className="count-actions">
-        <button type="button" className="btn accent" disabled={sections.length === 0} onClick={() => setSheet({ mode: 'new' })}>+ Tâche</button>
-        <button type="button" className="btn" onClick={() => setSectionSheet({ mode: 'new' })}>+ Titre</button>
+        {canManage && <button type="button" className="btn accent" disabled={sections.length === 0} onClick={() => setSheet({ mode: 'new' })}>+ Tâche</button>}
+        {canManage && <button type="button" className="btn" onClick={() => setSectionSheet({ mode: 'new' })}>+ Titre</button>}
         <button type="button" className="btn primary" disabled={total === 0} onClick={() => setExporting(true)}>Export .jpg</button>
       </div>
       <div className="tasks-tools">
-        <span className="muted">Touchez une tâche pour la cocher. ⠿ pour la déplacer.</span>
-        <button type="button" className="chip reset-chip" disabled={done === 0} onClick={() => setResetting(true)}>Remettre à zéro</button>
+        <span className="muted">{canManage ? 'Touchez une tâche pour la cocher. ⠿ pour la déplacer.' : 'Touchez une tâche pour la cocher. La liste est gérée par le gérant.'}</span>
+        {canManage && <button type="button" className="chip reset-chip" disabled={done === 0} onClick={() => setResetting(true)}>Remettre à zéro</button>}
       </div>
 
       {sections.length === 0 && <p className="muted tasks-empty">Aucun titre. Touchez « + Titre » pour commencer.</p>}
@@ -174,9 +176,9 @@ export function TasksScreen() {
                 <span>{s.label}</span>
                 <span className="num tasks-count">{n} / {list.length}</span>
               </h3>
-              <button type="button" className="task-more" aria-label={`Modifier le titre « ${s.label} »`} onClick={() => setSectionSheet({ mode: 'edit', section: s })}>
+              {canManage && <button type="button" className="task-more" aria-label={`Modifier le titre « ${s.label} »`} onClick={() => setSectionSheet({ mode: 'edit', section: s })}>
                 <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" /></svg>
-              </button>
+              </button>}
             </div>
             {list.length === 0 && <p className="muted tasks-empty">Aucune tâche. Touchez « + Tâche ».</p>}
             <ul className={'task-list' + (drag?.service === s.id ? ' dragging-list' : '')}>
@@ -191,7 +193,7 @@ export function TasksScreen() {
                     className={'task' + (ok ? ' done' : '') + (dragged ? ' dragged' : '')}
                     style={dy ? { transform: `translateY(${dy}px)` } : undefined}
                   >
-                    <button
+                    {canManage && <button
                       type="button"
                       className="task-handle"
                       aria-label={`Déplacer « ${t.label} » (flèches haut et bas)`}
@@ -204,7 +206,7 @@ export function TasksScreen() {
                       <svg viewBox="0 0 12 20" width="12" height="20" aria-hidden="true">
                         {[3, 10, 17].map((y) => [3, 9].map((x) => <circle key={`${x}-${y}`} cx={x} cy={y} r="1.8" />))}
                       </svg>
-                    </button>
+                    </button>}
                     <label className="task-check">
                       <input type="checkbox" checked={ok} onChange={() => toggle(t)} />
                       <span className="task-box" aria-hidden="true">
@@ -213,9 +215,9 @@ export function TasksScreen() {
                       <span className="task-label">{t.label}</span>
                       {ok && <span className="task-time num">{hhmm(t.doneAt)}</span>}
                     </label>
-                    <button type="button" className="task-more" aria-label={`Modifier « ${t.label} »`} onClick={() => setSheet({ mode: 'edit', task: t })}>
+                    {canManage && <button type="button" className="task-more" aria-label={`Modifier « ${t.label} »`} onClick={() => setSheet({ mode: 'edit', task: t })}>
                       <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" /></svg>
-                    </button>
+                    </button>}
                   </li>
                 );
               })}

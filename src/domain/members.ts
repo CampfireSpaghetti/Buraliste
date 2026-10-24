@@ -7,15 +7,21 @@ export function visibleMembers(list: Member[]): Member[] {
     Number(b.role === 'gerant') - Number(a.role === 'gerant') || fold(a.name).localeCompare(fold(b.name), 'fr') || (a.id < b.id ? -1 : 1));
 }
 
-const managers = (list: Member[]) => list.filter((m) => m.removed !== true && m.role === 'gerant');
+/**
+ * Un gérant qui n'a pas ouvert l'app depuis 30 jours ne compte plus : si son téléphone est perdu ou réinstallé (la clé
+ * du tabac n'est pas dans la sauvegarde), le tabac n'est pas bloqué, un téléphone resté dans le tabac peut reprendre le rôle.
+ */
+export const MANAGER_IDLE_MS = 30 * 86_400_000;
 
-export const hasManager = (list: Member[]): boolean => managers(list).length > 0;
+const managers = (list: Member[], now: number) => list.filter((m) => m.removed !== true && m.role === 'gerant' && now - m.lastSeen < MANAGER_IDLE_MS);
 
-/** Peut faire ce qui est réservé au gérant : sans gérant déclaré, tout le monde (sinon personne ne pourrait). */
-export const canManage = (list: Member[], myId: string): boolean => !hasManager(list) || managers(list).some((m) => m.id === myId);
+export const hasManager = (list: Member[], now: number): boolean => managers(list, now).length > 0;
 
-/** Le rôle de gérant peut être retiré à ce membre : jamais au dernier gérant. */
-export const canDemote = (list: Member[], id: string): boolean => managers(list).length > 1 && managers(list).some((m) => m.id === id);
+/** Peut faire ce qui est réservé au gérant : sans gérant actif, tout le monde (sinon personne ne pourrait). */
+export const canManage = (list: Member[], myId: string, now: number): boolean => !hasManager(list, now) || managers(list, now).some((m) => m.id === myId);
+
+/** Le rôle de gérant peut être retiré à ce membre : jamais au dernier gérant actif. */
+export const canDemote = (list: Member[], id: string, now: number): boolean => managers(list, now).length > 1 && managers(list, now).some((m) => m.id === id);
 
 /** « actif maintenant », « actif il y a 25 min », « … 2 h », « … 3 jours ». */
 export function activeLabel(lastSeen: number, now: number): string {
