@@ -4,7 +4,7 @@ import { createWorker } from '../../relay/src/worker.ts';
 import type { WorkerEnv } from '../../relay/src/worker.ts';
 import { createFakeD1 } from './fakeD1.ts';
 
-const ORIGIN = 'https://wongmichel2048.github.io';
+const ORIGIN = 'https://exemple.github.io';
 
 function setup(over: Partial<WorkerEnv> = {}) {
   const env: WorkerEnv = { DB: createFakeD1().d1, ALLOWED_ORIGINS: ORIGIN, ...over };
@@ -39,9 +39,9 @@ describe('Worker du relais', () => {
     expect((await call('GET', '/v1/canaux/c1/messages', undefined, { Origin: ORIGIN })).status).toBe(403);
   });
 
-  it('sans ALLOWED_ORIGINS : seule l’app publiée est autorisée', async () => {
+  it('sans ALLOWED_ORIGINS : aucune page web acceptée', async () => {
     const { call } = setup({ ALLOWED_ORIGINS: undefined });
-    expect((await call('GET', '/v1/canaux/c1/messages', undefined, { Origin: ORIGIN })).status).toBe(200);
+    expect((await call('GET', '/v1/canaux/c1/messages', undefined, { Origin: ORIGIN })).status).toBe(403);
     expect((await call('GET', '/v1/canaux/c1/messages', undefined, { Origin: 'http://localhost:4173' })).status).toBe(403);
   });
 
@@ -56,14 +56,22 @@ describe('Worker du relais', () => {
     expect((await call('POST', '/v1/codes', { items: [{ kind: 'barcode', code: '3000000000001', ref: 'r' }] }, { Origin: ORIGIN })).status).toBe(503);
   });
 
-  it('/v1/codes : issue créée sur wongmichel2048/Buraliste avec le jeton du Worker', async () => {
-    const fetchMock = vi.fn(async (_url: unknown, _init?: unknown) => new Response('{}', { status: 201 }));
+  it('/v1/codes sans GITHUB_REPO : 503, rien n’est envoyé', async () => {
+    const fetchMock = vi.fn(async () => new Response('{}', { status: 201 }));
     vi.stubGlobal('fetch', fetchMock);
     const { call } = setup({ GITHUB_TOKEN: 'secret-gh' });
+    expect((await call('POST', '/v1/codes', { items: [{ kind: 'barcode', code: '3000000000001', ref: 'r' }] }, { Origin: ORIGIN })).status).toBe(503);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('/v1/codes : issue créée sur exemple/Buraliste avec le jeton du Worker', async () => {
+    const fetchMock = vi.fn(async (_url: unknown, _init?: unknown) => new Response('{}', { status: 201 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const { call } = setup({ GITHUB_TOKEN: 'secret-gh', GITHUB_REPO: 'exemple/Buraliste' });
     const r = await call('POST', '/v1/codes', { items: [{ kind: 'barcode', code: '3000000000001', ref: 'r' }] }, { Origin: ORIGIN });
     expect(r.status).toBe(202);
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe('https://api.github.com/repos/wongmichel2048/Buraliste/issues');
+    expect(url).toBe('https://api.github.com/repos/exemple/Buraliste/issues');
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer secret-gh');
   });
 });

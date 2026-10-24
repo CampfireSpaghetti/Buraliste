@@ -7,19 +7,18 @@ import type { D1Database } from './d1Store.ts';
 export type WorkerEnv = {
   DB: D1Database;
   GITHUB_TOKEN?: string;
-  /** Origines autorisées, séparées par des virgules. */
+  /** Origines autorisées, séparées par des virgules (données par le workflow : l'adresse de l'app publiée). */
   ALLOWED_ORIGINS?: string;
+  /** Projet GitHub qui reçoit les codes-barres (« compte/projet », donné par le workflow). */
+  GITHUB_REPO?: string;
 };
 
-const GITHUB_REPO = 'wongmichel2048/Buraliste';
-const DEFAULT_ORIGINS = ['https://wongmichel2048.github.io'];
-
+/** Sans origine donnée, aucune page web n'est acceptée. */
 function parseOrigins(raw: string | undefined): string[] {
-  const list = (raw ?? '')
+  return (raw ?? '')
     .split(',')
     .map((o) => o.trim())
     .filter(Boolean);
-  return list.length ? list : DEFAULT_ORIGINS;
 }
 
 /**
@@ -34,7 +33,7 @@ export function createWorker() {
       return handle(req, {
         store,
         githubToken: env.GITHUB_TOKEN || undefined,
-        githubRepo: GITHUB_REPO,
+        githubRepo: env.GITHUB_REPO?.trim() ?? '',
         now: () => Date.now(),
         // fetch appelé sans `this` (sinon « Illegal invocation » dans le Worker).
         fetch: (input, init) => fetch(input, init),

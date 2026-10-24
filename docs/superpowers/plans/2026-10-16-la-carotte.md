@@ -27,7 +27,7 @@ Elles s'appliquent à chaque tâche.
 - **Coût** : 0 €. Aucun service payant, aucun store.
 - **Aucun appel réseau tiers depuis l'app** : CSP `default-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; style-src 'self' 'unsafe-inline'`. Le `.wasm` de zxing est servi depuis l'app, jamais depuis un CDN.
 - **Installation des dépendances** : le fichier `.npmrc` contient `before=2026-10-01`, pour n'installer que des versions publiées depuis au moins 2 semaines. TypeScript est figé à `5.9.3`. Toutes les versions sont exactes dans `package.json`, sans `^`.
-- **Hébergement** : `base: '/buraliste/'` (site `https://wongmichel2048.github.io/buraliste/`), avec `scope` et `start_url` du manifest en `/buraliste/`.
+- **Hébergement** : `base: '/buraliste/'` (site `https://exemple.github.io/buraliste/`), avec `scope` et `start_url` du manifest en `/buraliste/`.
 - **Couleurs** (tokens CSS dans `src/theme/tokens.css`) :
   - `--bordeaux:#8e1b1f` ;
   - `--email:#f6f4ee` ;
@@ -511,7 +511,7 @@ La spec (§12) demande un audit de la maquette **avant** le code. Les correction
 
 - [ ] **Étape 1 : vérification complète** : `npm test && npm run e2e && npm run build`, tout au vert.
 - [ ] **Étape 2 :** demander au propriétaire de rendre le dépôt public et de choisir Settings → Pages → Source « GitHub Actions ». C'est une action de sa part : l'agent n'en a pas les droits.
-- [ ] **Étape 3 :** avec l'accord du propriétaire, ouvrir la PR `claude/la-carotte-app → main`. Après la fusion, le workflow déploie le site. Vérifier que `https://wongmichel2048.github.io/buraliste/` répond et que `data/references.json` est servi.
+- [ ] **Étape 3 :** avec l'accord du propriétaire, ouvrir la PR `claude/la-carotte-app → main`. Après la fusion, le workflow déploie le site. Vérifier que `https://exemple.github.io/buraliste/` répond et que `data/references.json` est servi.
 - [ ] **Étape 4 :** test au comptoir par le propriétaire, sur iPhone et Android, avec la liste de contrôle du README :
   - installation ;
   - scan d'un paquet ;

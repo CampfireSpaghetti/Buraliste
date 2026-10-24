@@ -3,9 +3,8 @@ name = "la-carotte-relais"
 main = "src/index.ts"
 compatibility_date = "2026-09-01"
 
-[vars]
-# Origines autorisées (CORS), séparées par des virgules : uniquement l'app publiée.
-ALLOWED_ORIGINS = "https://wongmichel2048.github.io"
+# Variables données par le workflow au déploiement (wrangler deploy --var) : ALLOWED_ORIGINS (adresse de l'app
+# publiée, CORS) et GITHUB_REPO (projet qui reçoit les codes-barres), tirées du nom du projet GitHub.
 
 [[d1_databases]]
 binding = "DB"

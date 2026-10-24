@@ -38,7 +38,7 @@
   - 64 Ko par requête, 200 messages par envoi ;
   - 120 requêtes par minute et par canal ;
   - `/v1/codes` : 20 requêtes par heure et par IP, 200 codes par requête.
-- **CORS du relais** : le Worker déployé n'autorise que `https://wongmichel2048.github.io`. Seul le faux relais local des tests autorise `http://localhost:4173`.
+- **CORS du relais** : le Worker déployé n'autorise que `https://exemple.github.io`. Seul le faux relais local des tests autorise `http://localhost:4173`.
 - **CSP de l'app** : `connect-src 'self' <VITE_RELAY_URL>`, sans aucune autre origine. `api.github.com` est retiré, car les téléphones ne parlent plus à GitHub.
 - **Partagé dans un tabac** :
   - `line` : `gameId`, `code`, `name`, `linearQty`, `stockQty`, `updatedAt`, `deleted` ;
@@ -110,10 +110,10 @@ tests/e2e/tabacs.spec.ts   ← deux navigateurs, soit deux téléphones
   - Plus de 120 requêtes par minute sur un canal : 429.
   - `PUT /photo`, puis `GET /photo` : renvoie l'objet ; `GET /photo` sur un canal sans photographie : 404.
   - `PUT /photo` avec une mauvaise clé d'écriture : 403.
-  - `POST /v1/codes` avec 2 items : appelle `env.fetch('https://api.github.com/repos/wongmichel2048/Buraliste/issues', …)`, avec l'en-tête `Authorization: Bearer <githubToken>` et un titre `[codes-barres] 2 codes`. Réponse 202.
+  - `POST /v1/codes` avec 2 items : appelle `env.fetch('https://api.github.com/repos/exemple/Buraliste/issues', …)`, avec l'en-tête `Authorization: Bearer <githubToken>` et un titre `[codes-barres] 2 codes`. Réponse 202.
   - Sans `githubToken` : 503. Plus de 200 items : 413. Plus de 20 requêtes par heure depuis la même IP (`CF-Connecting-IP`) : 429.
   - Ménage : un `PUT /photo` supprime les messages couverts par la photographie précédente et reçus il y a plus de 30 jours ; ceux de moins de 30 jours restent lisibles.
-  - CORS : `Origin: https://wongmichel2048.github.io` est renvoyé dans `Access-Control-Allow-Origin`. Une autre origine donne 403. `OPTIONS` donne 204.
+  - CORS : `Origin: https://exemple.github.io` est renvoyé dans `Access-Control-Allow-Origin`. Une autre origine donne 403. `OPTIONS` donne 204.
 - [ ] **Étape 2 : vérifier l'échec**, **implémenter**, **vérifier que les tests passent** : `npx vitest run tests/unit/relay.test.ts`.
   - `buildIssue` est réutilisé depuis `src/domain/sharing.ts` (import `.ts`).
   - L'empreinte de la clé d'écriture se calcule avec `crypto.subtle.digest('SHA-256')`.
