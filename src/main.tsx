@@ -2,7 +2,8 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import './theme/global.css';
 import App from './App';
-import { requestPersistence, seedTasks, syncSettingsNameAtStartup } from './data/db';
+import { ensureMember, requestPersistence, seedTasks, syncSettingsNameAtStartup } from './data/db';
+import { myName } from './tabacs/members';
 import { DEFAULT_TABAC_NAME, ensureRegistry } from './tabacs/registry';
 import { setPendingLinkInvite, takeInviteFromUrl } from './tabacs/inviteLink';
 import { syncFdjGames, syncReferences } from './data/referencesSync';
@@ -28,6 +29,10 @@ createRoot(document.getElementById('root')!).render(
 // Le nom du tabac dans le registre et le nom de la boutique (réglages) restent alignés. Dans la base neuve d'un tabac
 // créé ou rejoint, le nom vient d'être écrit : l'écran (en-tête) est rafraîchi.
 void syncSettingsNameAtStartup().then(notifyDataChanged).catch(() => undefined);
+// Ce téléphone dans la liste « Employés » du tabac (clé publique, nom, activité), au démarrage et au retour sur l'app.
+const touchMember = () => void ensureMember(myName()).then(notifyDataChanged).catch((e) => console.error('Téléphone non inscrit', e));
+touchMember();
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') touchMember(); });
 // Liste « À faire » de base (une fois par tabac et par téléphone).
 void seedTasks().then(notifyDataChanged).catch((e) => console.error('Liste « À faire » non créée', e));
 // Les téléphones n'ont plus de clé GitHub (le relais la détient) : celle d'une ancienne version est effacée.

@@ -16,6 +16,7 @@ async function phone(browser: Browser, { sync = true, userAgent }: { sync?: bool
   const ctx = await browser.newContext({ ...CONTEXT, ...(userAgent ? { userAgent } : {}) });
   await ctx.addInitScript((noSync) => {
     localStorage.setItem('carotte:test', '1');
+    if (!localStorage.getItem('carotte:nom')) localStorage.setItem('carotte:nom', 'Test');
     if (noSync) localStorage.setItem('carotte:nosync', '1');
   }, !sync);
   const page = await ctx.newPage();

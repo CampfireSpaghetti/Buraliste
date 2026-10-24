@@ -64,7 +64,7 @@ describe('historique du grattage : base', () => {
     old.close();
     const up = new CarotteDB(name);
     await up.open();
-    expect(up.verno).toBe(9);
+    expect(up.verno).toBe(10);
     expect((await up.syncState.get(REJOIN_ASKED))?.value).toBe(true);
     up.close();
     await up.delete();

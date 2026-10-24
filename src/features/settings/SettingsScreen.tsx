@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { restoreFromText } from '../../data/backupData';
 import { parseBackup } from '../../domain/backup';
 import { formatDateLong, formatIsoDateFr } from '../../domain/format';
-import { actions, notifyDataChanged, useProducts, useSettings } from '../../store';
+import { actions, notifyDataChanged, useProducts, useRole, useSettings } from '../../store';
+import { visibleMembers } from '../../domain/members';
+import { EmployeesPanel } from './EmployeesPanel';
 import { relayUrl } from '../../sync/relayConfig';
 import { Sheet } from '../../ui/Panel';
 import { Toast } from '../../ui/Toast';
@@ -18,6 +20,8 @@ export function SettingsScreen() {
   const [name, setName] = useState<string | null>(null);
   const [backup, setBackup] = useState(false);
   const [install, setInstall] = useState(false);
+  const [employees, setEmployees] = useState(false);
+  const role = useRole();
   const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState<string>();
   const [toast, setToast] = useState<string | null>(null);
@@ -71,12 +75,19 @@ export function SettingsScreen() {
         <h3 id="set-tabac">Mon tabac</h3>
         <label className="field-label">
           Nom du tabac
-          <input className="input" id="shop-name" value={name ?? ''} onChange={(e) => setName(e.target.value)}
+          <input className="input" id="shop-name" value={name ?? ''} readOnly={!role.canManage} onChange={(e) => setName(e.target.value)}
             onFocus={() => { nameAtFocus.current = name; }} onBlur={saveName}
             onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
         </label>
-        <p className="muted hint">Affiché en haut de l'écran et des images exportées (comptage, tâches du jour).</p>
-        <TabacSection shopName={tabacDisplayName(settings.shopName)} />
+        <p className="muted hint">
+          Affiché en haut de l'écran et des images exportées (comptage, tâches du jour).{!role.canManage && ' Réservé au gérant.'}
+        </p>
+        {relayUrl() && (
+          <button type="button" className="btn" onClick={() => setEmployees(true)}>
+            Employés · {visibleMembers(role.members).length}
+          </button>
+        )}
+        <TabacSection shopName={tabacDisplayName(settings.shopName)} canInvite={role.canManage} />
         <p className="muted hint">
           Partagé avec les téléphones du tabac : le comptage du grattage et son historique, la liste « À faire » (titres,
           tâches, cases cochées), les ruptures et remplaçants, les fiches créées ou corrigées, le nom du tabac.
@@ -143,6 +154,7 @@ export function SettingsScreen() {
 
       {backup && <BackupPanel onClose={() => setBackup(false)} />}
       {install && <InstallGuide onClose={() => setInstall(false)} />}
+      {employees && <EmployeesPanel onClose={() => setEmployees(false)} />}
       {pending && (
         <Sheet label="Restaurer" onClose={() => setPending(null)}>
           <h3>Remplacer toutes les données ?</h3>

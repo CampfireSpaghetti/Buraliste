@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react';
 import { snapshotDiff } from '../../domain/history';
 import { formatDateLong } from '../../domain/format';
 import type { CountSnapshot } from '../../domain/types';
-import { actions, useHistory } from '../../store';
+import { actions, useHistory, useRole } from '../../store';
 import { Panel, Sheet } from '../../ui/Panel';
 import { Toast } from '../../ui/Toast';
 
@@ -65,6 +65,7 @@ export function HistoryPanel({ onClose }: { onClose: () => void }) {
 
 function SnapshotDetail({ snapshot, previous, onDelete, onClose }: { snapshot: CountSnapshot; previous?: CountSnapshot; onDelete: (s: CountSnapshot) => void; onClose: () => void }) {
   const [confirming, setConfirming] = useState(false);
+  const { canManage } = useRole();
   const diff = snapshotDiff(snapshot, previous);
   const t = totals(snapshot);
   return (
@@ -100,7 +101,11 @@ function SnapshotDetail({ snapshot, previous, onDelete, onClose }: { snapshot: C
           </tfoot>
         </table>
       </div>
-      <button type="button" className="btn danger" onClick={() => setConfirming(true)}>Supprimer ce comptage</button>
+      {canManage ? (
+        <button type="button" className="btn danger" onClick={() => setConfirming(true)}>Supprimer ce comptage</button>
+      ) : (
+        <p className="muted" style={{ margin: 0 }}>Supprimer un comptage : réservé au gérant.</p>
+      )}
       {confirming && (
         <Sheet label="Supprimer ce comptage" onClose={() => setConfirming(false)}>
           <h3 style={{ fontSize: 20 }}>Supprimer le comptage du {formatDateLong(snapshot.at)} ?</h3>

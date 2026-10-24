@@ -1,5 +1,7 @@
 import Dexie, { type Table, type Transaction } from 'dexie';
-import type { CountLine, CountSnapshot, Product, ProductFields, Section, Service, Settings, Task } from '../domain/types';
+import type { CountLine, CountSnapshot, Member, Product, ProductFields, Role, Section, Service, Settings, Task } from '../domain/types';
+import { generateDeviceKeys } from '../sync/crypto';
+import { deviceId } from '../sync/clock';
 import { overflow, takeSnapshot, visibleHistory } from '../domain/history';
 import { BASE_SECTIONS, BASE_TASKS, LEGACY_BASE_TASKS, isDoneToday, nextOrder, orderAt, sectionNeighbour, serviceTasks, visibleSections, visibleTasks } from '../domain/tasks';
 import { officialRef, type Contribution } from '../domain/sharing';
@@ -41,6 +43,7 @@ export class CarotteDB extends Dexie {
   tasks!: Table<Clocked<Task>, string>;
   sections!: Table<Clocked<Section>, string>;
   countHistory!: Table<Clocked<CountSnapshot>, string>;
+  members!: Table<Clocked<Member>, string>;
   constructor(name = 'la-carotte') {
     super(name);
     this.version(1).stores({
@@ -82,6 +85,8 @@ export class CarotteDB extends Dexie {
     this.version(8).stores({ sections: 'id' }).upgrade(askRejoin);
     // v9 : historique des comptages du grattage (« Fin comptage »), ignoré par la version d'avant : on rejoint.
     this.version(9).stores({ countHistory: 'id, at' }).upgrade(askRejoin);
+    // v10 : téléphones du tabac (gestion des employés), ignorés par la version d'avant : on rejoint.
+    this.version(10).stores({ members: 'id' }).upgrade(askRejoin);
   }
 }
 
@@ -512,3 +517,55 @@ export const putSnapshots = (list: CountSnapshot[]): Promise<void> =>
   historyTx(async () => {
     for (const s of list) await writeShared<CountSnapshot>('snapshot', s.id, { ...withoutClock<CountSnapshot>(s), deleted: s.deleted === true });
   });
+
+// ---------------------------------------------------------------- téléphones du tabac (gestion des employés)
+
+/** Paire de clés ECDH de ce téléphone pour ce tabac : jamais partagée, jamais sauvegardée. */
+const DEVICE_KEYS = 'cleAppareil';
+/** Dernière activité publiée au plus tous les quarts d'heure. */
+const SEEN_EVERY_MS = 15 * 60_000;
+const memberTx = <T>(fn: () => Promise<T>) => db.transaction('rw', [db.members, db.opsOut, db.syncState], fn);
+
+export const listMembers = async (): Promise<Member[]> => (await db.members.toArray()).map((m) => withoutClock<Member>(m));
+
+/** Clés de ce téléphone pour ce tabac (créées si besoin). */
+export async function deviceKeys(): Promise<{ pub: string; priv: JsonWebKey }> {
+  const saved = (await db.syncState.get(DEVICE_KEYS))?.value as { pub: string; priv: JsonWebKey } | undefined;
+  if (saved?.pub && saved.priv) return saved;
+  const keys = await generateDeviceKeys();
+  // Une autre page a pu les créer entre-temps : la première écrite reste.
+  return db.transaction('rw', db.syncState, async () => {
+    const again = (await db.syncState.get(DEVICE_KEYS))?.value as { pub: string; priv: JsonWebKey } | undefined;
+    if (again?.pub && again.priv) return again;
+    await db.syncState.put({ key: DEVICE_KEYS, value: keys });
+    return keys;
+  });
+}
+
+/**
+ * Ce téléphone dans la liste du tabac : créé avec sa clé publique, son nom (`name`, s'il n'en a pas déjà un) et sa
+ * dernière activité (au plus tous les quarts d'heure). Rien n'est écrit si rien n'a changé.
+ */
+export async function ensureMember(name = '', now = Date.now()): Promise<Member> {
+  const { pub } = await deviceKeys();
+  return memberTx(async () => {
+    const id = deviceId();
+    const m = await db.members.get(id);
+    const current: Member = m ? withoutClock<Member>(m) : { id, name: '', role: 'employe', pub, joinedAt: now, lastSeen: 0 };
+    const next: Member = { ...current, pub, name: current.name || name.trim().slice(0, 40), lastSeen: now - current.lastSeen >= SEEN_EVERY_MS ? now : current.lastSeen };
+    if (m && next.pub === current.pub && next.name === current.name && next.lastSeen === current.lastSeen) return current;
+    return writeShared<Member>('member', id, next);
+  });
+}
+
+async function patchMember(id: string, patch: Partial<Member>): Promise<Member> {
+  return memberTx(async () => {
+    const m = await db.members.get(id);
+    if (!m) throw new Error(`Membre introuvable : ${id}`);
+    return writeShared<Member>('member', id, { ...withoutClock<Member>(m), ...patch });
+  });
+}
+
+export const setMyName = (name: string) => ensureMember().then(() => patchMember(deviceId(), { name: name.trim().slice(0, 40) }));
+export const setRole = (id: string, role: Role) => patchMember(id, { role });
+export const markRemoved = (id: string) => patchMember(id, { removed: true });

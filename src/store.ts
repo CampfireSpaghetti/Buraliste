@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import * as repo from './data/db';
 import { enqueueContributions, flushOutbox } from './data/sharingData';
-import type { CountLine, CountSnapshot, Product, ProductFields, Section, Service, Settings, Task } from './domain/types';
+import type { CountLine, CountSnapshot, Member, Product, ProductFields, Role, Section, Service, Settings, Task } from './domain/types';
+import { canManage, hasManager } from './domain/members';
+import { deviceId } from './sync/clock';
 
 const DATA_EVENT = 'carotte:data';
 export const notifyDataChanged = () => window.dispatchEvent(new Event(DATA_EVENT));
@@ -29,6 +31,15 @@ export const useSettings = () => useLive(repo.getSettings);
 export const useTasks = () => useLive(repo.listTasks);
 export const useSections = () => useLive(repo.listSections);
 export const useHistory = () => useLive(repo.listHistory);
+export const useMembers = () => useLive(repo.listMembers);
+
+/** Rôle de ce téléphone : `canManage` (actions réservées au gérant ; tout le monde tant qu'aucun gérant actif n'est déclaré). */
+export function useRole(): { me?: Member; members: Member[]; canManage: boolean; hasManager: boolean } {
+  const members = useMembers() ?? [];
+  const id = deviceId();
+  const now = Date.now();
+  return { me: members.find((m) => m.id === id), members, canManage: canManage(members, id, now), hasManager: hasManager(members, now) };
+}
 
 function withNotify<A extends unknown[], R>(fn: (...a: A) => Promise<R>) {
   return async (...a: A): Promise<R> => {
@@ -68,6 +79,8 @@ export const actions = {
   deleteCountLine: withNotify((id: string) => repo.deleteCountLine(id)),
   restoreCountLine: withNotify((l: CountLine) => repo.restoreCountLine(l)),
   resetCountLines: withNotify(() => repo.resetCountLines()),
+  setMyName: withNotify((name: string) => repo.setMyName(name)),
+  setRole: withNotify((id: string, role: Role) => repo.setRole(id, role)),
   saveSnapshot: withNotify(() => repo.saveSnapshot()),
   deleteSnapshot: withNotify((id: string) => repo.deleteSnapshot(id)),
   putSnapshots: withNotify((list: CountSnapshot[]) => repo.putSnapshots(list)),

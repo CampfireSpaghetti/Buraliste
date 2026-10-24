@@ -6,6 +6,7 @@ import { listTabacs, type TabacInvite } from '../tabacs/registry';
 import { dbTabacId } from '../data/db';
 import { Sheet } from './Panel';
 import { Toast } from './Toast';
+import { myName, rememberMyName } from '../tabacs/members';
 
 export const PAIRING_EVENT = 'carotte:pairing';
 
@@ -47,6 +48,7 @@ export function PairingPrompt() {
   const [toast, setToast] = useState<string | null>(null);
   const [ask, setAsk] = useState<{ invite: TabacInvite; viaLink: boolean } | null>(null);
   const [joining, setJoining] = useState(false);
+  const [name, setName] = useState(myName);
   const [iosHint, setIosHint] = useState(takeIosHint);
   useEffect(() => {
     const on = (e: Event) => {
@@ -74,6 +76,7 @@ export function PairingPrompt() {
   }, []);
   const join = (a: { invite: TabacInvite; viaLink: boolean }) => {
     setJoining(true);
+    rememberMyName(name);
     // Posée avant : rejoindre recharge la page. Retirée si rejoindre échoue, et le bouton redevient utilisable.
     const hint = a.viaLink && isIosBrowserTabNow();
     if (hint) rememberIosHint(true);
@@ -91,9 +94,13 @@ export function PairingPrompt() {
           <p className="muted" style={{ margin: 0 }}>
             Ce téléphone recevra le comptage, les ruptures et les fiches de ce tabac. Vos autres tabacs restent sur ce téléphone.
           </p>
+          <label className="field-label">
+            Votre nom (affiché au gérant)
+            <input className="input" id="join-name" value={name} maxLength={40} autoComplete="given-name" onChange={(e) => setName(e.target.value)} />
+          </label>
           <div className="row">
             <button type="button" className="btn" onClick={() => setAsk(null)}>Annuler</button>
-            <button type="button" className="btn accent" disabled={joining} onClick={() => join(ask)}>Rejoindre</button>
+            <button type="button" className="btn accent" disabled={joining || !name.trim()} onClick={() => join(ask)}>Rejoindre</button>
           </div>
         </Sheet>
       )}

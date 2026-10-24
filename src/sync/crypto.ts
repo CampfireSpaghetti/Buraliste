@@ -79,3 +79,58 @@ export async function decryptJson(key: string, msg: { iv: string; data: string }
     return undefined;
   }
 }
+
+// ---------------------------------------------------------------- changement de clé (retrait d'un employé)
+
+const ECDH = { name: 'ECDH', namedCurve: 'P-256' } as const;
+
+/** Paire de clés d'un téléphone pour un tabac : la publique (base64url) est partagée, la privée reste sur le téléphone. */
+export async function generateDeviceKeys(): Promise<{ pub: string; priv: JsonWebKey }> {
+  const pair = await crypto.subtle.generateKey(ECDH, true, ['deriveKey']);
+  const pub = bytesToB64u(new Uint8Array(await crypto.subtle.exportKey('raw', pair.publicKey)));
+  return { pub, priv: await crypto.subtle.exportKey('jwk', pair.privateKey) };
+}
+
+/** Nouvelle clé du tabac chiffrée pour chaque téléphone restant (clé éphémère `epub`, AES-GCM, id en données associées). */
+export type Rotation = { epub: string; wraps: Record<string, { iv: string; data: string }> };
+
+const importPub = (pub: string) => crypto.subtle.importKey('raw', b64uToBytes(pub), ECDH, false, []);
+const sharedKey = (priv: CryptoKey, pub: CryptoKey, usage: 'encrypt' | 'decrypt') =>
+  crypto.subtle.deriveKey({ name: 'ECDH', public: pub }, priv, { name: 'AES-GCM', length: 256 }, false, [usage]);
+
+export async function wrapKeyFor(newKey: string, recipients: { id: string; pub: string }[]): Promise<Rotation> {
+  keyBytes(newKey);
+  const eph = await crypto.subtle.generateKey(ECDH, true, ['deriveKey']);
+  const wraps: Rotation['wraps'] = {};
+  for (const r of recipients) {
+    let pub: CryptoKey;
+    try {
+      pub = await importPub(r.pub);
+    } catch {
+      continue; // téléphone sans clé publique (pas encore à jour) : il devra être réinvité
+    }
+    const iv = crypto.getRandomValues(new Uint8Array(IV_BYTES));
+    const data = await crypto.subtle.encrypt({ name: 'AES-GCM', iv, additionalData: enc.encode(r.id) }, await sharedKey(eph.privateKey, pub, 'encrypt'), enc.encode(newKey));
+    wraps[r.id] = { iv: bytesToB64u(iv), data: bytesToB64u(new Uint8Array(data)) };
+  }
+  return { epub: bytesToB64u(new Uint8Array(await crypto.subtle.exportKey('raw', eph.publicKey))), wraps };
+}
+
+/** Nouvelle clé du tabac pour ce téléphone ; `undefined` s'il n'est pas dans la liste ou si rien ne se déchiffre. */
+export async function unwrapKey(rot: Rotation, id: string, priv: JsonWebKey): Promise<string | undefined> {
+  const w = rot?.wraps?.[id];
+  if (!w || typeof w.iv !== 'string' || typeof w.data !== 'string') return undefined;
+  try {
+    const mine = await crypto.subtle.importKey('jwk', priv, ECDH, false, ['deriveKey']);
+    const plain = await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv: b64uToBytes(w.iv), additionalData: enc.encode(id) },
+      await sharedKey(mine, await importPub(rot.epub), 'decrypt'),
+      b64uToBytes(w.data),
+    );
+    const key = dec.decode(plain);
+    keyBytes(key);
+    return key;
+  } catch {
+    return undefined;
+  }
+}
