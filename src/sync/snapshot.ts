@@ -74,6 +74,7 @@ function lineHasData(l: Rec): boolean {
     || (isObj(l._clock) && Object.keys(l._clock).length > 0)
     || (typeof l.linearQty === 'number' && l.linearQty !== 0)
     || (typeof l.stockQty === 'number' && l.stockQty !== 0)
+    || l.checked === true
     || l.deleted === true;
 }
 

@@ -45,7 +45,7 @@ describe('configuration du relais', () => {
 
 describe('SHARED_KEYS', () => {
   it('reprend les champs partagés des contraintes globales', () => {
-    expect(SHARED_KEYS.line).toEqual(['gameId', 'code', 'name', 'linearQty', 'stockQty', 'updatedAt', 'deleted']);
+    expect(SHARED_KEYS.line).toEqual(['gameId', 'code', 'name', 'linearQty', 'stockQty', 'updatedAt', 'checked', 'deleted']);
     expect(SHARED_KEYS.product).toEqual(['user', 'outOfStock', 'pinnedSubstitutes', 'source', 'base']);
     expect(SHARED_KEYS.settings).toEqual(['shopName', 'sortCount', 'hiddenGames']);
   });

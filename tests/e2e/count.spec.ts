@@ -208,3 +208,18 @@ test('remise à zéro : confirmation, tout à 0, les jeux restent ; « Annuler �
   await expect(page.getByRole('button', { name: 'Stock Cash : 30' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Stock Millionnaire : 100' })).toBeVisible();
 });
+
+test('cocher une ligne la valide (en vert), sans quantités, et change sa date ; décocher annule', async ({ page }) => {
+  const box = page.getByRole('checkbox', { name: 'Valider Astro' });
+  await expect(box).not.toBeChecked();
+  await box.click();
+  await expect(box).toBeChecked();
+  await expect(row(page, 'Astro')).toHaveClass(/\bdone\b/);
+  await expect(row(page, 'Astro')).toContainText(/\d{2}\/\d{2}\s*\d{2}:\d{2}/);
+  await expect(row(page, 'Cash')).not.toHaveClass(/\bdone\b/);
+  await page.reload();
+  await expect(page.getByRole('checkbox', { name: 'Valider Astro' })).toBeChecked();
+  await page.getByRole('checkbox', { name: 'Valider Astro' }).click();
+  await expect(page.getByRole('checkbox', { name: 'Valider Astro' })).not.toBeChecked();
+  await expect(row(page, 'Astro')).not.toHaveClass(/\bdone\b/);
+});

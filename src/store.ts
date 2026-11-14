@@ -76,6 +76,7 @@ export const actions = {
   setOutOfStock: withNotify((id: string, v: boolean) => repo.setOutOfStock(id, v)),
   setPinned: withNotify((id: string, ids: string[]) => repo.setPinned(id, ids)),
   upsertCountLine: withNotify((l: CountLine, base?: CountLine) => repo.upsertCountLine(l, base)),
+  setCountLineChecked: withNotify((id: string, checked: boolean) => repo.setCountLineChecked(id, checked)),
   deleteCountLine: withNotify((id: string) => repo.deleteCountLine(id)),
   restoreCountLine: withNotify((l: CountLine) => repo.restoreCountLine(l)),
   resetCountLines: withNotify(() => repo.resetCountLines()),
