@@ -223,3 +223,40 @@ test('cocher une ligne la valide (en vert), sans quantités, et change sa date ;
   await expect(page.getByRole('checkbox', { name: 'Valider Astro' })).not.toBeChecked();
   await expect(row(page, 'Astro')).not.toHaveClass(/\bdone\b/);
 });
+
+test('« + Ligne » : suggestions des jeux connus (même enlevés), quantités facultatives', async ({ page }) => {
+  await row(page, 'Astro').getByRole('button', { name: 'Astro', exact: true }).click();
+  await page.getByRole('button', { name: 'Supprimer' }).click();
+  await expect(row(page, 'Astro')).toHaveCount(0);
+  await page.getByRole('button', { name: '+ Ligne' }).click();
+  await page.getByLabel('Nom du jeu').fill('ast');
+  await page.getByRole('list', { name: 'Jeux connus' }).getByRole('button', { name: /Astro/ }).click();
+  await expect(page.getByLabel('Nom du jeu')).toHaveValue('Astro');
+  await page.getByRole('button', { name: 'Ajouter' }).click();
+  await expect(page.getByRole('button', { name: 'Linéaire Astro : 0' })).toBeVisible();
+});
+
+test('nouveau jeu nommé à la main : une fiche du catalogue ; enlevé, il se remet depuis « Jeux enlevés »', async ({ page }) => {
+  await page.getByRole('button', { name: '+ Ligne' }).click();
+  await page.getByLabel('Nom du jeu').fill('Banco Express');
+  await page.getByRole('button', { name: 'Ajouter' }).click();
+  await expect(page.getByRole('button', { name: 'Linéaire Banco Express : 0' })).toBeVisible();
+  await row(page, 'Banco Express').getByRole('button', { name: 'Banco Express', exact: true }).click();
+  await page.getByRole('button', { name: 'Supprimer' }).click();
+  await expect(row(page, 'Banco Express')).toHaveCount(0);
+  await page.getByRole('button', { name: '+ Ligne' }).click();
+  await page.getByRole('button', { name: 'Remettre Banco Express' }).click();
+  await expect(page.getByRole('button', { name: 'Remettre Banco Express' })).toHaveCount(0);
+  await page.getByRole('dialog', { name: 'Nouvelle ligne' }).getByRole('button', { name: 'Annuler' }).click();
+  await expect(page.getByRole('button', { name: 'Linéaire Banco Express : 0' })).toBeVisible();
+});
+
+test('un jeu retiré par la FDJ quitte la liste un mois après son retrait', async ({ page }) => {
+  const retired = (id: string, name: string, retiredAt: string) => ({ ...game(id, name, {}), source: 'fdj', fdjRef: 'fdj|' + id, base: { kind: 'jeu-fdj', name, status: 'retrait', retiredAt } });
+  const line = (id: string, name: string) => ({ id: 'game:' + id, gameId: id, code: '', name, linearQty: 2, stockQty: 0, updatedAt: 1 });
+  const today = new Date();
+  const iso = (days: number) => { const d = new Date(today); d.setDate(d.getDate() - days); return d.toISOString().slice(0, 10); };
+  await seed(page, { products: [...seedData.products, retired('vieux', 'Vieux Jeu', iso(40)), retired('recent', 'Jeu Récent', iso(5))], countLines: [line('vieux', 'Vieux Jeu'), line('recent', 'Jeu Récent')] });
+  await expect(page.getByRole('button', { name: 'Linéaire Jeu Récent : 2' })).toBeVisible();
+  await expect(row(page, 'Vieux Jeu')).toHaveCount(0);
+});
