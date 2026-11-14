@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto';
 import Dexie from 'dexie';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { db, listProducts, patchUserFields, upsertCountLine, deleteCountLine, restoreCountLine, resetCountLines, listCountLines, getSettings, saveSettings } from '../../src/data/db';
+import { db, listProducts, patchUserFields, upsertCountLine, setCountLineChecked, deleteCountLine, restoreCountLine, resetCountLines, listCountLines, getSettings, saveSettings } from '../../src/data/db';
 import { syncReferences, syncFdjGames } from '../../src/data/referencesSync';
 import type { FdjGamesFile } from '../../src/domain/fdj';
 import type { ReferenceFile } from '../../src/domain/catalog';
@@ -64,6 +64,19 @@ describe('lignes de comptage', () => {
     for (const l of previous) await restoreCountLine(l);
     const strip = (ls: typeof before) => ls.map(({ _clock: _c, ...l }: any) => l).sort((a, b) => a.id.localeCompare(b.id));
     expect(strip(await listCountLines())).toEqual(strip(before));
+  });
+  it('valider une ligne (case cochée) sans chiffres, sans toucher la date ; la remise à zéro décoche', async () => {
+    await db.countLines.put({ id: 'l1', code: '', name: 'Astro', linearQty: 0, stockQty: 0, updatedAt: 0 });
+    await setCountLineChecked('l1', true);
+    const [checked] = await listCountLines();
+    expect(checked.checked).toBe(true);
+    expect(checked.updatedAt).toBe(0);
+    const previous = await resetCountLines();
+    expect(previous.map((l) => l.id)).toEqual(['l1']);
+    expect((await listCountLines())[0].checked).toBe(false);
+    await setCountLineChecked('l1', true);
+    await setCountLineChecked('l1', false);
+    expect((await listCountLines())[0].checked).toBe(false);
   });
 });
 

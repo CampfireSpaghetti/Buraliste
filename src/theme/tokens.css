@@ -17,6 +17,7 @@
   --highlight: #fbe7b5;
   --danger: #b3261e;
   --ok: #2e6b3f;
+  --ok-bg: #dcefdf; /* ligne validée */
   --toast-bg: var(--encre);
 
   --font-display: 'Alfa Slab One', Georgia, serif;
@@ -38,6 +39,7 @@
     --laiton-texte: #d9b26a;
     --danger: #ff8a80;
     --ok: #7fd18f;
+    --ok-bg: #1f3a27;
     --toast-bg: #313a50; /* plus clair que le fond : le message se détache en sombre */
     color-scheme: dark;
   }

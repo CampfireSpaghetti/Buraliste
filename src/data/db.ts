@@ -271,6 +271,14 @@ export async function upsertCountLine(line: CountLine, base?: CountLine): Promis
   return writeShared('line', next.id, next, base && { ...withoutClock<CountLine>(base), deleted: false });
 }
 
+/** Coche / décoche la ligne (partagé). La date « Modifié » ne bouge pas : valider n'est pas compter. */
+export async function setCountLineChecked(id: string, checked: boolean): Promise<CountLine> {
+  const stored = await db.countLines.get(id);
+  if (!stored || stored.deleted === true) throw new Error(`Ligne introuvable : ${id}`);
+  const line = withoutClock<CountLine>(stored);
+  return writeShared('line', id, { ...line, checked }, line);
+}
+
 /** Marque la ligne supprimée (partagé) et la renvoie telle qu'elle était, pour l'annulation. */
 export async function deleteCountLine(id: string): Promise<CountLine> {
   return db.transaction('rw', db.countLines, db.opsOut, db.syncState, async () => {
@@ -303,9 +311,9 @@ export async function addCountLines(lines: CountLine[]): Promise<void> {
  */
 export async function resetCountLines(): Promise<CountLine[]> {
   return db.transaction('rw', db.countLines, db.opsOut, db.syncState, async () => {
-    const counted = (await db.countLines.toArray()).filter((l) => l.deleted !== true && (l.linearQty !== 0 || l.stockQty !== 0 || l.updatedAt !== 0));
+    const counted = (await db.countLines.toArray()).filter((l) => l.deleted !== true && (l.linearQty !== 0 || l.stockQty !== 0 || l.updatedAt !== 0 || l.checked === true));
     const previous = counted.map((l) => withoutClock<CountLine>(l));
-    for (const l of previous) await writeShared('line', l.id, { ...l, linearQty: 0, stockQty: 0, updatedAt: 0 });
+    for (const l of previous) await writeShared('line', l.id, { ...l, linearQty: 0, stockQty: 0, updatedAt: 0, checked: false });
     return previous;
   });
 }

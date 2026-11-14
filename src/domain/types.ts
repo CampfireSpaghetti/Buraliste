@@ -56,6 +56,7 @@ export interface CountLine {
   linearQty: number; // quantité linéaire (au présentoir), en tickets
   stockQty: number; // quantité en stock (réserve), en tickets
   updatedAt: number;
+  checked?: boolean; // ligne validée (case cochée), avec ou sans quantités
   deleted?: boolean; // ligne supprimée (gardée pour la synchronisation, jamais affichée)
 }
 

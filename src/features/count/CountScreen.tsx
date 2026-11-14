@@ -139,6 +139,7 @@ export function CountScreen() {
       lines={lines}
       hitId={hitId}
       onQuantity={(l, field) => setKeypad({ field, chain: field === 'linearQty', snapshot: l, lineId: l.id, gameId: l.gameId, code: l.code, name: l.name, initial: l[field] })}
+      onCheck={(l, checked) => actions.setCountLineChecked(l.id, checked)}
       onEdit={(l) => setLineForm({ mode: 'edit', line: l })}
       onDelete={remove}
     />

@@ -21,7 +21,7 @@ export type Entity = Op['e'];
 
 /** Champs partagés par entité (contraintes globales). `user` est partagé champ par champ (`user.<champ>`). */
 export const SHARED_KEYS: Record<Entity, readonly string[]> = {
-  line: ['gameId', 'code', 'name', 'linearQty', 'stockQty', 'updatedAt', 'deleted'],
+  line: ['gameId', 'code', 'name', 'linearQty', 'stockQty', 'updatedAt', 'checked', 'deleted'],
   // `source` et `base` seulement pour une fiche créée à la main (voir sharedKeysFor).
   product: ['user', 'outOfStock', 'pinnedSubstitutes', 'source', 'base'],
   settings: ['shopName', 'sortCount', 'hiddenGames'],
@@ -159,7 +159,7 @@ const VALUE_TYPES: Record<string, Check> = {
   linearQty: isNum, stockQty: isNum, updatedAt: isNum, order: isNum, doneAt: isNum,
   label: isStr, service: (v) => isStr(v) && v !== '', at: isNum, lines: isSnapshotLines,
   role: (v) => v === 'gerant' || v === 'employe', pub: (v) => isStr(v) && (v as string).length <= 200, joinedAt: isNum, lastSeen: isNum, removed: isBool,
-  deleted: isBool, outOfStock: isBool,
+  deleted: isBool, outOfStock: isBool, checked: isBool,
   gameId: isStr, code: isStr, name: isStr, shopName: isStr, source: isStr,
   sortCount: (v) => v === 'name' || v === 'updatedAt',
   pinnedSubstitutes: isStrList, hiddenGames: isStrList,
