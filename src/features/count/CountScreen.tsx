@@ -146,7 +146,7 @@ export function CountScreen() {
   );
 
   return (
-    <div className="count">
+    <div className={'count' + (scanning ? '' : ' with-finish')}>
       {scanning ? (
         <div className="scan-mode">
           <ScannerView
@@ -183,7 +183,9 @@ export function CountScreen() {
             <button type="button" className="chip reset-chip" disabled={nonZero === 0} onClick={() => setResetting(true)}>Remettre à zéro</button>
           </div>
           {table}
-          <button type="button" className="btn accent finish-btn" disabled={lines.length === 0} onClick={() => setFinishing(true)}>Fin comptage</button>
+          <div className="finish-bar">
+            <button type="button" className="btn accent finish-btn" disabled={lines.length === 0} onClick={() => setFinishing(true)}>Fin comptage</button>
+          </div>
           <p className="muted finish-hint">Enregistre le comptage dans l'historique (les 8 derniers sont gardés).</p>
         </>
       )}

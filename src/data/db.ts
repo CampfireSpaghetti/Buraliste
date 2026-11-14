@@ -271,12 +271,12 @@ export async function upsertCountLine(line: CountLine, base?: CountLine): Promis
   return writeShared('line', next.id, next, base && { ...withoutClock<CountLine>(base), deleted: false });
 }
 
-/** Coche / décoche la ligne (partagé). La date « Modifié » ne bouge pas : valider n'est pas compter. */
+/** Coche / décoche la ligne (partagé). Comme une quantité saisie, la date « Modifié » passe à maintenant. */
 export async function setCountLineChecked(id: string, checked: boolean): Promise<CountLine> {
   const stored = await db.countLines.get(id);
   if (!stored || stored.deleted === true) throw new Error(`Ligne introuvable : ${id}`);
   const line = withoutClock<CountLine>(stored);
-  return writeShared('line', id, { ...line, checked }, line);
+  return upsertCountLine({ ...line, checked }, line);
 }
 
 /** Marque la ligne supprimée (partagé) et la renvoie telle qu'elle était, pour l'annulation. */

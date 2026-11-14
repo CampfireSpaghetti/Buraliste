@@ -65,12 +65,12 @@ describe('lignes de comptage', () => {
     const strip = (ls: typeof before) => ls.map(({ _clock: _c, ...l }: any) => l).sort((a, b) => a.id.localeCompare(b.id));
     expect(strip(await listCountLines())).toEqual(strip(before));
   });
-  it('valider une ligne (case cochée) sans chiffres, sans toucher la date ; la remise à zéro décoche', async () => {
+  it('valider une ligne (case cochée) sans chiffres change sa date ; la remise à zéro décoche', async () => {
     await db.countLines.put({ id: 'l1', code: '', name: 'Astro', linearQty: 0, stockQty: 0, updatedAt: 0 });
     await setCountLineChecked('l1', true);
     const [checked] = await listCountLines();
     expect(checked.checked).toBe(true);
-    expect(checked.updatedAt).toBe(0);
+    expect(checked.updatedAt).toBeGreaterThan(0);
     const previous = await resetCountLines();
     expect(previous.map((l) => l.id)).toEqual(['l1']);
     expect((await listCountLines())[0].checked).toBe(false);
