@@ -1,4 +1,4 @@
-import type { MergeOps } from './catalog';
+import { localIsoDate, type MergeOps } from './catalog';
 import { effectiveFields } from './matching';
 import { gameKey, stableProductId } from './productId';
 import type { Product, ProductFields } from './types';
@@ -67,11 +67,12 @@ export function mergeFdjGames(existing: Product[], file: FdjGamesFile, now: numb
   }
 
   // Un jeu retiré perd ses numéros du catalogue : il n'est plus proposé au scan d'un ticket (« Ce ticket est-il un … ? »).
+  // `retiredAt` : premier jour où la liste ne l'a plus ; sa ligne de comptage part un mois après (expiredRetiredLines).
   for (const p of byRef.values()) {
     if (seen.has(p.id)) continue;
-    if (p.base.status === 'retrait' && p.base.fdjCodes === undefined) { unchanged++; continue; }
+    if (p.base.status === 'retrait' && p.base.fdjCodes === undefined && p.base.retiredAt) { unchanged++; continue; }
     const { fdjCodes: _codes, ...base } = p.base;
-    put.push({ ...p, base: { ...base, status: 'retrait', isNew: undefined }, updatedAt: now });
+    put.push({ ...p, base: { ...base, status: 'retrait', isNew: undefined, retiredAt: base.retiredAt ?? localIsoDate(new Date(now)) }, updatedAt: now });
   }
   return { put, unchanged };
 }

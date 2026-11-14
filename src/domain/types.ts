@@ -30,6 +30,7 @@ export interface ProductFields {
   maxPrize?: number;
   gameType?: string;
   isNew?: boolean; // jeu FDJ signalé « nouveau » par la FDJ
+  retiredAt?: string; // jeu FDJ : date (AAAA-MM-JJ) où il a quitté la liste officielle
   notes?: string;
 }
 

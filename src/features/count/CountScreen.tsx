@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { countLineId, missingGameLines, sortLines } from '../../domain/count';
+import { countLineId, expiredRetiredLines, missingGameLines, sortLines } from '../../domain/count';
+import { officialState } from '../../domain/catalog';
 import { attachCodePatch, effectiveFields, gameCandidates, learnFdjCode, resolveScan } from '../../domain/matching';
 import { fold } from '../../domain/search';
 import { formatEuro } from '../../domain/format';
 import { normalizeCode } from '../../domain/barcode';
 import type { CountLine, Product } from '../../domain/types';
-import { addCountLines, newId } from '../../data/db';
+import { addCountLines, deleteCountLine, newId } from '../../data/db';
 import { actions, currentProduct, newUserProduct, notifyDataChanged, useCountLines, useHistory, useProducts, useSettings } from '../../store';
 import type { CountSnapshot } from '../../domain/types';
 import { HistoryPanel } from './HistoryPanel';
@@ -60,6 +61,9 @@ export function CountScreen() {
     if (!products || !rawLines || !settings) return;
     const missing = missingGameLines(products, rawLines, hidden);
     if (missing.length) void addCountLines(missing).then(notifyDataChanged);
+    // Un jeu retiré par la FDJ quitte la liste un mois après son retrait (partagé : tous les téléphones suivent).
+    const expired = expiredRetiredLines(products, rawLines);
+    if (expired.length) void Promise.all(expired.map((l) => deleteCountLine(l.id).catch(() => undefined))).then(notifyDataChanged);
   }, [products, rawLines, settings, hidden]);
 
   /** Colonne Code : le code qui identifie le jeu (préfixe appris, sinon premier code connu, sinon le code scanné). */
@@ -207,6 +211,7 @@ export function CountScreen() {
         <LineFormSheet
           form={lineForm}
           games={games}
+          hidden={hidden}
           lines={rawLines ?? []}
           onMerged={(l) => setToast({ message: `Ligne existante mise à jour : ${l.name}` })}
           products={products ?? []}
@@ -304,15 +309,22 @@ export function CountScreen() {
   );
 }
 
-function LineFormSheet({ form, games, lines, products, onClose, onDelete, onMerged }: { form: LineForm; games: Product[]; lines: CountLine[]; products: Product[]; onClose: () => void; onDelete: (l: CountLine) => void; onMerged: (l: CountLine) => void }) {
+function LineFormSheet({ form, games, hidden, lines, products, onClose, onDelete, onMerged }: { form: LineForm; games: Product[]; hidden: string[]; lines: CountLine[]; products: Product[]; onClose: () => void; onDelete: (l: CountLine) => void; onMerged: (l: CountLine) => void }) {
   const editing = form.mode === 'edit' ? form.line : undefined;
   const [name, setName] = useState(editing?.name ?? '');
+  /** Jeu choisi dans les suggestions (deux jeux peuvent porter le même nom). */
+  const [picked, setPicked] = useState<string | undefined>();
+  const active = useMemo(() => games.filter((g) => officialState(effectiveFields(g), new Date()) !== 'retire'), [games]);
+  const listed = useMemo(() => new Set(lines.map((l) => l.gameId).filter(Boolean)), [lines]);
+  const removed = active.filter((g) => hidden.includes(g.id));
+  const query = fold(name.trim());
+  const suggestions = editing || query === '' || picked ? [] : active.filter((g) => fold(effectiveFields(g).name).includes(query)).slice(0, 6);
   const [code, setCode] = useState(editing?.code ?? '');
   const [linear, setLinear] = useState(editing ? String(editing.linearQty) : '');
   const [stock, setStock] = useState(editing ? String(editing.stockQty) : '');
   const linearQty = Number(linear || 0);
   const stockQty = Number(stock || 0);
-  const valid = name.trim() !== '' && (linear !== '' || stock !== '');
+  const valid = name.trim() !== '';
 
   const submit = async () => {
     if (!valid) return;
@@ -320,15 +332,19 @@ function LineFormSheet({ form, games, lines, products, onClose, onDelete, onMerg
     if (editing) {
       await actions.upsertCountLine({ ...editing, name: name.trim(), code: c, linearQty, stockQty }, editing);
     } else {
-      // Rattache la ligne à un jeu connu (même nom, ou code reconnu) pour que les scans la retrouvent.
+      // Rattache la ligne à un jeu connu (choisi, même nom, ou code reconnu) pour que les scans la retrouvent.
       const byName = games.find((g) => fold(effectiveFields(g).name) === fold(name.trim()));
       const byCode = c ? resolveScan(c, products) : undefined;
-      const gameId = byName?.id ?? (byCode?.type === 'product' && effectiveFields(byCode.product).kind === 'jeu-fdj' ? byCode.product.id : undefined);
+      let gameId = picked ?? byName?.id ?? (byCode?.type === 'product' && effectiveFields(byCode.product).kind === 'jeu-fdj' ? byCode.product.id : undefined);
       // Un jeu déjà dans la liste n'a qu'une ligne : on la met à jour au lieu d'en créer une seconde (total juste).
       const same = lines.find((l) => (gameId && l.gameId === gameId) || fold(l.name) === fold(name.trim()));
+      // Nouveau jeu nommé à la main : une fiche du catalogue, pour que le scan de ses tickets le reconnaisse ensuite.
+      if (!gameId && !same) gameId = (await actions.putProduct(newUserProduct({ kind: 'jeu-fdj', name: name.trim(), ...(c ? { barcodes: [c] } : {}) }))).id;
       if (gameId) await actions.unhideGame(gameId);
       if (same) {
-        const updated = await actions.upsertCountLine({ ...same, linearQty, stockQty, code: same.code || c }, same);
+        // Quantité laissée vide : celle de la ligne ne change pas.
+        const qty = { linearQty: linear === '' ? same.linearQty : linearQty, stockQty: stock === '' ? same.stockQty : stockQty };
+        const updated = await actions.upsertCountLine({ ...same, ...qty, code: same.code || c }, same);
         onMerged(updated);
       } else {
         await actions.upsertCountLine({ id: countLineId(gameId, newId), gameId, code: c, name: name.trim(), linearQty, stockQty, updatedAt: 0 });
@@ -341,11 +357,23 @@ function LineFormSheet({ form, games, lines, products, onClose, onDelete, onMerg
     <Sheet label={editing ? 'Modifier la ligne' : 'Nouvelle ligne'} onClose={onClose}>
       <form className="line-form" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
         <h3 style={{ fontSize: 19 }}>{editing ? 'Modifier la ligne' : 'Nouvelle ligne'}</h3>
-        <label className="field-label">Nom du jeu<input className="input" id="line-name" value={name} onChange={(e) => setName(e.target.value)} autoFocus={!editing} /></label>
+        <label className="field-label">Nom du jeu<input className="input" id="line-name" value={name} onChange={(e) => { setName(e.target.value); setPicked(undefined); }} autoFocus={!editing} autoComplete="off" /></label>
+        {suggestions.length > 0 && (
+          <ul className="suggest" aria-label="Jeux connus">
+            {suggestions.map((g) => (
+              <li key={g.id}>
+                <button type="button" onClick={() => { setName(effectiveFields(g).name); setPicked(g.id); }}>
+                  {effectiveFields(g).name}
+                  {hidden.includes(g.id) ? <small>enlevé</small> : listed.has(g.id) ? <small>dans la liste</small> : null}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
         <label className="field-label">{editing ? 'Code-barres' : 'Code-barres (facultatif)'}<input className="input" id="line-code" inputMode="numeric" value={code} onChange={(e) => setCode(e.target.value)} /></label>
         <div className="row">
-          <label className="field-label">Quantité linéaire<input className="input num" id="line-linear" inputMode="numeric" pattern="[0-9]*" maxLength={5} value={linear} onChange={(e) => setLinear(e.target.value.replace(/\D/g, '').slice(0, 5))} /></label>
-          <label className="field-label">Quantité stock<input className="input num" id="line-stock" inputMode="numeric" pattern="[0-9]*" maxLength={5} value={stock} onChange={(e) => setStock(e.target.value.replace(/\D/g, '').slice(0, 5))} /></label>
+          <label className="field-label">Quantité linéaire<input className="input num" id="line-linear" placeholder={editing ? undefined : 'facultatif'} inputMode="numeric" pattern="[0-9]*" maxLength={5} value={linear} onChange={(e) => setLinear(e.target.value.replace(/\D/g, '').slice(0, 5))} /></label>
+          <label className="field-label">Quantité stock<input className="input num" id="line-stock" placeholder={editing ? undefined : 'facultatif'} inputMode="numeric" pattern="[0-9]*" maxLength={5} value={stock} onChange={(e) => setStock(e.target.value.replace(/\D/g, '').slice(0, 5))} /></label>
         </div>
         <div className="row">
           {editing && <button type="button" className="btn danger" onClick={() => onDelete(editing)}>Supprimer</button>}
@@ -353,6 +381,19 @@ function LineFormSheet({ form, games, lines, products, onClose, onDelete, onMerg
           <button type="submit" className="btn accent" disabled={!valid}>{editing ? 'Enregistrer' : 'Ajouter'}</button>
         </div>
       </form>
+      {!editing && removed.length > 0 && (
+        <section className="removed-games" aria-label="Jeux enlevés de la liste">
+          <h4>Jeux enlevés de la liste</h4>
+          <ul>
+            {removed.map((g) => (
+              <li key={g.id}>
+                <span>{effectiveFields(g).name}</span>
+                <button type="button" className="btn" onClick={() => void actions.unhideGame(g.id)} aria-label={`Remettre ${effectiveFields(g).name}`}>Remettre</button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </Sheet>
   );
 }

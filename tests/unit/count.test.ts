@@ -25,7 +25,7 @@ describe('comptage', () => {
   });
 });
 
-import { missingGameLines } from '../../src/domain/count';
+import { expiredRetiredLines, missingGameLines } from '../../src/domain/count';
 import type { Product } from '../../src/domain/types';
 
 describe('tous les jeux listés dans le comptage', () => {
@@ -42,5 +42,21 @@ describe('tous les jeux listés dans le comptage', () => {
   it('ignore les jeux retirés et ceux que le buraliste a enlevés de sa liste', () => {
     const retired = game('R', 'Ancien', { base: { kind: 'jeu-fdj', name: 'Ancien', status: 'retrait' } });
     expect(missingGameLines([retired, game('H', 'Caché')], [], ['H'])).toEqual([]);
+  });
+});
+
+describe('jeux retirés par la FDJ', () => {
+  const game = (id: string, base: Product['base']): Product => ({ id, source: 'fdj', fdjRef: 'fdj|' + id, base: { kind: 'jeu-fdj', name: id, ...base }, user: {}, outOfStock: false, pinnedSubstitutes: [], updatedAt: 0 });
+  const line = (gameId: string, linearQty = 0): CountLine => ({ id: 'game:' + gameId, gameId, code: '', name: gameId, linearQty, stockQty: 0, updatedAt: 0 });
+  it('la ligne part un mois après le retrait, même avec des tickets ; avant, ou sans date de retrait, elle reste', () => {
+    const today = new Date(2026, 10, 14);
+    const products = [
+      game('vieux', { status: 'retrait', retiredAt: '2026-10-14' }),
+      game('recent', { status: 'retrait', retiredAt: '2026-10-20' }),
+      game('sansDate', { status: 'retrait' }),
+      game('actif', { status: 'inchange' }),
+    ];
+    const lines = [line('vieux', 4), line('recent'), line('sansDate'), line('actif'), { ...line('x'), gameId: undefined }];
+    expect(expiredRetiredLines(products, lines, today).map((l) => l.id)).toEqual(['game:vieux']);
   });
 });

@@ -72,3 +72,14 @@ a.btn { text-decoration: none; color: inherit; }
 .history-table td { padding: 0 6px; font-size: 17px; font-weight: 700; }
 .history-table tbody tr { height: 46px; }
 .history-table td, .history-table tbody th { border-bottom: 1px solid var(--line); }
+
+.suggest { list-style: none; margin: -6px 0 0; padding: 0; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.suggest li + li { border-top: 1px solid var(--line); }
+.suggest button { width: 100%; min-height: 44px; border: 0; background: transparent; color: var(--fg); text-align: left; padding: 0 12px; font-size: 16px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.suggest small { color: var(--muted); font-size: 13px; }
+.removed-games h4 { font-size: 15px; margin: 4px 0 6px; color: var(--muted); }
+.removed-games ul { list-style: none; margin: 0; padding: 0; }
+.removed-games li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 0; border-top: 1px solid var(--line); }
+.removed-games .btn { min-height: 40px; padding: 0 12px; }
+.line-form .row > .field-label { min-width: 0; }
+.line-form .row .input { width: 100%; min-width: 0; }

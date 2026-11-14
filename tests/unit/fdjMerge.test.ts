@@ -40,12 +40,17 @@ describe('mergeFdjGames', () => {
     const ops = mergeFdjGames(first, file([]), 2);
     expect(ops.put[0].base.fdjCodes).toBeUndefined();
     expect(ops.put[0].base.status).toBe('retrait');
+    expect(ops.put[0].base.retiredAt).toBe('1970-01-01');
     // Déjà retiré avant cette règle, mais avec des numéros : ils sont enlevés ; ensuite, plus rien à écrire.
     const stale: Product = { ...ops.put[0], base: { ...ops.put[0].base, fdjCodes: ['05121'] } };
     const again = mergeFdjGames([stale], file([]), 3);
     expect(again.put).toHaveLength(1);
     expect(again.put[0].base.fdjCodes).toBeUndefined();
     expect(mergeFdjGames(again.put, file([]), 4)).toMatchObject({ put: [], unchanged: 1 });
+    // Retiré avant la date de retrait : la date est posée au passage suivant (le mois de grâce part de là).
+    const { retiredAt: _r, ...undated } = again.put[0].base;
+    const dated = mergeFdjGames([{ ...again.put[0], base: undated }], file([]), new Date(2026, 10, 14).getTime());
+    expect(dated.put[0].base.retiredAt).toBe('2026-11-14');
   });
   it('ne touche pas aux jeux créés par le buraliste', () => {
     const mine: Product = { ...legacy, id: 'm', source: 'utilisateur', base: {}, user: { kind: 'jeu-fdj', name: 'Cash' } };

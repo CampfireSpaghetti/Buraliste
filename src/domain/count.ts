@@ -1,4 +1,4 @@
-import { officialState } from './catalog';
+import { localIsoDate, officialState } from './catalog';
 import { effectiveFields } from './matching';
 import { gameLineId } from './productId';
 import type { CountLine, Product } from './types';
@@ -42,3 +42,18 @@ export function missingGameLines(products: Product[], lines: CountLine[], hidden
 
 /** Id d'une nouvelle ligne : `game:<id du jeu>` pour un jeu du catalogue (le même partout), sinon un id au hasard. */
 export const countLineId = (gameId: string | undefined, newId: () => string): string => (gameId ? gameLineId(gameId) : newId());
+
+/** Délai de grâce : la ligne d'un jeu retiré par la FDJ reste un mois dans le comptage, le temps d'écouler les tickets. */
+export const RETIRED_GRACE_DAYS = 30;
+
+/** Lignes des jeux retirés par la FDJ depuis plus d'un mois (même avec des tickets) : à enlever du comptage. */
+export function expiredRetiredLines(products: Product[], lines: CountLine[], today = new Date()): CountLine[] {
+  const cutoff = new Date(today);
+  cutoff.setDate(cutoff.getDate() - RETIRED_GRACE_DAYS);
+  const limit = localIsoDate(cutoff);
+  const expired = new Set(products.filter((p) => {
+    const f = effectiveFields(p);
+    return f.kind === 'jeu-fdj' && officialState(f, today) === 'retire' && f.retiredAt !== undefined && f.retiredAt <= limit;
+  }).map((p) => p.id));
+  return lines.filter((l) => l.gameId !== undefined && expired.has(l.gameId));
+}
